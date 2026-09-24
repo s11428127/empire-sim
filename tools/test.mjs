@@ -1309,6 +1309,194 @@ test('帝國地圖:點單獨一棟積木要開得出它自己的資訊', async (
   await page.__ctx.close();
 });
 
+test('帝國畫面層:季間過場只是重播,不可以改到任何數字、也不可以吃掉種子亂數', async (browser) => {
+  /* world3d.js 的規矩是「只讀 TY,然後畫」。最容易破的方式有兩種:
+       · 過場動畫裡順手改了某個欄位(數字就跟沒動畫時不一樣了)
+       · 畫面效果用了 tyRnd() —— 那是種子亂數,畫面拿走一個數字,
+         同一顆種子接下來的事件就全部錯位,「同種子 = 同結果」就壞了
+     所以這裡用同一顆種子跑兩次:一次按畫面上的「下一季」(會播過場),
+     一次直接呼叫 tyNext()。兩邊的整份狀態必須一模一樣。 */
+  const page = await freshPage(browser, { seed: SEED, hash: '#/tycoon' });
+  const r = await page.evaluate(async () => {
+    const out = {};
+    tyStart('heir', 9090); TY_MODAL = null; renderPage();
+    for (let i = 0; i < 4; i++) {
+      document.querySelector('.tg-go').click();
+      await new Promise(res => setTimeout(res, 30));
+    }
+    out.viaUI = JSON.stringify(TY);
+    out.banner = !!document.querySelector('#w3dFx .w3d-ban');
+    out.bannerTxt = document.querySelector('#w3dFx .w3d-ban')?.textContent || '';
+
+    tyStart('heir', 9090);
+    for (let i = 0; i < 4; i++) tyNext();
+    out.direct = JSON.stringify(TY);
+
+    // 重播本身也不可以改狀態:snap → tyNext → play,play 前後要一樣
+    const snap = W3D.snap();
+    tyNext();
+    const before = JSON.stringify(TY);
+    W3D.play(snap);
+    out.playSame = before === JSON.stringify(TY);
+    // 同一季重播(沒有前進)什麼都不做
+    const again = W3D.snap(); W3D.play(again);
+    out.noAdvanceSame = before === JSON.stringify(TY);
+    // 替身之下 3D 層不可以啟用(不然會對一個假的地球做 3D 運算)
+    out.w3dOk = W3D.ok;
+    return out;
+  });
+  ok(r.viaUI === r.direct, '按「下一季」(有過場)與直接 tyNext() 跑出來的狀態不一樣 —— 畫面層動到了規則或亂數');
+  ok(r.banner, '按下一季之後要出現季別橫幅');
+  ok(/身家/.test(r.bannerTxt) && /Q\d/.test(r.bannerTxt), `橫幅要講季別與身家變化:${r.bannerTxt}`);
+  ok(r.playSame, '重播過場之後 TY 被改掉了');
+  ok(r.noAdvanceSame, '沒有前進的時候重播也不可以改任何東西');
+  eq(r.w3dOk, false, '測試環境的地球是替身,3D 層不應該啟用');
+  ok(page.__errors.length === 0, `有 JS 錯誤:\n      ${page.__errors.join('\n      ')}`);
+  await page.__ctx.close();
+});
+
+test('帝國地圖:城市等級落在 1–10,錢越多等級越高;有據點的國家會被抬高', async (browser) => {
+  const page = await freshPage(browser, { seed: SEED, hash: '#/tycoon' });
+  const r = await page.evaluate(() => {
+    const vals = [0, 5e7, 1e8, 1e9, 1e10, 1e11, 3e11, 1e13];
+    const lv = vals.map(tySiteLv);
+    tyStart('heir', 42);
+    // 領土高度:有東西的國家要比沒東西的高,但不可以高到遮住旁邊的國家
+    const tw = tyIsoAlt('TW'), fr = tyIsoAlt('FR');
+    return { lv, tw, fr };
+  });
+  eq(r.lv[0], 1, '沒錢也是 1 級,不能是 0 或負數');
+  eq(r.lv[r.lv.length - 1], 10, '再多錢都封頂在 10 級');
+  ok(r.lv.every((v, i) => i === 0 || v >= r.lv[i - 1]), `等級要隨金額單調遞增:${r.lv}`);
+  ok(r.tw > r.fr, `有據點的台灣(${r.tw})應該被抬得比沒東西的法國(${r.fr})高`);
+  ok(r.tw <= .016, `領土最高不可以超過 .016,不然側面會遮住鄰國:${r.tw}`);
+  ok(page.__errors.length === 0, `有 JS 錯誤:\n      ${page.__errors.join('\n      ')}`);
+  await page.__ctx.close();
+});
+
+test('帝國部隊:招募有上限、要養、要走路,到了才有效果', async (browser) => {
+  const page = await freshPage(browser, { seed: SEED, hash: '#/tycoon' });
+  const r = await page.evaluate(() => {
+    const out = {};
+    tyStart('heir', 31337); TY.cash = 500e8;
+    // 上限:第七支要被擋,而且訊息要講出是編制滿了
+    for (let i = 0; i < 6; i++) tyRecruit(['raid','law','lobby','mgr','law','mgr'][i]);
+    out.n = TY.units.length;
+    out.seventh = tyRecruit('raid');
+    out.n7 = TY.units.length;
+    out.allHome = TY.units.every(u => u.site === TY.home && !u.to);
+
+    // 走路:台北 → 新竹同一區 1 季;台北 → 紐約 2 季
+    out.tpeHsz = tyTravel('tpe', 'hsz'); out.tpeNyc = tyTravel('tpe', 'nyc');
+
+    // 經理人派去紐約:路上不加成,到了才加
+    const mgr = TY.units.find(u => u.k === 'mgr');
+    const msg = tyDeploy(mgr.id, 'nyc');
+    out.depMsg = msg; out.eta = mgr.eta - TY.t; out.moving = mgr.to === 'nyc';
+    out.again = tyBlock('deploy', { u: mgr, site: 'nyc' });   // 已經在路上了
+    const cash0 = TY.cash, up = tyUnitUpkeep();
+    tyNext();
+    out.upkeepPaid = up > 0;
+    out.stillMoving = !!mgr.to;
+    tyNext();
+    out.arrived = mgr.site === 'nyc' && !mgr.to;
+
+    /* 律師團壓關注度。只比「部隊結算」這一步 —— 整季跑下來會有事件,
+       兩局的關注度本來就會被事件拉開,比不出律師團的效果。 */
+    tyStart('heir', 5); TY.cash = 100e8; TY.heat = 60;
+    tyRecruit('law'); tyRecruit('law');
+    tyUnitsTurn();
+    out.lawHeat = [TY.heat, 60];
+
+    // 併購小組削對手勢力 + 敵意收購加成
+    tyStart('heir', 8); TY.cash = 200e8;
+    const r1 = tyRival('r1');                 // 鄭天賜,大本營香港
+    const turf0 = tyTurf(r1, 'cn');
+    const odds0 = tyDealOdds('hostile', r1, tyDealPrice('hostile', r1));
+    tyRecruit('raid'); tyRecruit('raid');
+    TY.units.forEach(u => { u.site = 'hkg'; u.to = null; });
+    out.oddsUp = tyDealOdds('hostile', r1, tyDealPrice('hostile', r1)) - odds0;
+    tyUnitsTurn();
+    out.turfCut = turf0 - tyTurf(r1, 'cn');
+
+    // 每一顆部隊面板上的按鈕,畫面與引擎要一致
+    TY_MODAL = 'troop'; renderPage();
+    out.panel = document.querySelector('.tg-mb').innerHTML.length;
+    out.bad = [];
+    for (const b of document.querySelectorAll('.tg-mb [data-ty="recruit"]')) {
+      const blocked = tyBlock('recruit', b.dataset.k);
+      if (!b.disabled && blocked) out.bad.push('recruit 可以按但引擎擋');
+      if (b.disabled && !blocked) out.bad.push('recruit 是灰的但引擎讓過');
+    }
+    out.nav = !!document.querySelector('[data-ty="modal:troop"]');
+    return out;
+  });
+  eq(r.n, 6, '應該招得到六支');
+  eq(r.n7, 6, '第七支不應該招得到');
+  ok(/滿編/.test(r.seventh), `第七支被擋的訊息要講編制滿了:${r.seventh}`);
+  ok(r.allHome, '剛招募的部隊要在大本營待命');
+  eq([r.tpeHsz, r.tpeNyc], [1, 2], '同一區 1 季、跨洋 2 季');
+  ok(r.moving && r.eta === 2, `派去紐約應該在路上、2 季後到:${r.depMsg}`);
+  ok(r.again && /路上/.test(r.again), '已經在路上的部隊不能再派一次去同一個地方');
+  ok(r.upkeepPaid, '有部隊就要付維持費');
+  ok(r.stillMoving, '第一季還在路上');
+  ok(r.arrived, '第二季要抵達');
+  near(r.lawHeat[0], r.lawHeat[1] - 3, 1e-9, '兩位律師團一季要壓掉 3 點關注度');
+  ok(r.oddsUp > .15, `兩支併購小組駐在對手大本營,敵意收購的成功率要明顯變高:+${r.oddsUp}`);
+  near(r.turfCut, 6, .01, '兩支併購小組一季要削掉他 6 點勢力');
+  ok(r.panel > 1500, '部隊面板不可以是空的');
+  ok(r.bad.length === 0, r.bad.join(' / '));
+  ok(r.nav, '底部要有「部隊」這一格');
+  ok(page.__errors.length === 0, `有 JS 錯誤:\n      ${page.__errors.join('\n      ')}`);
+  await page.__ctx.close();
+});
+
+test('帝國部隊:對手會派兵打你,看得到它走過來,律師團擋得住', async (browser) => {
+  /* 對手出兵走的是 tyRivalTurn 裡「對你出手」那一支:關係差、而且比你大。
+     這裡把一個對手弄成死敵,跑到他出兵為止,然後比較「有沒有駐軍」的防守率。 */
+  const page = await freshPage(browser, { seed: SEED, hash: '#/tycoon' });
+  const r = await page.evaluate(() => {
+    const out = { seen: false };
+    let th = null;
+    for (let seed = 1; seed < 60 && !th; seed++) {
+      tyStart('heir', seed);
+      TY.t = 3;
+      for (const x of TY.rivals) { x.rel = -90; x.nw = 5000e8; x.agg = 1; }
+      for (let i = 0; i < 8 && !th; i++) { tyNext(); th = TY.threats[0] || null; }
+    }
+    if (!th) return out;
+    out.seen = true;
+    out.ahead = th.eta > TY.t;                         // 出發的那一刻就看得到,還沒到
+    out.onlyOne = TY.threats.filter(x => x.rid === th.rid).length === 1;
+    out.news = TY.news.some(n => /出兵/.test(n.title));
+    TY_MODAL = 'troop'; renderPage();
+    out.panelTxt = document.querySelector('.tg-mb').textContent;
+    const p0 = tyThreatBlock(th);
+    // 把兩支律師團直接放進那個地區
+    TY.cash += 50e8; tyRecruit('law'); tyRecruit('law');
+    TY.units.forEach(u => { u.site = th.site; u.to = null; });
+    out.p = [p0, tyThreatBlock(th)];
+    // 跑到它抵達,然後它就要從清單上消失(不管擋下還是被攻破)
+    const id = th.id;
+    for (let i = 0; i < 4 && TY.threats.some(x => x.id === id); i++) tyNext();
+    out.resolved = !TY.threats.some(x => x.id === id);
+    out.logged = TY.log.some(l => /擋下|攻進/.test(l.txt));
+    out.nan = !isFinite(tyNW());
+    return out;
+  });
+  ok(r.seen, '死敵而且比你大很多的對手,八季之內一定要出兵過一次');
+  ok(r.ahead, '部隊出發時要還沒到 —— 玩家要有時間反應');
+  ok(r.onlyOne, '同一個對手同時只派一支');
+  ok(r.news, '出兵要上快訊');
+  ok(/來襲/.test(r.panelTxt) && /防守率/.test(r.panelTxt), '部隊面板要列出來襲與防守率');
+  ok(r.p[1] > r.p[0] + .4, `兩支律師團要讓防守率明顯變高:${r.p}`);
+  ok(r.resolved, '抵達之後要判定,並從清單上移掉');
+  ok(r.logged, '判定結果要寫進大事記');
+  ok(!r.nan, '打完不可以生出 NaN');
+  ok(page.__errors.length === 0, `有 JS 錯誤:\n      ${page.__errors.join('\n      ')}`);
+  await page.__ctx.close();
+});
+
 /* =========================================================================
    跑
    ========================================================================= */
