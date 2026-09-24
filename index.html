@@ -9,6 +9,8 @@
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#0a0d12">
 <script src="https://unpkg.com/globe.gl"></script>
+<!-- 畫面層(3D 建築、傾斜鏡頭、季間過場)。只讀 TY、不碰規則,見檔頭註解 -->
+<script src="world3d.js"></script>
 
 <style>
   /* ═══════════════════════════════════════════════════════════════════
@@ -4429,6 +4431,58 @@
   #navTheme:hover{color:var(--g-ac);border-color:var(--g-ac)}
   @media (min-width:900px){ #navTheme{bottom:10px} }
 
+
+  /* ═══════════ world3d.js 的畫面層 ═══════════ */
+  /* 星空:地球後面不再是一片平的深藍。三層不同大小的點,錯開重複週期,
+     看起來就不會有明顯的格子感。 */
+  .tg-map{background:
+    radial-gradient(1px 1px at 23px 41px,rgba(255,255,255,.75),transparent 60%),
+    radial-gradient(1px 1px at 131px 97px,rgba(200,230,255,.6),transparent 60%),
+    radial-gradient(1.5px 1.5px at 77px 163px,rgba(255,255,255,.55),transparent 60%),
+    radial-gradient(1px 1px at 181px 19px,rgba(255,240,210,.5),transparent 60%),
+    radial-gradient(ellipse at 50% 42%,#0f2a40 0%,#08131c 60%,#040a10 100%);
+    background-size:211px 223px,173px 181px,239px 197px,151px 163px,100% 100%}
+  #tyGlobeHost{position:relative}
+  /* 3D 建築啟用:CSS 積木收起來,名牌從地面往下垂 */
+  #tyGlobeHost[data-w3d] .tyk .k-b{display:none}
+  #tyGlobeHost[data-w3d] .tyk:not(.rv):not(.idle){transform:translate(-50%,6px)}
+  #tyGlobeHost[data-w3d] .tyk.rv{transform:translate(-50%,6px)}
+  #tyGlobeHost[data-w3d] .tyk.rv .k-ic{display:none}
+  .tyk .k-lv{font-style:normal;display:inline-block;min-width:13px;margin-right:4px;
+    padding:0 3px;border-radius:3px;background:#e0b23c;color:#2a1c02;font-weight:800;
+    font-size:.9em;text-align:center;font-variant-numeric:tabular-nums}
+
+  /* 過場:季別橫幅 + 浮字。整層不吃點擊,不會擋住任何按鈕。 */
+  #w3dFx{position:absolute;inset:0;pointer-events:none;z-index:170;overflow:hidden}
+  .w3d-ban{position:absolute;left:50%;top:18%;transform:translate(-50%,0);
+    display:flex;flex-direction:column;align-items:center;gap:3px;text-align:center;
+    padding:12px 26px 13px;min-width:min(260px,80%);max-width:calc(100% - 32px);
+    background:linear-gradient(180deg,rgba(12,30,46,.92),rgba(8,20,31,.88));
+    border:1px solid rgba(224,178,60,.55);border-radius:8px;
+    box-shadow:0 10px 40px rgba(0,0,0,.55),inset 0 1px 0 rgba(255,255,255,.06);
+    animation:w3dIn .45s cubic-bezier(.2,1.4,.4,1) both;transition:opacity .5s,transform .5s}
+  .w3d-ban.out{opacity:0;transform:translate(-50%,-14px)}
+  .w3d-ban em{font-style:normal;font-size:11px;color:#9fb6c8;letter-spacing:.06em}
+  .w3d-ban b{font-size:26px;font-weight:800;letter-spacing:-.02em;color:#f4d27a;
+    text-shadow:0 2px 12px rgba(224,178,60,.35);font-variant-numeric:tabular-nums}
+  .w3d-ban span{font-size:13px;font-weight:700;font-variant-numeric:tabular-nums}
+  .w3d-ban span.up{color:var(--up,#ff453a)} .w3d-ban span.dn{color:var(--down,#30d158)}
+  .w3d-ban i{font-style:normal;font-size:11.5px;color:#d7e4ee;margin-top:3px;
+    max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  @keyframes w3dIn{from{opacity:0;transform:translate(-50%,16px) scale(.92)}
+                   to{opacity:1;transform:translate(-50%,0) scale(1)}}
+  .w3d-float{position:absolute;left:0;top:0;white-space:nowrap;font-size:12px;font-weight:800;
+    font-variant-numeric:tabular-nums;padding:2px 7px;border-radius:10px;
+    background:rgba(6,16,24,.82);border:1px solid currentColor;
+    text-shadow:0 1px 2px rgba(0,0,0,.7);will-change:transform,opacity}
+  .w3d-float.up{color:var(--up,#ff453a)} .w3d-float.dn{color:var(--down,#30d158)}
+  .w3d-float.rv{color:#ffd27a;font-weight:600;font-size:11px}
+  /* 資源列的數字變動時閃一下:漲紅跌綠,跟站上的漲跌色一致 */
+  .w3d-up{animation:w3dUp 1.4s ease-out}
+  .w3d-dn{animation:w3dDn 1.4s ease-out}
+  @keyframes w3dUp{0%,30%{color:var(--up,#ff453a);text-shadow:0 0 10px rgba(255,69,58,.6)}}
+  @keyframes w3dDn{0%,30%{color:var(--down,#30d158);text-shadow:0 0 10px rgba(48,209,88,.6)}}
+  @media (prefers-reduced-motion:reduce){ .w3d-ban{animation:none} }
 </style>
 </head>
 <body data-route="tycoon">
@@ -8058,6 +8112,10 @@ function tyGlobeAwake(on){
    跟光柱當初的問題一模一樣。
    狀態(st)是使用者要求的「一眼分辨資產或事業的狀態」:
      earn 這一季有現金流進來 / burn 還在燒錢 / pub 已經上市 / shell 空殼 / hold 控股層 */
+/* 城市等級 1–10 —— 參考的那款遊戲每座城旁邊都有一個「(8)」。
+   這裡的等級 = 你在那裡放了多少身家,log 壓縮:1 億是 1 級,每多約 2.4 倍升一級,
+   3000 億封頂。純顯示用,不參與任何計算。 */
+const tySiteLv = v => Math.max(1, Math.min(10, 1+Math.round((Math.log10(Math.max(1e8,v))-8)/3.5*9)));
 const tyFloors = v => Math.max(1, Math.min(7, 1+Math.round(Math.log10(Math.max(1,v/3e8))*2)));
 function tySiteBuildings(id){
   const t=tySiteStuff(id), out=[];
@@ -8179,7 +8237,15 @@ function tyGlobeData(){
              _alt:0.002, _rad:0.16+Math.sqrt(r.nw/rvMax)*0.22,
              _col:`rgba(${TY_RVCOL[r.id]||'160,160,170'},.85)` }; });
 
-  TYG.pointsData([...rest, ...pts, ...rv]);
+  /* 3D 層啟用時,我的據點與對手大本營是真的 3D 小城(world3d.js),
+     原本的扁圓柱地磚就不畫了 —— 兩個疊在一起會互相穿透。
+     建築要站在「那個國家被抬起來的高度」上,不然會埋進勢力圖層裡。 */
+  const w3=!!(window.W3D && W3D.ok);
+  if(w3){
+    for(const d of [...pts, ...rv]) d._base = tyIsoAlt(d.iso) + .0006;
+    W3D.sites(pts, rv);
+  }
+  TYG.pointsData(w3 ? rest : [...rest, ...pts, ...rv]);
 
   /* 控股鏈:每一家公司的利潤最後流去哪裡。這條弧線是整張地圖上最有意思的
      一條 —— 它把「一家在杜拜的建設公司,獲利掛在開曼」畫成一條看得見的線。 */
@@ -8199,7 +8265,7 @@ function tyGlobeData(){
     arcs.push({ startLat:from.lat, startLng:from.lng, endLat:to.lat, endLng:to.lng,
                 _c:['rgba(48,209,88,.12)','rgba(48,209,88,.7)'] });
   }
-  TYG.arcsData(arcs);
+  TYG.arcsData(window.W3D ? arcs.concat(W3D.extraArcs||[]) : arcs);
 
   if(typeof TYG.htmlElementsData==='function'){
     /* 名牌分道 —— 使用者說「建築物可以放在對應的位子不要重疊」。
@@ -8247,6 +8313,30 @@ function tyCountryColor(feat){
   return `rgba(41,151,255,${(.10+Math.sqrt(share)*.55).toFixed(3)})`;
 }
 
+/* 國家的高度 = 勢力。參考的那款遊戲裡「這塊地是誰的」一眼就看得出來,
+   因為領土是有厚度的。這裡把同一個數字(tyCountryColor 用的那個)
+   同時拿去決定高度:你有東西 / 誰的天下越穩,那一塊就被抬得越高。
+   ⚠ 上限約 .015 —— 再高的話側面會把旁邊的小國整個遮住。 */
+function tyIsoAlt(code){
+  const base=.004;
+  if(!TY || !code) return base;
+  if(TY_LAYER==='power'){
+    const site=TY_SITES.find(x=>x.iso===code);
+    if(!site) return base;
+    const o=tyRegOwner(site.reg);
+    return o.v>2 ? .005+Math.min(1,o.v/70)*.009 : base;
+  }
+  if(TY_LAYER==='econ') return .005;
+  const v=tyIsoSites(code).reduce((s,x)=>s+tySiteStuff(x.id).val,0);
+  if(v<=0) return base;
+  return .006+Math.sqrt(tyClamp(v/Math.max(1,tyNW()),0,1))*.008;
+}
+const tyCountryAlt = f => tyIsoAlt(iso(f));
+/* 側面比頂面深一點、不透明一點 —— 那就是「厚度」看起來的樣子 */
+/* 幾乎透明的國家(沒人管、你也沒東西)不畫側面,不然整片大陸都是一圈圈的鬼牆。 */
+const tyCountrySide = f => tyCountryColor(f).replace(/,([\d.]+)\)$/,
+  (m,a)=> (+a)<.09 ? ',0)' : `,${Math.min(.8,(+a)*2.1).toFixed(3)})`);
+
 function tyGlobeMount(){
   const fresh = !TYG;
   const slot=document.getElementById('tyGlobeSlot');
@@ -8264,9 +8354,9 @@ function tyGlobeMount(){
       .globeImageUrl(null)
       .hexPolygonResolution(3).hexPolygonMargin(0.62).hexPolygonAltitude(0.002)
       .polygonCapColor(tyCountryColor)
-      .polygonSideColor(()=> 'rgba(0,0,0,0)')
+      .polygonSideColor(tyCountrySide)
       .polygonStrokeColor(()=> 'rgba(125,200,245,.34)')
-      .polygonAltitude(0.008)
+      .polygonAltitude(tyCountryAlt)
       .onPolygonClick(f => tyPickIso(iso(f)))
       .pointLat('lat').pointLng('lng')
       .pointAltitude('_alt').pointRadius('_rad').pointColor('_col')
@@ -8278,7 +8368,10 @@ function tyGlobeMount(){
       .arcsTransitionDuration(400);
 
     if(typeof TYG.htmlElementsData==='function'){
-      TYG.htmlLat('lat').htmlLng('lng').htmlAltitude(d=>(d._alt||0)+0.016)
+      TYG.htmlLat('lat').htmlLng('lng')
+         /* 3D 建築啟用時名牌掛在地面、往下垂(建築本身往上長),
+            兩者才不會疊在一起。 */
+         .htmlAltitude(d=>(d._base && window.W3D && W3D.ok) ? d._base : (d._alt||0)+0.016)
          .htmlElement(d=>{
             const el=document.createElement('div');
             el.className='tyk'+(d._rival?' rv':'')+(d._idle?' idle':'');
@@ -8308,7 +8401,8 @@ function tyGlobeMount(){
               const ics=tySpecs(d.id).filter(k=>TY_SPEC[k]&&TY_SPEC[k].good)
                         .slice(0,2).map(k=>TY_SPEC[k].ic).join('');
               el.innerHTML=`<span class="k-b">${d._blds.map(tyBldHTML).join('')}</span>`
-                + `<b class="k-n">${ics?`<u class="k-s">${ics}</u>`:''}${escH(d.nm)}${
+                + `<b class="k-n"><em class="k-lv" title="城市等級">${tySiteLv(d._v)}</em>${
+                    ics?`<u class="k-s">${ics}</u>`:''}${escH(d.nm)}${
                     d._v>1?` <span>${tyM(d._v)}</span>`:''}</b>`;
               el.title=`${d.nm} · ${tyM(d._v)}\n`
                      + tySpecs(d.id).map(k=>`${TY_SPEC[k].ic} ${TY_SPEC[k].nm}`).join(' · ');
@@ -8342,9 +8436,14 @@ function tyGlobeMount(){
     TYG.controls().minDistance=106;
     TYG.controls().maxDistance=900;
     TYG.controls().zoomSpeed=1.5;
+    // 3D 建築、傾斜鏡頭、沙盤貼圖(見 world3d.js)。替身與舊版會安靜地不啟用。
+    if(window.W3D) W3D.attach(TYG);
     /* 鏡頭高度分三級,交給 CSS 決定哪些標記要收起來 / 放大。
        東亞那一團互相蓋住的城市名,九成是拉遠的時候才擠在一起的。 */
-    if(typeof TYG.onZoom==='function') TYG.onZoom(pov=>tyZoomTier(pov&&pov.altitude));
+    if(typeof TYG.onZoom==='function') TYG.onZoom(pov=>{
+      tyZoomTier(pov&&pov.altitude);
+      if(window.W3D) W3D.onZoom(pov);
+    });
     // 使用者一動就停止自轉,九秒沒動再轉回來 —— 跟主地球同一套手感
     ['pointerdown','wheel','touchstart'].forEach(e =>
       document.getElementById('tyGlobe').addEventListener(e, ()=>{
@@ -8366,6 +8465,7 @@ function tyGlobeMount(){
     TYG.pointOfView({ lat:home.lat, lng:home.lng, altitude:alt }, 0);
     tyZoomTier(alt);
   }
+  if(window.W3D) W3D.attach(TYG);
   tyPaintGlobe();
   tyGlobeData();
   tyGlobeAwake(true);
@@ -8418,7 +8518,9 @@ function tyFitAlt(mult){
 function tyZoom(dir){
   if(!TYG) return;
   try{
-    const pov=TYG.pointOfView();
+    /* 傾斜鏡頭之下 pointOfView() 讀到的是「往南挪過」的實際位置,
+       拿它算的話每按一次畫面就往南漂一點 —— 要用邏輯位置(W3D.pov)。 */
+    const pov=(window.W3D && W3D.pov()) || TYG.pointOfView();
     const alt=tyClamp(pov.altitude*(dir>0?1.55:1/1.55), 0.06, 4.2);
     TYG.controls().autoRotate=false;
     TYG.pointOfView({ lat:pov.lat, lng:pov.lng, altitude:alt }, 320);
@@ -8434,6 +8536,12 @@ function tyZoom(dir){
 function tyPaintGlobe(){
   if(!TYG) return;
   try{
+    // 有沙盤貼圖就讓貼圖自己的顏色出來(見 W3D.material 的註解)
+    if(window.W3D && W3D.material()){
+      TYG.atmosphereColor('#6fd0ff').atmosphereAltitude(0.18);
+      TYG.polygonStrokeColor(()=> 'rgba(225,240,250,.16)');
+      return;
+    }
     const m=TYG.globeMaterial();
     m.color && m.color.set('#07141f');
     m.emissive && m.emissive.set('#030d16');
@@ -9356,7 +9464,7 @@ function bindTycoon(root){
       renderPage(); return;
     }
     if(a==='tab'){ TY_MODAL=b.dataset.k; renderPage(); return; }
-    if(a==='layer'){ TY_LAYER=b.dataset.k; if(TYG) TYG.polygonCapColor(tyCountryColor); renderPage(); return; }
+    if(a==='layer'){ TY_LAYER=b.dataset.k; if(TYG) TYG.polygonCapColor(tyCountryColor).polygonSideColor(tyCountrySide).polygonAltitude(tyCountryAlt); renderPage(); return; }
     if(a==='zoomin'||a==='zoomout'){ tyZoom(a==='zoomin'?-1:1); return; }
     if(a==='ranktab'){ TY_RANK=b.dataset.k; renderPage(); if(TY_RANK==='real') loadRich(); return; }
     if(a==='rival'){ TY_RIVAL = TY_RIVAL===b.dataset.k ? null : b.dataset.k; TY_DEAL=null; renderPage(); return; }
@@ -9368,7 +9476,15 @@ function bindTycoon(root){
        可以有很多個對象(每一家公司一個「加碼多少」)。 */
     if(a==='pamt'){ TY_PAMT[b.dataset.k]=+b.dataset.v; renderPage(); return; }
     if(a==='exp'){ TY_EXP = TY_EXP===b.dataset.k ? null : b.dataset.k; renderPage(); return; }
-    if(a==='next'){ TY_MSG=''; tyNext(); renderPage(); return; }
+    /* 下一季:狀態先變、畫面後到。snap 記下「之前」,play 把差別演出來
+       (數字跳動、據點浮出賺賠、對手擴張的弧線)。演出只是重播,不影響任何數字。 */
+    if(a==='next'){
+      TY_MSG='';
+      const snap=window.W3D ? W3D.snap() : null;
+      tyNext(); renderPage();
+      if(snap) W3D.play(snap);
+      return;
+    }
     if(a==='restart'||a==='quit'){
       /* 放棄要確認 —— 這是這一頁唯一一個「按下去就回不去」的動作。
          用瀏覽器原生的 confirm,跟站上刪除持倉那裡同一種作法。 */

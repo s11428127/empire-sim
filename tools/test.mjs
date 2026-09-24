@@ -1309,6 +1309,71 @@ test('帝國地圖:點單獨一棟積木要開得出它自己的資訊', async (
   await page.__ctx.close();
 });
 
+test('帝國畫面層:季間過場只是重播,不可以改到任何數字、也不可以吃掉種子亂數', async (browser) => {
+  /* world3d.js 的規矩是「只讀 TY,然後畫」。最容易破的方式有兩種:
+       · 過場動畫裡順手改了某個欄位(數字就跟沒動畫時不一樣了)
+       · 畫面效果用了 tyRnd() —— 那是種子亂數,畫面拿走一個數字,
+         同一顆種子接下來的事件就全部錯位,「同種子 = 同結果」就壞了
+     所以這裡用同一顆種子跑兩次:一次按畫面上的「下一季」(會播過場),
+     一次直接呼叫 tyNext()。兩邊的整份狀態必須一模一樣。 */
+  const page = await freshPage(browser, { seed: SEED, hash: '#/tycoon' });
+  const r = await page.evaluate(async () => {
+    const out = {};
+    tyStart('heir', 9090); TY_MODAL = null; renderPage();
+    for (let i = 0; i < 4; i++) {
+      document.querySelector('.tg-go').click();
+      await new Promise(res => setTimeout(res, 30));
+    }
+    out.viaUI = JSON.stringify(TY);
+    out.banner = !!document.querySelector('#w3dFx .w3d-ban');
+    out.bannerTxt = document.querySelector('#w3dFx .w3d-ban')?.textContent || '';
+
+    tyStart('heir', 9090);
+    for (let i = 0; i < 4; i++) tyNext();
+    out.direct = JSON.stringify(TY);
+
+    // 重播本身也不可以改狀態:snap → tyNext → play,play 前後要一樣
+    const snap = W3D.snap();
+    tyNext();
+    const before = JSON.stringify(TY);
+    W3D.play(snap);
+    out.playSame = before === JSON.stringify(TY);
+    // 同一季重播(沒有前進)什麼都不做
+    const again = W3D.snap(); W3D.play(again);
+    out.noAdvanceSame = before === JSON.stringify(TY);
+    // 替身之下 3D 層不可以啟用(不然會對一個假的地球做 3D 運算)
+    out.w3dOk = W3D.ok;
+    return out;
+  });
+  ok(r.viaUI === r.direct, '按「下一季」(有過場)與直接 tyNext() 跑出來的狀態不一樣 —— 畫面層動到了規則或亂數');
+  ok(r.banner, '按下一季之後要出現季別橫幅');
+  ok(/身家/.test(r.bannerTxt) && /Q\d/.test(r.bannerTxt), `橫幅要講季別與身家變化:${r.bannerTxt}`);
+  ok(r.playSame, '重播過場之後 TY 被改掉了');
+  ok(r.noAdvanceSame, '沒有前進的時候重播也不可以改任何東西');
+  eq(r.w3dOk, false, '測試環境的地球是替身,3D 層不應該啟用');
+  ok(page.__errors.length === 0, `有 JS 錯誤:\n      ${page.__errors.join('\n      ')}`);
+  await page.__ctx.close();
+});
+
+test('帝國地圖:城市等級落在 1–10,錢越多等級越高;有據點的國家會被抬高', async (browser) => {
+  const page = await freshPage(browser, { seed: SEED, hash: '#/tycoon' });
+  const r = await page.evaluate(() => {
+    const vals = [0, 5e7, 1e8, 1e9, 1e10, 1e11, 3e11, 1e13];
+    const lv = vals.map(tySiteLv);
+    tyStart('heir', 42);
+    // 領土高度:有東西的國家要比沒東西的高,但不可以高到遮住旁邊的國家
+    const tw = tyIsoAlt('TW'), fr = tyIsoAlt('FR');
+    return { lv, tw, fr };
+  });
+  eq(r.lv[0], 1, '沒錢也是 1 級,不能是 0 或負數');
+  eq(r.lv[r.lv.length - 1], 10, '再多錢都封頂在 10 級');
+  ok(r.lv.every((v, i) => i === 0 || v >= r.lv[i - 1]), `等級要隨金額單調遞增:${r.lv}`);
+  ok(r.tw > r.fr, `有據點的台灣(${r.tw})應該被抬得比沒東西的法國(${r.fr})高`);
+  ok(r.tw <= .016, `領土最高不可以超過 .016,不然側面會遮住鄰國:${r.tw}`);
+  ok(page.__errors.length === 0, `有 JS 錯誤:\n      ${page.__errors.join('\n      ')}`);
+  await page.__ctx.close();
+});
+
 /* =========================================================================
    跑
    ========================================================================= */
