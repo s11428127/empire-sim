@@ -589,6 +589,11 @@ W3D.rings = function(){
     const s = tySite(TY_SEL);
     out.push({ lat: s.lat, lng: s.lng, _rgb: '79,195,247', _a: .95, _r: 1.8, _v: 2.4, _p: 800 });
   }
+  /* 對手的部隊正往這裡來:目標城市一圈紅色警報,越接近抵達跳得越快 */
+  if(typeof tyThreats === 'function') for(const th of tyThreats()){
+    const s = tySite(th.site), left = Math.max(0, th.eta - TY.t);
+    out.push({ lat: s.lat, lng: s.lng, _rgb: '255,69,58', _a: .95, _r: 3.4, _v: 3, _p: left <= 1 ? 600 : 1200 });
+  }
   G.ringsData(out.concat(W3D.extraRings));
 };
 
