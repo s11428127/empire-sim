@@ -1,0 +1,15 @@
+name = "empire-sim"
+main = "worker.js"
+compatibility_date = "2026-09-24"
+
+# 靜態檔案(index.html 等)交給這個 binding,worker.js 裡沒攔到的路徑
+# 都會轉交給它。
+#
+# ⚠ 這個專案是用 Workers Builds 從 Git 部署的,而 wrangler.toml 是
+#   「唯一事實來源」—— 每次 git push 觸發部署,Cloudflare 會用這個檔案重建
+#   整份設定,Dashboard 上手動加的東西會被清掉。要改設定就改這裡。
+[assets]
+directory = "./"
+binding = "ASSETS"
+
+# 這個專案沒有 KV、沒有密鑰、也沒有任何使用者資料。

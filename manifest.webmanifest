@@ -1,0 +1,13 @@
+{
+  "name": "帝國 —— 富豪養成模擬器",
+  "short_name": "帝國",
+  "description": "一局十年,四十季。買事業、發債、質押借款、跟對手併購,跑完看你排到真實富豪榜第幾名。這裡的錢全部是假的。",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0b1620",
+  "theme_color": "#0b1620",
+  "lang": "zh-Hant",
+  "icons": []
+}

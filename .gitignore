@@ -1,0 +1,11 @@
+# 系統 / 編輯器
+.DS_Store
+Thumbs.db
+node_modules/
+
+# tools/shots 的輸出(截圖只是拿來看的,不進版控)
+.shots/
+
+# 金鑰(這個專案目前一支都沒有,這行是防手滑)
+.env
+.env.*
