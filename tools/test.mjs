@@ -1562,6 +1562,37 @@ test('帝國地圖:點任何一個國家都要看得到經濟、政策、勢力 
   await page.__ctx.close();
 });
 
+test('帝國地圖:每座城市都有真實邊界與地標,每個國家都歸得到經濟圈', async (browser) => {
+  /* 使用者:「城市範圍是城市的真實邊界」「每個城市都可以有地標」「地區景氣可以用顏色的程度來區分」。
+     cities.json 是從 Natural Earth 的都市範圍擷取的,要驗:44 座都有、而且邊界真的在那座城市旁邊
+     (擷取程式寫錯的話,最常見的是全部變成空陣列,或抓到別的城市)。 */
+  const cities = JSON.parse(fs.readFileSync(path.join(ROOT, 'cities.json'), 'utf8'));
+  const page = await freshPage(browser, { seed: SEED, hash: '#/tycoon' });
+  const r = await page.evaluate(() => {
+    tyStart('heir', 5);
+    const ph = { type: 'Feature', properties: { ISO_A2: 'PH', NAME: 'Philippines' },
+      geometry: { type: 'Polygon', coordinates: [[[120, 7], [126, 7], [126, 18], [120, 18], [120, 7]]] } };
+    return { sites: TY_SITES.map(s => ({ id: s.id, lat: s.lat, lng: s.lng, lm: W3D.landmarkName(s.id) })),
+             ph: tyIsoReg('PH', ph),
+             steps: TY_ECON_STEPS.map(x => x.min) };
+  });
+  const miss = [], far = [];
+  for (const s of r.sites) {
+    const rings = cities[s.id];
+    if (!rings || !rings.length) { miss.push(s.id); continue; }
+    const d = Math.min(...rings.flat().map(([x, y]) => Math.hypot(x - s.lng, y - s.lat)));
+    if (d > 1) far.push(`${s.id}(${d.toFixed(2)}°)`);
+  }
+  ok(miss.length === 0, `這些城市沒有邊界:${miss.join(', ')}`);
+  ok(far.length === 0, `這些城市的邊界離城市太遠(抓錯城市了):${far.join(', ')}`);
+  const noLm = r.sites.filter(s => !s.lm).map(s => s.id);
+  ok(noLm.length === 0, `這些城市沒有地標:${noLm.join(', ')}`);
+  eq(r.ph, 'apac', '菲律賓要歸到東南亞,不可以因為離台北近就被算成台灣的景氣');
+  ok(r.steps.every((v, i) => i === 0 || v < r.steps[i - 1]), `景氣色階要由熱到冷排好:${r.steps}`);
+  ok(page.__errors.length === 0, `有 JS 錯誤:\n      ${page.__errors.join('\n      ')}`);
+  await page.__ctx.close();
+});
+
 /* =========================================================================
    跑
    ========================================================================= */

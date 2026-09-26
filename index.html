@@ -4622,6 +4622,17 @@
   .w3d-hover .lv{font-style:normal;font-size:11px;padding:0 5px;border-radius:3px;background:#e0b23c;color:#2a1c02;margin-left:4px}
   .w3d-hover .dim{color:#8aa3b8}
   @media (min-width:900px){ .w3d-hover{font-size:13.5px} .w3d-hover b{font-size:16px} }
+
+  /* 地圖上的字:參考畫面那種白字 + 黑色描邊。第一版是灰藍色的字直接印在綠地上,
+     使用者說「顏色都太不明顯」。 */
+  .tyk.idle,.tyk.idle:hover{opacity:1}
+  .tyk.idle .k-n,.tyk.rv .k-n{color:#fff;font-weight:600;
+    text-shadow:0 0 2px #000,0 0 3px #000,0 1px 3px rgba(0,0,0,.95),0 0 6px rgba(0,0,0,.6)}
+  .tyk.rv .k-n{color:#ffe3a3}
+  #tyGlobeHost[data-z="near"] .tyk.idle{opacity:1}
+  .tyk .k-n{box-shadow:0 1px 5px rgba(0,0,0,.6)}
+  /* 3D 模式:每座城市正中央站著它的地標,還沒進場的城市名改掛在地標下面 */
+  #tyGlobeHost[data-w3d] .tyk.idle{transform:translate(-50%,10px)}
 </style>
 </head>
 <body data-route="tycoon">
@@ -8630,6 +8641,7 @@ function tyLanes(list){
 
 /* 光柱高度:用平方根壓縮。線性的話最大的那一根會有一百倍高,
    其他全部貼在地表上看不見 —— 這個網站的持股光柱也是同一個理由。 */
+let TYG_SIG='';
 function tyGlobeData(){
   if(!TYG) return;
   const mine=tyMySites(), mineSet=new Set(mine.map(s=>s.id));
@@ -8663,10 +8675,21 @@ function tyGlobeData(){
      原本的扁圓柱地磚就不畫了 —— 兩個疊在一起會互相穿透。
      建築要站在「那個國家被抬起來的高度」上,不然會埋進勢力圖層裡。 */
   const w3=!!(window.W3D && W3D.ok);
+  /* 地圖上的東西沒變就不要重建。每點一顆按鈕都會 renderPage → 這裡,
+     原本每次都把所有 3D 建築、名牌、部隊整批拆掉重蓋 —— 使用者說的「操作很卡」
+     有一大半是這個。簽章只放「畫面上看得出差別」的東西。 */
+  const troopsNow=tyTroopMarks();
+  const sig=JSON.stringify([TY.t, TY_LAYER, TY_SEL, TY.holdco, (window.W3D&&W3D.ok)?1:0,
+    pts.map(d=>[d.id,d._cat,Math.round(d._v/1e6),d._blds.map(b=>b.c+b.f+(b.st||'')).join()]),
+    rv.map(d=>[d._rival.id,Math.round(d._v/1e7),Math.sign(Math.trunc((d._rival.rel||0)/20))]),
+    troopsNow.map(t=>t._k+':'+(t._mv||'')+':'+(t._units?t._units.map(u=>u.k).join():'')),
+    Object.keys(TY.partners||{}), (window.W3D&&W3D.extraArcs||[]).length]);
+  if(w3 && sig===TYG_SIG){ W3D.rings(); W3D.repaint(); return; }
+  TYG_SIG=sig;
   if(w3){
     // 國界與勢力已經畫進貼圖(地表是平的),建築直接站在地面上
     for(const d of [...pts, ...rv]) d._base = W3D.textured ? .0008 : tyIsoAlt(d.iso) + .0006;
-    W3D.sites(pts, rv, tyTroopMarks());
+    W3D.sites(pts, rv, troopsNow);
     W3D.repaint();
   }
   TYG.pointsData(w3 ? rest : [...rest, ...pts, ...rv]);
@@ -8753,14 +8776,58 @@ function tyTroopMarks(){
    不然「這塊地是誰的」要靠記名字。 */
 const TY_RVCOL = { r1:'255,149,0', r2:'94,132,255', r3:'52,199,89',
                    r4:'255,214,10', r5:'191,90,242', r6:'255,105,160' };
+/* 這個國家屬於哪一個經濟圈。有城市的直接用城市的;沒有城市的(蒙古、哈薩克…)
+   歸到國土中心最近的那座城市的地區。算一次就記住 —— 國家不會搬家。
+   使用者要的是「整張地圖都有顏色」,而不是只有 44 座城市所在的國家有。 */
+const TY_ISO_REG={};
+/* 「離哪座城市最近」會算錯的國家,直接指定。例如菲律賓的國土中心離香港最近,
+   但它的經濟跟東南亞是一體的;巴基斯坦離杜拜最近,但它是南亞。 */
+const TY_ISO_REG_FIX={
+  PH:'apac', MY:'apac', MM:'apac', KH:'apac', LA:'apac', BN:'apac', TL:'apac', PG:'apac', NZ:'apac', FJ:'apac',
+  MN:'cn', KP:'cn', MO:'cn',
+  PK:'sa', BD:'sa', LK:'sa', NP:'sa', BT:'sa', AF:'sa', MV:'sa',
+  RU:'eu', UA:'eu', BY:'eu', GL:'na',
+  IR:'me', IQ:'me', KW:'me', BH:'me', OM:'me', YE:'me', JO:'me', SY:'me', LB:'me', TR:'me', EG:'me',
+};
+function tyIsoReg(code, f){
+  const key=code && code!=='-99' ? code : (f && f.properties && f.properties.NAME) || '';
+  if(!key) return null;
+  if(key in TY_ISO_REG) return TY_ISO_REG[key];
+  const here=TY_SITES.find(s=>s.iso===code);
+  let reg=here ? here.reg : (TY_ISO_REG_FIX[code] || null);
+  if(!reg){
+    const c=tyIsoCenter(code, f);
+    /* ⚠ 台灣與境外金融中心是「一國一區」的地區,不能把鄰國吸進來 ——
+       不然菲律賓會因為離台北最近,被算成台灣的景氣。 */
+    if(c){ let bd=1e9; for(const s of TY_SITES){ if(s.reg==='off'||s.reg==='tw') continue; const d=tyKm(c,s); if(d<bd){ bd=d; reg=s.reg; } } }
+    // 太遠的(離任何一座城市超過 4000 公里,例如格陵蘭)不硬塞進某個經濟圈
+    if(reg && c){ const near=Math.min(...TY_SITES.filter(s=>s.reg===reg).map(s=>tyKm(c,s))); if(near>4000) reg=null; }
+  }
+  return (TY_ISO_REG[key]=reg);
+}
+/* 地區景氣的五級色階:跟**全球平均**比(不是跟開局比 —— 十年下來每一區都漲,
+   跟開局比的話後期整張地圖都是紅的,看不出誰強誰弱)。紅是熱、綠是冷,跟站上的漲跌色一致。 */
+const TY_ECON_STEPS=[
+  { min:.12,  c:'214,48,39',   a:.62, nm:'大熱' },
+  { min:.04,  c:'244,109,67',  a:.5,  nm:'偏熱' },
+  { min:-.04, c:'254,224,139', a:.36, nm:'持平' },
+  { min:-.12, c:'102,189,99',  a:.5,  nm:'偏冷' },
+  { min:-9,   c:'26,152,80',   a:.62, nm:'大冷' },
+];
+function tyEconRel(reg){
+  const ks=Object.keys(TY_REGIONS).filter(k=>k!=='off');
+  const avg=ks.reduce((s,k)=>s+tyRegIdx(k),0)/ks.length;
+  return tyRegIdx(reg)/Math.max(.01,avg)-1;
+}
+const tyEconStep = reg => { const d=tyEconRel(reg); return TY_ECON_STEPS.find(x=>d>=x.min); };
 function tyCountryColor(feat){
   const code=iso(feat);
   if(TY_LAYER==='power'){
     /* 勢力範圍:這個地區現在是誰的天下。你是藍的,對手各有各的顏色。
        深淺 = 領先者的勢力有多強。 */
-    const site=TY_SITES.find(x=>x.iso===code);
-    if(!site) return 'rgba(150,180,205,.05)';
-    const o=tyRegOwner(site.reg);
+    const reg=tyIsoReg(code, feat);
+    if(!reg) return 'rgba(150,180,205,.05)';
+    const o=tyRegOwner(reg);
     /* ⚠ 上限 .34 不是隨便挑的:再深一點整片國家會變成實色,
        國界、你自己的建築、地名全部被蓋掉 —— 那就不是地圖了。 */
     const a=(.07+Math.min(1,o.v/70)*.27).toFixed(3);
@@ -8768,13 +8835,10 @@ function tyCountryColor(feat){
     return `rgba(${TY_RVCOL[o.r.id]||'200,200,210'},${a})`;
   }
   if(TY_LAYER==='econ'){
-    const site=TY_SITES.find(s=>s.iso===code);
-    if(!site) return 'rgba(150,180,205,.07)';
-    const i=tyRegIdx(site.reg);
-    // >1 暖色(這個地區在漲)、<1 冷色。跟站上漲跌色一致:紅是漲。
-    const d=tyClamp((i-1)*2.2, -1, 1);
-    return d>=0 ? `rgba(255,69,58,${(.06+d*.34).toFixed(3)})`
-                : `rgba(48,209,88,${(.06-d*.34).toFixed(3)})`;
+    const reg=tyIsoReg(code, feat);
+    if(!reg) return 'rgba(150,180,205,.05)';
+    const st=tyEconStep(reg);
+    return `rgba(${st.c},${st.a})`;
   }
   const nw=Math.max(1,tyNW());
   const v=tyIsoSites(code).reduce((s,x)=>s+tySiteStuff(x.id).val,0);
@@ -9171,15 +9235,8 @@ function tyIsoCenter(code, f){
 function tyIsoInfo(code, f){
   if(!TY) return null;
   const here=TY_SITES.filter(s=>s.iso===code);
-  let reg=null, near=false;
-  if(here.length) reg=here[0].reg;
-  else{
-    const c=tyIsoCenter(code, f); if(!c) return null;
-    let best=null, bd=1e9;
-    for(const s of TY_SITES){ if(s.reg==='off') continue; const d=tyKm(c, s); if(d<bd){ bd=d; best=s; } }
-    if(!best) return null;
-    reg=best.reg; near=true;
-  }
+  const reg=tyIsoReg(code, f), near=!here.length;
+  if(!reg) return null;
   const R=TY_REGIONS[reg], st=TY.reg[reg], idx=tyRegIdx(reg), own=tyRegOwner(reg);
   const pol=R.pol||0;
   const board=[{ nm:'你', v:tyMyTurf(reg), col:'41,151,255', me:true },
@@ -9948,7 +10005,10 @@ function tycoonPage(){
         <button type="button" class="tg-c${TY_LAYER==='mine'?' on':''}" data-ty="layer" data-k="mine">我的資產</button>
         <button type="button" class="tg-c${TY_LAYER==='econ'?' on':''}" data-ty="layer" data-k="econ">地區景氣</button>
         <button type="button" class="tg-c${TY_LAYER==='power'?' on':''}" data-ty="layer" data-k="power">勢力範圍</button>
-        ${TY_LAYER==='power'
+        ${TY_LAYER==='econ'
+          ? `<span class="lg">${TY_ECON_STEPS.map(x=>`<b class="lg-b" style="background:rgb(${x.c})"></b>${x.nm}`).join('')}
+             <span class="lg-s">顏色 = 這個地區的景氣跟全球平均比 · 紅熱綠冷</span></span>`
+          : TY_LAYER==='power'
           ? `<span class="lg"><b class="lg-b" style="background:#2997ff"></b>你${
               tyRivalsA().map(r=>`<b class="lg-b" style="background:rgb(${TY_RVCOL[r.id]})"></b>${escH(r.nm)}`).join('')}
              <span class="lg-s">顏色 = 那個地區現在是誰的天下 · 越深勢力越大</span></span>`
