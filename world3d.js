@@ -31,7 +31,9 @@
 'use strict';
 
 const R = 100;                                  // globe.gl 的球半徑
-const TILT_MAX = 56 * Math.PI / 180;           // 貼到最近時鏡頭壓多低
+/* 貼到最近時鏡頭壓多低。第一版 56°,使用者說「太斜了,要第一張圖那樣」——
+   參考畫面幾乎是正上方俯視,只帶一點點透視。 */
+const TILT_MAX = 20 * Math.PI / 180;
 const W3D = window.W3D = {
   ok: false,          // 3D 建築層有沒有啟用
   textured: false,    // 地球貼圖畫好了沒
@@ -79,7 +81,9 @@ function grabThree(){
     const t = {
       BG, O3, Mesh: mesh.constructor, Phong: gm.constructor,
       Attr: geo.getAttribute('position').constructor,
-      Color: gm.color.constructor,
+      /* ⚠ 有貼圖之後 three-globe 會把 color 設成 null(不要染色),所以要從
+         emissive 撿 —— 它一樣是 Color。第一版只看 color,換上貼圖之後整個 3D 層就不見了。 */
+      Color: (gm.color || gm.emissive || gm.specular).constructor,
     };
     // 一個一個驗明正身：名字被壓縮器改掉了，只能看 type
     if(new t.BG().type !== 'BufferGeometry') return null;
@@ -92,104 +96,217 @@ function grabThree(){
 }
 
 /* =============================================================================
-   1. 地球的皮
+   1. 地球的皮 —— 參考那款遊戲的「綠陸藍海」戰略地圖
    -----------------------------------------------------------------------------
-   一張等距圓柱投影的貼圖：x = 經度、y = 緯度。
-   畫的順序就是一張手繪沙盤的順序 —— 深海 → 大陸棚的淺色光暈 → 陸地底色
-   → 依緯度疊上的地貌色帶（極地、針葉林、溫帶、沙漠帶、雨林）→ 雜點質感
-   → 海岸線。國界不畫在貼圖上，那是 globe.gl 的多邊形層的工作。
+   使用者看完第一版說：「國家陸地的輪廓精細一點」「太斜了，我要第一張圖那樣」。
+   第一版的問題有兩個：
+     · 國界用的是 1:1.1 億（110m）的資料，台灣只剩一個五邊形
+     · 勢力是一塊一塊「抬起來」的半透明多邊形 —— 貼近看像一塊藍色果凍
+   所以整個換掉：**國界、海岸線、勢力顏色全部直接畫進貼圖**，地球表面就是一張
+   地圖，不再有浮在上面的多邊形。資料換成 world-atlas 的 50m（手機）/ 10m（桌機），
+   載不到就退回原本的 110m —— 畫面粗一點，但不會壞。
+
+   貼圖分兩層：
+     base  海、大陸棚、陸地的綠色與森林顆粒、海岸線 —— 只畫一次
+     top   base + 各國勢力的顏色 + 國界線 —— 圖層或勢力變了才重畫
    ============================================================================= */
-function landPath(ctx, feats, W, H){
-  const X = lng => (lng + 180) / 360 * W, Y = lat => (90 - lat) / 180 * H;
-  ctx.beginPath();
-  for(const f of feats){
-    const g = f.geometry; if(!g) continue;
-    const polys = g.type === 'Polygon' ? [g.coordinates] : g.type === 'MultiPolygon' ? g.coordinates : [];
-    for(const poly of polys) for(const ring of poly){
-      ring.forEach(([lng,lat], i) => i ? ctx.lineTo(X(lng), Y(lat)) : ctx.moveTo(X(lng), Y(lat)));
-      ctx.closePath();
+
+/* world-atlas 用 ISO 數字碼，遊戲用兩碼英文（iso() 讀 ISO_A2）。對照表由
+   i18n-iso-countries 產生，只收 world-atlas 裡真的出現的國家。 */
+const ISO_NUM = Object.fromEntries('360:ID,458:MY,152:CL,68:BO,604:PE,32:AR,196:CY,356:IN,156:CN,376:IL,275:PS,422:LB,231:ET,728:SS,706:SO,404:KE,586:PK,454:MW,834:TZ,760:SY,250:FR,740:SR,328:GY,410:KR,408:KP,504:MA,732:EH,188:CR,558:NI,178:CG,180:CD,64:BT,804:UA,112:BY,516:NA,710:ZA,663:MF,534:SX,512:OM,860:UZ,398:KZ,762:TJ,440:LT,76:BR,858:UY,496:MN,643:RU,203:CZ,276:DE,233:EE,428:LV,578:NO,752:SE,246:FI,704:VN,116:KH,442:LU,784:AE,56:BE,268:GE,807:MK,8:AL,31:AZ,792:TR,724:ES,418:LA,417:KG,51:AM,208:DK,434:LY,788:TN,642:RO,348:HU,703:SK,616:PL,372:IE,826:GB,300:GR,894:ZM,694:SL,324:GN,430:LR,140:CF,729:SD,262:DJ,232:ER,40:AT,368:IQ,380:IT,756:CH,364:IR,528:NL,438:LI,384:CI,688:RS,466:ML,686:SN,566:NG,204:BJ,24:AO,191:HR,705:SI,634:QA,682:SA,72:BW,716:ZW,100:BG,764:TH,674:SM,332:HT,214:DO,148:TD,414:KW,222:SV,320:GT,626:TL,96:BN,492:MC,12:DZ,508:MZ,748:SZ,108:BI,646:RW,104:MM,50:BD,20:AD,4:AF,499:ME,70:BA,800:UG,192:CU,340:HN,218:EC,170:CO,600:PY,620:PT,498:MD,795:TM,400:JO,524:NP,426:LS,120:CM,266:GA,562:NE,854:BF,768:TG,288:GH,624:GW,292:GI,840:US,124:CA,484:MX,84:BZ,591:PA,862:VE,598:PG,818:EG,887:YE,478:MR,226:GQ,270:GM,344:HK,336:VA,10:AQ,36:AU,304:GL,242:FJ,554:NZ,540:NC,450:MG,608:PH,144:LK,531:CW,533:AW,44:BS,796:TC,158:TW,392:JP,666:PM,352:IS,612:PN,258:PF,260:TF,690:SC,296:KI,584:MH,780:TT,308:GD,670:VC,52:BB,662:LC,212:DM,581:UM,500:MS,28:AG,659:KN,850:VI,652:BL,630:PR,660:AI,92:VG,388:JM,136:KY,60:BM,334:HM,654:SH,480:MU,174:KM,678:ST,132:CV,470:MT,832:JE,831:GG,833:IM,248:AX,234:FO,86:IO,702:SG,574:NF,184:CK,776:TO,876:WF,882:WS,90:SB,798:TV,462:MV,520:NR,583:FM,239:GS,238:FK,548:VU,570:NU,16:AS,585:PW,316:GU,580:MP,48:BH,446:MO'.split(',').map(p => p.split(':')));
+
+const ATLAS = small => small
+  ? ['https://unpkg.com/world-atlas@2/countries-50m.json',
+     'https://cdn.jsdelivr.net/npm/world-atlas@2/countries-50m.json']
+  : ['https://unpkg.com/world-atlas@2/countries-10m.json',
+     'https://cdn.jsdelivr.net/npm/world-atlas@2/countries-10m.json',
+     'https://unpkg.com/world-atlas@2/countries-50m.json'];
+
+/* TopoJSON → GeoJSON。不引入 topojson-client：用到的只有「弧線還原」這一件事，
+   四十行寫得完，多一個 CDN 依賴就多一個會壞的地方。 */
+function topoFeatures(topo){
+  const tf = topo.transform, obj = topo.objects.countries;
+  const arcs = topo.arcs.map(a => {
+    let x = 0, y = 0;
+    return a.map(p => tf
+      ? [ (x += p[0]) * tf.scale[0] + tf.translate[0], (y += p[1]) * tf.scale[1] + tf.translate[1] ]
+      : p);
+  });
+  const ring = ids => {
+    const out = [];
+    for(const i of ids){
+      const a = i < 0 ? arcs[~i].slice().reverse() : arcs[i];
+      a.forEach((p, k) => { if(k || !out.length) out.push(p); });
     }
-  }
+    return out;
+  };
+  return obj.geometries.filter(g => g.arcs).map(g => {
+    const polys = g.type === 'Polygon' ? [g.arcs] : g.arcs;
+    const a2 = ISO_NUM[String(+g.id)] || null;
+    const nm = (g.properties && g.properties.name) || '';
+    return { type:'Feature', properties:{ ISO_A2: a2 || '-99', NAME: nm, ADMIN: nm },
+             geometry:{ type:'MultiPolygon', coordinates: polys.map(p => p.map(ring)) } };
+  });
 }
-function makeSkin(feats){
-  const small = Math.min(innerWidth, innerHeight) < 700;
-  const W = small ? 2048 : 4096, H = W / 2;
-  const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
-  const c = cv.getContext('2d');
-  const rnd = vrand(20260924);
 
-  // 深海：赤道稍亮、兩極壓暗
-  const sea = c.createLinearGradient(0, 0, 0, H);
-  sea.addColorStop(0, '#0a2438'); sea.addColorStop(.3, '#0e3a58');
-  sea.addColorStop(.5, '#114566'); sea.addColorStop(.7, '#0e3a58'); sea.addColorStop(1, '#0a2438');
-  c.fillStyle = sea; c.fillRect(0, 0, W, H);
-  // 海面的深淺斑
-  for(let i = 0; i < 260; i++){
-    const x = rnd()*W, y = rnd()*H, r = (0.02 + rnd()*0.06) * W;
-    const g = c.createRadialGradient(x, y, 0, x, y, r);
-    const a = rnd() < .5 ? 'rgba(30,110,150,.10)' : 'rgba(4,20,34,.14)';
-    g.addColorStop(0, a); g.addColorStop(1, 'rgba(0,0,0,0)');
-    c.fillStyle = g; c.fillRect(x-r, y-r, r*2, r*2);
+/* 一個環畫成路徑。
+   ⚠ 跨換日線的國家（俄羅斯、斐濟）經度會從 179 跳到 −179 —— 直接畫會在整張圖上
+     拉出一條橫線。所以先把經度「攤平」成連續的，畫一次，超出邊界的再平移 360° 畫一次。
+   ⚠ 繞著極點的環（南極洲）攤平之後頭尾差 360°，要補兩個極點的角，不然填色會填到另一邊。 */
+function ringPath(ctx, ring, W, H){
+  const pts = []; let off = 0, prev = null;
+  for(const [lng, lat] of ring){
+    if(prev !== null){ const d = lng + off - prev; if(d > 180) off -= 360; else if(d < -180) off += 360; }
+    prev = lng + off; pts.push([prev, lat]);
   }
-  // 大陸棚：陸地外圍一圈淺色 —— 用陰影模糊畫兩次，一寬一窄
-  landPath(c, feats, W, H);
-  c.save();
-  c.fillStyle = '#1b6f8c';
-  c.shadowColor = 'rgba(60,170,200,.55)'; c.shadowBlur = W / 90; c.fill();
-  c.shadowColor = 'rgba(110,210,225,.5)'; c.shadowBlur = W / 400; c.fill();
-  c.restore();
+  const span = pts[pts.length-1][0] - pts[0][0];
+  if(Math.abs(span) > 300){
+    const pole = pts.reduce((s,p) => s + p[1], 0) / pts.length > 0 ? 90 : -90;
+    pts.push([pts[pts.length-1][0], pole], [pts[0][0], pole]);
+  }
+  let mn = Infinity, mx = -Infinity;
+  for(const p of pts){ if(p[0] < mn) mn = p[0]; if(p[0] > mx) mx = p[0]; }
+  const X = lng => (lng + 180) / 360 * W, Y = lat => (90 - lat) / 180 * H;
+  const draw = sh => pts.forEach(([lng,lat], i) => i ? ctx.lineTo(X(lng+sh), Y(lat)) : ctx.moveTo(X(lng+sh), Y(lat)));
+  draw(0); ctx.closePath();
+  if(mx > 180){ draw(-360); ctx.closePath(); }
+  if(mn < -180){ draw(360); ctx.closePath(); }
+}
+function featPath(ctx, f, W, H){
+  const g = f.geometry; if(!g) return;
+  const polys = g.type === 'Polygon' ? [g.coordinates] : g.type === 'MultiPolygon' ? g.coordinates : [];
+  for(const poly of polys) for(const r of poly) if(r.length > 2) ringPath(ctx, r, W, H);
+}
+function landPath(ctx, feats, W, H){
+  ctx.beginPath();
+  for(const f of feats) featPath(ctx, f, W, H);
+}
 
-  // 陸地
-  c.save();
-  landPath(c, feats, W, H); c.clip();
-  c.fillStyle = '#3b5a3c'; c.fillRect(0, 0, W, H);
-  /* 地貌色帶。只是依緯度的粗略分帶 —— 這是一張遊戲沙盤，不是衛星圖；
-     目的只是讓「撒哈拉」與「西伯利亞」一眼看得出不是同一種地方。 */
-  const band = c.createLinearGradient(0, 0, 0, H);
-  const st = (lat, col) => band.addColorStop((90 - lat) / 180, col);
-  st(90, 'rgba(214,226,230,.95)'); st(68, 'rgba(160,178,170,.75)'); st(60, 'rgba(58,86,62,.55)');
-  st(45, 'rgba(78,108,64,.45)'); st(33, 'rgba(146,128,78,.55)'); st(23, 'rgba(176,146,90,.72)');
-  st(14, 'rgba(120,122,70,.45)'); st(4, 'rgba(46,96,52,.6)'); st(-6, 'rgba(46,96,52,.6)');
-  st(-18, 'rgba(118,118,70,.45)'); st(-26, 'rgba(170,140,88,.62)'); st(-38, 'rgba(84,110,66,.45)');
-  st(-60, 'rgba(160,178,170,.75)'); st(-90, 'rgba(220,230,234,.95)');
-  c.fillStyle = band; c.fillRect(0, 0, W, H);
-  // 山脈與平原的斑塊：大小不一的亮暗團，看起來像有高低
-  for(let i = 0; i < 1400; i++){
-    const x = rnd()*W, y = rnd()*H, r = (0.004 + rnd()*rnd()*0.03) * W;
+let BASE = null, TOP = null, TEX = null, FEATS = null, HI = false, SIG = '';
+const texSize = () => {
+  const small = Math.min(innerWidth, innerHeight) < 700 || /Mobi|Android|iPhone|iPad/.test(navigator.userAgent);
+  /* 8K 貼圖要 170MB 左右的顯示記憶體(含 mipmap)。只給回報得出 16K 貼圖上限的
+     顯卡 —— 那通常是獨立顯卡或近幾年的桌機內顯;其餘一律 4K。 */
+  let W = 4096;
+  try{ const mx = G.renderer().capabilities.maxTextureSize; if(!small && mx >= 16384) W = 8192; }catch(e){}
+  if(window.__W3D_TEX) W = window.__W3D_TEX;          // 測試截圖用
+  return W;
+};
+
+/* 底圖：海 + 大陸棚 + 綠色陸地 + 森林顆粒 + 海岸線。 */
+function paintBase(feats){
+  const W = texSize(), H = W / 2, k = W / 4096;
+  const cv = BASE || document.createElement('canvas');
+  cv.width = W; cv.height = H;
+  const c = cv.getContext('2d');
+  const rnd = vrand(20260926);
+
+  // 海：參考畫面那種偏亮的藍，兩極稍暗
+  const sea = c.createLinearGradient(0, 0, 0, H);
+  sea.addColorStop(0, '#24557a'); sea.addColorStop(.28, '#2c6c99');
+  sea.addColorStop(.5, '#3178a8'); sea.addColorStop(.72, '#2c6c99'); sea.addColorStop(1, '#24557a');
+  c.fillStyle = sea; c.fillRect(0, 0, W, H);
+  for(let i = 0; i < 700; i++){            // 深淺斑，讓海不是一片死的顏色
+    const x = rnd()*W, y = rnd()*H, r = (0.006 + rnd()*0.03) * W;
     const g = c.createRadialGradient(x, y, 0, x, y, r);
-    const light = rnd() < .45;
-    g.addColorStop(0, light ? 'rgba(236,226,190,.16)' : 'rgba(10,26,14,.2)');
+    g.addColorStop(0, rnd() < .5 ? 'rgba(90,170,215,.10)' : 'rgba(10,40,70,.12)');
     g.addColorStop(1, 'rgba(0,0,0,0)');
     c.fillStyle = g; c.fillRect(x-r, y-r, r*2, r*2);
   }
-  // 細顆粒
-  for(let i = 0; i < 26000; i++){
-    c.fillStyle = rnd() < .5 ? 'rgba(255,248,220,.07)' : 'rgba(0,0,0,.09)';
-    c.fillRect(rnd()*W, rnd()*H, 1 + rnd()*2, 1 + rnd()*2);
-  }
+  // 大陸棚：陸地外圍一圈淺藍（淺海），寬窄兩層
+  landPath(c, feats, W, H);
+  c.save();
+  c.fillStyle = '#4a9bc9';
+  c.shadowColor = 'rgba(100,190,230,.75)'; c.shadowBlur = 26*k; c.fill();
+  c.shadowColor = 'rgba(150,215,240,.8)';  c.shadowBlur = 7*k;  c.fill();
   c.restore();
 
-  // 海岸線：一道亮邊，讓陸地「浮」在海上
-  landPath(c, feats, W, H);
-  c.lineWidth = W / 2048; c.strokeStyle = 'rgba(190,230,215,.55)'; c.stroke();
-
-  /* 凹凸貼圖：只有陸地有起伏，海是平的。同一組斑塊再畫一次灰階版本。 */
-  const bw = 1024, bh = 512;
-  const bv = document.createElement('canvas'); bv.width = bw; bv.height = bh;
-  const b = bv.getContext('2d');
-  b.fillStyle = '#000'; b.fillRect(0, 0, bw, bh);
-  b.save(); landPath(b, feats, bw, bh); b.clip();
-  b.fillStyle = '#404040'; b.fillRect(0, 0, bw, bh);
-  const r2 = vrand(7);
-  for(let i = 0; i < 900; i++){
-    const x = r2()*bw, y = r2()*bh, r = (0.004 + r2()*r2()*0.04) * bw;
-    const g = b.createRadialGradient(x, y, 0, x, y, r);
-    g.addColorStop(0, `rgba(255,255,255,${(.15 + r2()*.35).toFixed(2)})`); g.addColorStop(1, 'rgba(255,255,255,0)');
-    b.fillStyle = g; b.fillRect(x-r, y-r, r*2, r*2);
+  // 陸地：綠色為主，極地偏白、沙漠帶帶一點黃 —— 但比例壓低，整體還是一張綠色地圖
+  c.save(); landPath(c, feats, W, H); c.clip();
+  c.fillStyle = '#6e9a4c'; c.fillRect(0, 0, W, H);
+  const band = c.createLinearGradient(0, 0, 0, H);
+  const st = (lat, col) => band.addColorStop((90 - lat) / 180, col);
+  st(90, 'rgba(236,242,244,.95)'); st(70, 'rgba(190,206,196,.65)'); st(62, 'rgba(78,118,70,.25)');
+  st(45, 'rgba(120,160,80,.2)');   st(30, 'rgba(176,160,98,.34)');  st(22, 'rgba(196,172,112,.42)');
+  st(12, 'rgba(110,150,70,.2)');   st(0, 'rgba(60,120,56,.35)');    st(-12, 'rgba(110,150,70,.2)');
+  st(-25, 'rgba(186,160,104,.36)'); st(-40, 'rgba(110,150,80,.2)'); st(-62, 'rgba(190,206,196,.65)');
+  st(-90, 'rgba(240,244,246,.95)');
+  c.fillStyle = band; c.fillRect(0, 0, W, H);
+  for(let i = 0; i < 900; i++){             // 高低起伏的大斑塊
+    const x = rnd()*W, y = rnd()*H, r = (0.003 + rnd()*rnd()*0.022) * W;
+    const g = c.createRadialGradient(x, y, 0, x, y, r);
+    g.addColorStop(0, rnd() < .5 ? 'rgba(210,225,160,.16)' : 'rgba(30,60,25,.2)');
+    g.addColorStop(1, 'rgba(0,0,0,0)');
+    c.fillStyle = g; c.fillRect(x-r, y-r, r*2, r*2);
   }
-  b.restore();
+  /* 森林顆粒:參考畫面陸地上那層「樹」的質感。
+     ⚠ 不要在大圖上一顆一顆畫 —— 第一版畫了九萬個小圓,畫布是 GPU 加速的,
+       九萬個指令直接觸發 GPU 看門狗,**整顆地球的 WebGL context 掉了**。
+       現在只在一張 512 的小圖塊上畫,再用 pattern 鋪滿:指令數少兩百倍。 */
+  const tile = document.createElement('canvas'); tile.width = tile.height = 512;
+  const tc = tile.getContext('2d');
+  for(let i = 0; i < 1400; i++){
+    tc.fillStyle = rnd() < .75 ? 'rgba(34,74,30,.30)' : 'rgba(190,215,140,.18)';
+    const r = 1 + rnd()*2.2;
+    tc.beginPath(); tc.arc(rnd()*512, rnd()*512, r, 0, 6.283); tc.fill();
+  }
+  const pat = c.createPattern(tile, 'repeat');
+  c.save();
+  c.scale(k, k);                        // 小點在 4K 與 8K 的貼圖上看起來一樣大
+  c.fillStyle = pat;
+  const top = H * (24/180) / k, bot = H * (156/180) / k;   // 極圈以內才有樹
+  c.fillRect(0, top, W / k, bot - top);
+  c.restore();
+  c.restore();
+  // 海岸線：一道淺色細邊
+  landPath(c, feats, W, H);
+  c.lineWidth = 1.6*k; c.strokeStyle = 'rgba(225,245,235,.75)'; c.stroke();
+  BASE = cv;
+}
 
-  return { map: cv.toDataURL('image/jpeg', .9), bump: bv.toDataURL('image/jpeg', .85) };
+/* 上層：底圖 + 勢力顏色 + 國界。只有在「誰的顏色」變了才重畫 —— 每一次點擊都重畫
+   一張 8K 貼圖，手機會卡。 */
+function paintTop(force){
+  if(!BASE || !TEX || !FEATS || typeof tyCountryColor !== 'function' || !TY) return;
+  const cols = FEATS.map(f => { try{ return tyCountryColor(f); }catch(e){ return ''; } });
+  const sig = (typeof TY_LAYER !== 'undefined' ? TY_LAYER : '') + '|' + cols.join('|');
+  if(!force && sig === SIG) return;
+  SIG = sig;
+  const W = BASE.width, H = BASE.height, k = W / 4096;
+  const cv = TOP; cv.width = W; cv.height = H;
+  const c = cv.getContext('2d');
+  c.drawImage(BASE, 0, 0);
+  FEATS.forEach((f, i) => {
+    const m = /,\s*([\d.]+)\)$/.exec(cols[i] || '');
+    if(!m || +m[1] < .09) return;            // 沒人管的國家不上色，維持原本的綠
+    c.beginPath(); featPath(c, f, W, H);
+    c.fillStyle = cols[i].replace(/,\s*([\d.]+)\)$/, (s, a) => `,${Math.min(.72, +a * 1.6).toFixed(3)})`);
+    c.fill();
+    // 有主的國家描一圈同色的粗邊 —— 參考畫面裡「這塊是誰的」主要是靠邊框看出來的
+    c.lineWidth = 3.2*k; c.strokeStyle = cols[i].replace(/,\s*([\d.]+)\)$/, ',.95)');
+    c.stroke();
+  });
+  // 國界：白色細線，跟參考畫面一樣
+  c.beginPath(); for(const f of FEATS) featPath(c, f, W, H);
+  c.lineWidth = 1.3*k; c.strokeStyle = 'rgba(255,255,255,.55)'; c.stroke();
+  TEX.needsUpdate = true;
+}
+
+/* 把 canvas 直接當貼圖。先用一張 2×1 的小圖讓 globe.gl 建好 Texture，
+   再從它身上撿回 Texture 建構子 —— 跟撿 THREE 的其他建構子同一招。
+   之後每次重畫只要 needsUpdate，不用再轉 dataURL（8K 的 JPEG 編碼要好幾百毫秒）。 */
+function mountTex(){
+  if(TEX) return true;
+  let m; try{ m = G.globeMaterial(); }catch(e){ return false; }
+  if(!m || !m.map || !m.map.isTexture) return false;
+  const Tex = m.map.constructor;
+  TOP = document.createElement('canvas');
+  const t = new Tex(TOP);
+  t.colorSpace = m.map.colorSpace;
+  try{ t.anisotropy = G.renderer().capabilities.getMaxAnisotropy(); }catch(e){}
+  m.map = t; m.needsUpdate = true;
+  TEX = t;
+  return true;
 }
 
 let painting = false;
@@ -197,34 +314,75 @@ function paintSkin(){
   if(W3D.textured || painting || !G) return;
   if(typeof countries === 'undefined' || !countries || !countries.length) return;
   painting = true;
-  /* 貼圖要畫大約半秒 —— 丟到下一個閒置時段，不要卡住第一次顯示 */
-  const run = () => {
-    try{
-      const s = makeSkin(countries);
-      G.globeImageUrl(s.map);
-      if(typeof G.bumpImageUrl === 'function') G.bumpImageUrl(s.bump);
-      W3D.textured = true;
+  const tiny = document.createElement('canvas'); tiny.width = 2; tiny.height = 1;
+  G.globeImageUrl(tiny.toDataURL());
+  let tries = 0;
+  const wait = () => {
+    if(mountTex()){
+      FEATS = countries; paintBase(FEATS); paintTop(true);
+      W3D.textured = true; painting = false;
       W3D.material();
       if(typeof tyPaintGlobe === 'function') tyPaintGlobe();
-    }catch(e){ W3D.textured = false; }
-    painting = false;
+      loadHiRes();
+      return;
+    }
+    if(++tries < 100) setTimeout(wait, 100); else painting = false;
   };
-  /* ⚠ 一定要給 timeout:地球每一幀都在畫，瀏覽器可能永遠等不到「閒置」，
-     沒有 timeout 的話這張貼圖永遠不會畫。 */
-  if(window.requestIdleCallback) requestIdleCallback(run, { timeout: 400 });
-  else setTimeout(run, 60);
+  setTimeout(wait, 50);
 }
+/* 高解析度國界在背景抓，抓到了換上去。抓不到就留著 110m —— 不報錯，只是粗一點。 */
+async function loadHiRes(){
+  if(HI) return; HI = true;
+  const small = texSize() <= 4096;
+  for(const u of ATLAS(small)){
+    try{
+      const r = await fetch(u); if(!r.ok) continue;
+      const topo = await r.json();
+      if(!topo || !topo.objects || !topo.objects.countries) continue;
+      const feats = topoFeatures(topo).filter(f => f.properties.NAME !== 'Antarctica');
+      if(feats.length < 100) continue;
+      FEATS = feats; W3D.hiFeats = feats;
+      paintBase(FEATS); paintTop(true);
+      return;
+    }catch(e){ /* 換下一個來源 */ }
+  }
+}
+W3D.repaint = () => paintTop(false);
+W3D._topo = topoFeatures;            // 給測試用:國界解碼要驗得到
 
-/* 有貼圖之後，材質的底色要是白的（貼圖會被底色相乘），
-   原本「永遠是夜晚」的深藍底色會把整張沙盤壓成一片黑。 */
+/* 點在球面上的哪一國。高解析度國界到了就用它（岸邊不會點錯國），不然用 110m。 */
+function pip(pt, ring){
+  let inside = false;
+  for(let i = 0, j = ring.length - 1; i < ring.length; j = i++){
+    const xi = ring[i][0], yi = ring[i][1], xj = ring[j][0], yj = ring[j][1];
+    if(((yi > pt[1]) !== (yj > pt[1])) && pt[0] < (xj - xi) * (pt[1] - yi) / (yj - yi) + xi) inside = !inside;
+  }
+  return inside;
+}
+W3D.featAt = function(lat, lng){
+  const list = FEATS || (typeof countries !== 'undefined' ? countries : []);
+  for(const f of list){
+    const g = f.geometry; if(!g) continue;
+    const polys = g.type === 'Polygon' ? [g.coordinates] : g.type === 'MultiPolygon' ? g.coordinates : [];
+    for(const poly of polys){
+      if(!poly[0] || !pip([lng, lat], poly[0])) continue;
+      if(poly.slice(1).some(h => pip([lng, lat], h))) continue;   // 在湖（洞）裡
+      return f;
+    }
+  }
+  return null;
+};
+
+/* 讓貼圖自己的顏色出來：底色白、不自發光。
+   參考的那款遊戲沒有「夜晚」—— 整顆球都要看得清楚，所以環境光也開大。 */
 W3D.material = function(){
   if(!G || !W3D.textured) return false;
   try{
     const m = G.globeMaterial();
     m.color && m.color.set('#ffffff');
-    m.emissive && m.emissive.set('#0b1a24');
-    if('shininess' in m) m.shininess = 6;
-    if('bumpScale' in m) m.bumpScale = 3.5;
+    m.emissive && m.emissive.set('#000000');
+    if('shininess' in m) m.shininess = 4;
+    if('bumpScale' in m) m.bumpScale = 0;
     m.needsUpdate = true;
     return true;
   }catch(e){ return false; }
@@ -346,8 +504,85 @@ function geoFor(key, fill){
   return geo;
 }
 
+/* =============================================================================
+   部隊棋子 —— 參考畫面裡那些站在地圖上的戰車與船
+   -----------------------------------------------------------------------------
+   一支部隊 = 一塊隊伍顏色的六角底座 + 一個看得出兵種的模型。
+   同一個城市駐了好幾支就並排站在同一塊底座上（最多畫三個，其餘看標籤上的 ×N）。
+   在路上的部隊如果正在海上，就畫成一艘船 —— 參考那款遊戲的海上單位。
+   ============================================================================= */
+const TEAM = '#2f8fe0';
+function drawUnit(g, k, x, y, z, tint){
+  const T2 = tint || TEAM;
+  switch(k){
+    case 'raid': {                                  // 併購小組:戰車
+      const hull = lin('#5d6b45'), top = lin('#7d8d5c');
+      const t = box(g, x, y, z, .34, .2, .08, hull, top);
+      box(g, x - .02, y, t, .17, .14, .07, lin('#6c7b50'), lin('#8fa068'));
+      box(g, x + .13, y, t + .025, .2, .03, .03, lin('#3d472e'), lin('#56623f'));
+      box(g, x, y - .115, z, .36, .03, .05, lin('#2b2f24'), lin('#3b4031'));   // 履帶
+      box(g, x, y + .115, z, .36, .03, .05, lin('#2b2f24'), lin('#3b4031'));
+      box(g, x - .1, y + .05, t + .07, .015, .015, .12, lin('#cccccc'), lin('#ffffff'));
+      box(g, x - .06, y + .05, t + .16, .08, .01, .05, lin(T2, .9), lin(T2, 1.1)); // 小旗
+      break; }
+    case 'law': {                                   // 律師團:法院(柱廊 + 三角山牆)
+      const w = lin('#e9e6dc'), wt = lin('#ffffff');
+      const t = box(g, x, y, z, .32, .22, .04, lin('#c9c4b6'), wt);
+      for(const cx of [-.11, -.037, .037, .11]) box(g, x + cx, y - .06, t, .028, .028, .15, w, wt);
+      box(g, x, y + .03, t, .28, .1, .15, lin('#d8d3c6'), wt);
+      const r = box(g, x, y, t + .15, .34, .24, .035, w, wt);
+      pyramid(g, x, y, r, .3, .08, lin(T2, 1));
+      break; }
+    case 'lobby': {                                 // 遊說團:講台 + 旗子
+      const t = box(g, x, y, z, .16, .12, .15, lin('#6b4a2e'), lin('#8a6440'));
+      box(g, x, y - .02, t, .12, .05, .02, lin('#2a2a2a'), lin('#444'));
+      box(g, x + .1, y + .04, z, .014, .014, .38, lin('#bbbbbb'), lin('#eeeeee'));
+      box(g, x + .18, y + .04, z + .28, .16, .01, .1, lin(T2, .95), lin(T2, 1.15));
+      break; }
+    case 'mgr': {                                   // 經理人:西裝人像 + 公事包
+      const suit = lin('#2d3440'), sk = lin('#e2b894');
+      const t = prism(g, x, y, z, .065, .19, 8, suit, lin('#3c4556'));
+      prism(g, x, y, t, .05, .075, 8, sk, lin('#f0c9a4'));
+      box(g, x, y - .062, t - .06, .03, .012, .06, lin(T2), lin(T2, 1.2));      // 領帶
+      box(g, x + .1, y, z, .1, .04, .08, lin('#5a3a22'), lin('#7a5234'));        // 公事包
+      break; }
+    case 'ship': {                                  // 海上:一艘船
+      const hull = lin('#5f6b78'), deck = lin('#8a96a2');
+      const t = box(g, x - .04, y, z, .36, .15, .07, hull, deck);
+      tri(g, [x + .14, y - .075, z], [x + .26, y, z], [x + .14, y - .075, t], hull);
+      tri(g, [x + .14, y + .075, t], [x + .26, y, z], [x + .14, y + .075, z], hull);
+      tri(g, [x + .14, y - .075, t], [x + .26, y, z], [x + .14, y + .075, t], deck);
+      const b = box(g, x - .08, y, t, .13, .1, .08, lin('#d9dde2'), lin('#f4f6f8'));
+      box(g, x - .08, y, b, .03, .03, .08, lin(T2), lin(T2, 1.2));
+      break; }
+  }
+}
+function troopKey(d){
+  if(d._threat) return `th:${d._r.id}:${d._sea ? 1 : 0}`;
+  return `tr:${d._sea ? 'ship' : d._units.slice(0, 3).map(u => u.k).join(',')}`;
+}
+function buildTroop(d){
+  const col = d._threat ? `rgb(${(typeof TY_RVCOL !== 'undefined' && TY_RVCOL[d._r.id]) || '255,69,58'})` : TEAM;
+  const kinds = d._threat ? [d._sea ? 'ship' : 'raid'] : d._sea ? ['ship'] : d._units.slice(0, 3).map(u => u.k);
+  const key = troopKey(d);
+  return geoFor(key, g => {
+    const n = kinds.length, r = .22 + n * .13;
+    const z = prism(g, 0, 0, 0, r, .05, 6, lin(col, .55), lin(col, .95), Math.PI/6);
+    prism(g, 0, 0, z, r * .84, .01, 6, lin('#1a2a36'), lin(d._threat ? '#3a1414' : '#1f3a52'), Math.PI/6);
+    kinds.forEach((k, i) => drawUnit(g, k, (i - (n - 1) / 2) * .36, 0, z + .01, col));
+  });
+}
+
 /* 一個據點（或一個對手大本營）的整座小城 */
 function buildSite(d){
+  if(d._units || d._threat){
+    const root = new T.O3();
+    root.add(new T.Mesh(buildTroop(d), MAT));
+    root.userData.site = d;
+    root.userData.troop = true;
+    OBJS.add(root);
+    return root;
+  }
   let key, fill;
   if(d._rival){
     const col = `rgb(${(typeof TY_RVCOL !== 'undefined' && TY_RVCOL[d._rival.id]) || '160,160,170'})`;
@@ -389,7 +624,7 @@ function buildSite(d){
 
 /* 建築的大小跟著鏡頭高度走：拉遠的時候放大，不然整座城只剩一個點；
    貼近的時候縮小，不然一棟樓會蓋掉整座城市。 */
-const bScale = () => clamp(.1 + W3D.alt * 2.4, .3, 5.5);
+const bScale = () => clamp(.25 + W3D.alt * 2.3, .55, 5.5);
 function placeSite(obj, d){
   const a = (d._base || .0085);
   const c = G.getCoords(d.lat, d.lng, a);
@@ -405,10 +640,14 @@ function placeSite(obj, d){
   const M = obj.matrix;
   M.set(ex, qx, nx, 0,  ey, qy, ny, 0,  ez, qz, nz, 0,  0, 0, 0, 1);
   obj.quaternion.setFromRotationMatrix(M);
+  /* 駐在城市裡的部隊站在城市的東南邊一點,不要跟建築疊在一起。
+     偏移量是「幾塊地磚寬」,所以要跟著縮放走(見 applyScale)。 */
+  obj.userData.at = { x: c.x, y: c.y, z: c.z, e: [ex, ey, ez], q: [qx, qy, qz], off: d._off || null };
   applyScale(obj, performance.now());
 }
 function applyScale(obj, now){
-  const s = bScale();
+  // 部隊棋子比建築大一號 —— 它們是你要常常點、常常看的東西
+  const s = bScale() * (obj.userData.troop ? 1.45 : 1);
   let k = 1;
   const g0 = obj.userData.grow;
   if(g0){
@@ -419,6 +658,11 @@ function applyScale(obj, now){
     if(p >= 1) obj.userData.grow = 0;
   }
   obj.scale.set(s * 1.6, s * 1.6, s * k);        // 底座放寬:遠看才認得出是一座城,不是一根針
+  const at = obj.userData.at;
+  if(at && at.off){
+    const w = s * 1.6, dx = at.off[0] * w, dy = at.off[1] * w;
+    obj.position.set(at.x + at.e[0]*dx + at.q[0]*dy, at.y + at.e[1]*dx + at.q[1]*dy, at.z + at.e[2]*dx + at.q[2]*dy);
+  }
 }
 let rafOn = false;
 function kick(){
@@ -455,6 +699,9 @@ function installTilt(){
   const cam = G.camera(), ctl = G.controls();
   if(!cam || !ctl || ctl.__w3d || typeof ctl.update !== 'function') return;
   ctl.__w3d = true;
+  /* ⚠ globe.gl 預設「朝游標縮放」:縮放時把旋轉中心往游標挪,下一個事件再拉回球心。
+     這一來一回在傾斜鏡頭底下會變成每滾一下畫面就跳一下 —— 使用者說的「不太順」。 */
+  ctl.zoomToCursor = false;
   const V = cam.position.constructor;
   const logical = cam.position.clone(), last = new V(1e9, 0, 0);
   const n = new V(), north = new V(), up = new V(), S = new V(), P = new V();
@@ -473,7 +720,7 @@ function installTilt(){
     const d = logical.length();
     const alt = d / R - 1;
     W3D.alt = alt;
-    const t = TILT_MAX * smooth((1.3 - alt) / (1.3 - .28));
+    const t = TILT_MAX * smooth((.9 - alt) / (.9 - .25));
     n.copy(logical).divideScalar(d || 1);
     if(t > 1e-3){
       S.copy(n).multiplyScalar(R);
@@ -498,8 +745,9 @@ function installTilt(){
   };
   if(lights){
     try{
-      if(lights[0]) lights[0].intensity = Math.PI * .62;
-      if(lights[1]) lights[1].intensity = Math.PI * 1.05;
+      // 參考的那款遊戲沒有夜晚:環境光開大,方向光只負責讓建築有亮暗面
+      if(lights[0]) lights[0].intensity = Math.PI * 1.05;
+      if(lights[1]) lights[1].intensity = Math.PI * .55;
     }catch(e){}
   }
 }
@@ -549,7 +797,8 @@ W3D.attach = function(globe){
     if(typeof G.onCustomLayerClick === 'function')
       G.onCustomLayerClick(d => {
         if(!d) return;
-        if(d._rival){ TY_RIVAL = d._rival.id; TY_DEAL = null; TY_MODAL = 'rival'; renderPage(); }
+        if(d._units || d._threat){ TY_MODAL = 'troop'; renderPage(); }
+        else if(d._rival){ TY_RIVAL = d._rival.id; TY_DEAL = null; TY_MODAL = 'rival'; renderPage(); }
         else tyPickSite(d.id);
       });
     if(typeof G.ringsData === 'function'){
@@ -568,15 +817,90 @@ W3D.attach = function(globe){
 };
 
 /* 每次 tyGlobeData() 算完標記之後呼叫：把我的據點與對手大本營蓋成 3D。 */
-W3D.sites = function(mine, rivals){
+/* 駐紮的部隊站在城市的哪一邊。使用者要的是「站在陸地上」—— 台北的東南邊是海,
+   所以從東南開始試八個方向,挑第一個落在陸地上的。每座城市只算一次。 */
+const DIRS = [-40, -140, 40, 140, -90, 90, 0, 180].map(a => a * Math.PI / 180);
+const LAND_DIR = Object.create(null);
+function landDir(d){
+  const key = d._k || (d.lat + ',' + d.lng);
+  if(!LAND_DIR[key] || LAND_DIR[key].hi !== !!W3D.hiFeats){
+    let best = DIRS[0];
+    for(const a of DIRS){
+      const lat = d.lat + Math.sin(a) * .45, lng = d.lng + Math.cos(a) * .45 / Math.max(.2, Math.cos(d.lat * Math.PI / 180));
+      if(W3D.featAt(lat, lng)){ best = a; break; }
+    }
+    LAND_DIR[key] = { a: best, hi: !!W3D.hiFeats };
+  }
+  const a = LAND_DIR[key].a;
+  return [Math.cos(a) * 1.2, Math.sin(a) * 1.2];
+}
+
+W3D.sites = function(mine, rivals, troops){
   if(!W3D.ok) return;
   paintSkin();
   const rvMax = Math.max(1, ...rivals.map(r => r._v || 0));
   rivals.forEach(r => { r._rvk = Math.sqrt((r._v || 0) / rvMax); });
-  G.customLayerData([...mine, ...rivals]);
+  const tr = (troops || []).map(d => {
+    const o = { ...d, _base: .0008 };
+    delete o._arc;
+    if(d._units && !d._mv) o._off = landDir(d);            // 駐紮:城市旁邊的陸地上
+    else o._sea = !W3D.featAt(d.lat, d.lng);                // 路上:在海上就是船
+    if(d._threat) o._off = null;
+    return o;
+  });
+  TROOPS = tr;
+  G.customLayerData([...mine, ...rivals, ...tr]);
+  tagsOn();
   W3D._warm = true;           // 第一批是開局就有的，不要全部從地上長出來
   W3D.rings();
 };
+
+/* 部隊棋子上方的小標籤(「⚖👔 ×2」「2季」)。棋子會跟著鏡頭縮放、位置會偏移,
+   所以標籤不能掛在 globe.gl 的 HTML 層(那一層只吃經緯度)—— 這裡每一幀
+   直接把棋子的 3D 位置投影到螢幕上。沒有部隊的時候這個迴圈不跑。 */
+let TROOPS = [], TAGS = null, tagLoop = false;
+function tagsOn(){
+  const host = document.getElementById('tyGlobeHost');
+  if(!host) return;
+  if(!TAGS || !TAGS.isConnected){ TAGS = document.createElement('div'); TAGS.id = 'w3dTags'; host.appendChild(TAGS); }
+  TAGS.innerHTML = '';
+  for(const d of TROOPS){
+    const el = document.createElement('button');
+    el.type = 'button';
+    el.className = 'w3d-tag' + (d._threat ? ' th' : '') + (d._mv ? ' mv' : '');
+    if(d._threat){
+      el.style.setProperty('--rc', `rgb(${(typeof TY_RVCOL !== 'undefined' && TY_RVCOL[d._r.id]) || '255,69,58'})`);
+      el.innerHTML = `${d._r.ic || '⚔'} <b>${Math.max(0, d._threat.eta - TY.t)}季</b>`;
+      el.title = `${d._r.nm}的併購小組 → ${tySite(d._threat.site).nm}`;
+    }else{
+      const ics = d._units.map(u => TY_UNITS[u.k].ic).join('');
+      el.innerHTML = `${ics}${d._mv ? ` <b>${d._mv}季</b>` : d._units.length > 1 ? ` <b>×${d._units.length}</b>` : ''}`;
+      el.title = d._units.map(u => TY_UNITS[u.k].nm + (u.to ? ` → ${tySite(u.to).nm}` : '')).join('、');
+    }
+    el.onclick = () => { TY_MODAL = 'troop'; renderPage(); };
+    el._d = d;
+    TAGS.appendChild(el);
+  }
+  if(TROOPS.length && !tagLoop){ tagLoop = true; requestAnimationFrame(tagStep); }
+}
+function tagStep(){
+  if(!TAGS || !TAGS.isConnected || !TROOPS.length){ tagLoop = false; return; }
+  let cam, V, w, h;
+  try{ cam = G.camera(); const el = G.renderer().domElement; w = el.clientWidth; h = el.clientHeight; V = cam.position.clone(); }
+  catch(e){ tagLoop = false; return; }
+  const objs = [...OBJS].filter(o => o.parent && o.userData.troop);
+  for(const el of TAGS.children){
+    const o = objs.find(x => x.userData.site && x.userData.site._k === el._d._k);
+    if(!o){ el.style.opacity = '0'; continue; }
+    o.getWorldPosition(V);
+    const vis = V.dot(cam.position) > R * R * 1.001;
+    V.project(cam);
+    el.style.transform = `translate(${((V.x + 1) / 2 * w).toFixed(1)}px,${((1 - V.y) / 2 * h).toFixed(1)}px) translate(-50%,-150%)`;
+    el.style.opacity = vis ? '1' : '0';
+    el.style.pointerEvents = vis ? 'auto' : 'none';
+  }
+  requestAnimationFrame(tagStep);
+}
 
 /* 光圈：你的大本營一圈慢慢擴散的金色、目前選的據點一圈青色，
    加上過場時臨時加的（賺錢綠、賠錢紅、對手的顏色）。 */
