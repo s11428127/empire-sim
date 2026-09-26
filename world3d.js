@@ -167,7 +167,17 @@ function ringPath(ctx, ring, W, H){
   let mn = Infinity, mx = -Infinity;
   for(const p of pts){ if(p[0] < mn) mn = p[0]; if(p[0] > mx) mx = p[0]; }
   const X = lng => (lng + 180) / 360 * W, Y = lat => (90 - lat) / 180 * H;
-  const draw = sh => pts.forEach(([lng,lat], i) => i ? ctx.lineTo(X(lng+sh), Y(lat)) : ctx.moveTo(X(lng+sh), Y(lat)));
+  /* 小於 1 像素的點不畫:10m 國界有幾十萬個點,在 4K 貼圖上大部分擠在同一個像素裡。
+     一半以上的畫線指令是白做的 —— 那就是切換圖層會卡的原因之一。 */
+  const draw = sh => {
+    let lx = -1e9, ly = -1e9;
+    pts.forEach(([lng,lat], i) => {
+      const x = X(lng+sh), y = Y(lat);
+      if(!i){ ctx.moveTo(x, y); lx = x; ly = y; return; }
+      if(Math.abs(x-lx) + Math.abs(y-ly) < 1 && i < pts.length - 1) return;
+      ctx.lineTo(x, y); lx = x; ly = y;
+    });
+  };
   draw(0); ctx.closePath();
   if(mx > 180){ draw(-360); ctx.closePath(); }
   if(mn < -180){ draw(360); ctx.closePath(); }
@@ -177,19 +187,36 @@ function featPath(ctx, f, W, H){
   const polys = g.type === 'Polygon' ? [g.coordinates] : g.type === 'MultiPolygon' ? g.coordinates : [];
   for(const poly of polys) for(const r of poly) if(r.length > 2) ringPath(ctx, r, W, H);
 }
+/* 每一國的輪廓轉成 Path2D 存起來:換圖層只是「換顏色」,輪廓不會變,
+   沒道理每次都把兩百多國的每一個點重走一遍。貼圖尺寸變了才重建。 */
+function featP2D(f, W, H){
+  if(f._p2d && f._p2dW === W) return f._p2d;
+  const p = new Path2D(); featPath(p, f, W, H);
+  f._p2d = p; f._p2dW = W;
+  return p;
+}
+let ALLP = null, ALLP_KEY = null;
+function allP2D(feats, W, H){
+  if(ALLP && ALLP_KEY === feats && ALLP.w === W) return ALLP.p;
+  const p = new Path2D(); for(const f of feats) p.addPath(featP2D(f, W, H));
+  ALLP = { p, w: W }; ALLP_KEY = feats;
+  return p;
+}
 function landPath(ctx, feats, W, H){
   ctx.beginPath();
   for(const f of feats) featPath(ctx, f, W, H);
 }
 
-let BASE = null, TOP = null, TEX = null, FEATS = null, HI = false, SIG = '';
+let BASE = null, TOP = null, TEX = null, FEATS = null, PFEATS = null, HI = false, SIG = '';
 const texSize = () => {
   const small = Math.min(innerWidth, innerHeight) < 700 || /Mobi|Android|iPhone|iPad/.test(navigator.userAgent);
   /* 8K 貼圖要 170MB 左右的顯示記憶體(含 mipmap)。只給回報得出 16K 貼圖上限的
      顯卡 —— 那通常是獨立顯卡或近幾年的桌機內顯;其餘一律 4K。 */
-  let W = 4096;
-  try{ const mx = G.renderer().capabilities.maxTextureSize; if(!small && mx >= 16384) W = 8192; }catch(e){}
-  if(window.__W3D_TEX) W = window.__W3D_TEX;          // 測試截圖用
+  /* 第一版桌機給 8K。使用者回報「切勢力範圍、地區景氣很卡」—— 每切一次就重畫並
+     重新上傳一張 8K 貼圖(128MB)。現在近看有局部地圖負責清晰度,整球貼圖不需要那麼大:
+     桌機 4K、手機 2K。 */
+  let W = small ? 2048 : 4096;
+  if(window.__W3D_TEX) W = Math.min(W, window.__W3D_TEX);   // 測試截圖用
   return W;
 };
 
@@ -233,12 +260,11 @@ function paintBase(feats){
     c.fillStyle = g; c.fillRect(x-r, y-r, r*2, r*2);
   }
   // 大陸棚：陸地外圍一圈淺藍（淺海），寬窄兩層
+  /* ⚠ 不用 shadowBlur:模糊是整張畫布逐像素算的,4K 上一次就要好幾百毫秒。
+     改成沿著海岸描三層由寬到窄、由淡到濃的線 —— 看起來一樣是一圈淺海,快幾十倍。 */
   landPath(c, feats, W, H);
-  c.save();
-  c.fillStyle = '#4a9bc9';
-  c.shadowColor = 'rgba(100,190,230,.75)'; c.shadowBlur = 26*k; c.fill();
-  c.shadowColor = 'rgba(150,215,240,.8)';  c.shadowBlur = 7*k;  c.fill();
-  c.restore();
+  c.lineJoin = 'round';
+  for(const [w, a] of [[18, .16], [10, .22], [5, .32]]){ c.lineWidth = w*k; c.strokeStyle = `rgba(110,195,232,${a})`; c.stroke(); }
 
   // 陸地：綠色為主，極地偏白、沙漠帶帶一點黃 —— 但比例壓低，整體還是一張綠色地圖
   c.save(); landPath(c, feats, W, H); c.clip();
@@ -291,16 +317,15 @@ function paintTop(force){
   FEATS.forEach((f, i) => {
     const m = /,\s*([\d.]+)\)$/.exec(cols[i] || '');
     if(!m || +m[1] < .09) return;            // 沒人管的國家不上色，維持原本的綠
-    c.beginPath(); featPath(c, f, W, H);
+    const p = featP2D(f, W, H);
     c.fillStyle = cols[i].replace(/,\s*([\d.]+)\)$/, (s, a) => `,${Math.min(.72, +a * 1.6).toFixed(3)})`);
-    c.fill();
+    c.fill(p, 'evenodd');
     // 有主的國家描一圈同色的粗邊 —— 參考畫面裡「這塊是誰的」主要是靠邊框看出來的
     c.lineWidth = 3.2*k; c.strokeStyle = cols[i].replace(/,\s*([\d.]+)\)$/, ',.95)');
-    c.stroke();
+    c.stroke(p);
   });
   // 國界：白色細線，跟參考畫面一樣
-  c.beginPath(); for(const f of FEATS) featPath(c, f, W, H);
-  c.lineWidth = 1.3*k; c.strokeStyle = 'rgba(255,255,255,.55)'; c.stroke();
+  c.lineWidth = 1.3*k; c.strokeStyle = 'rgba(255,255,255,.55)'; c.stroke(allP2D(FEATS, W, H));
   TEX.needsUpdate = true;
 }
 
@@ -315,7 +340,7 @@ function mountTex(){
   TOP = document.createElement('canvas');
   const t = new Tex(TOP);
   t.colorSpace = m.map.colorSpace;
-  try{ t.anisotropy = G.renderer().capabilities.getMaxAnisotropy(); }catch(e){}
+  try{ t.anisotropy = Math.min(4, G.renderer().capabilities.getMaxAnisotropy()); }catch(e){}
   m.map = t; m.needsUpdate = true;
   TEX = t;
   return true;
@@ -343,21 +368,32 @@ function paintSkin(){
   setTimeout(wait, 50);
 }
 /* 高解析度國界在背景抓，抓到了換上去。抓不到就留著 110m —— 不報錯，只是粗一點。 */
-async function loadHiRes(){
-  if(HI) return; HI = true;
-  const small = texSize() <= 4096;
-  for(const u of ATLAS(small)){
+/* 兩層精度:
+     50m  整球貼圖、點擊判斷、懸停 —— 夠細,而且點數只有 10m 的四分之一
+     10m  只給桌機近看的局部地圖(手機近看也用 50m,省記憶體) */
+async function fetchAtlas(urls){
+  for(const u of urls){
     try{
       const r = await fetch(u); if(!r.ok) continue;
       const topo = await r.json();
       if(!topo || !topo.objects || !topo.objects.countries) continue;
       const feats = topoFeatures(topo).filter(f => f.properties.NAME !== 'Antarctica');
-      if(feats.length < 100) continue;
-      FEATS = feats; W3D.hiFeats = feats;
-      paintBase(FEATS); paintTop(true);
-      patchDirty = true; patchSoon();
-      return;
+      if(feats.length >= 100) return feats;
     }catch(e){ /* 換下一個來源 */ }
+  }
+  return null;
+}
+async function loadHiRes(){
+  if(HI) return; HI = true;
+  const f50 = await fetchAtlas(ATLAS(true));
+  if(f50){
+    FEATS = f50; W3D.hiFeats = f50; PFEATS = PFEATS || f50;
+    paintBase(FEATS); paintTop(true);
+    patchDirty = true; patchSoon();
+  }
+  if(texSize() > 2048){
+    const f10 = await fetchAtlas(ATLAS(false).filter(u => u.includes('10m')));
+    if(f10){ PFEATS = f10; patchDirty = true; patchSoon(); }
   }
 }
 
@@ -391,11 +427,27 @@ function featBox(f){
 }
 /* 在局部地圖上畫一個環。經度先平移到離這一塊中心 ±180° 以內 ——
    不然跨換日線的那一邊會被畫到畫面另一頭去。 */
+/* ⚠ 第一版是「每一個點各自」平移到中心 ±180° 以內 —— 橫跨上百個經度的俄羅斯
+     會被切成繞一圈的怪形狀,跟中國、蒙古的填色互相抵消,整片陸地變成海
+     (使用者截圖那條橫跨亞洲的藍色帶子)。現在整個環先攤平成連續的經度,
+     再**整環**平移到靠近中心的位置。 */
 function patchRing(ctx, ring, P, W, H){
-  const mid = (P.lo0 + P.lo1) / 2;
-  const X = lng => { let d = lng - mid; d -= Math.round(d / 360) * 360; return (mid + d - P.lo0) / (P.lo1 - P.lo0) * W; };
-  const Y = lat => (P.la1 - lat) / (P.la1 - P.la0) * H;
-  ring.forEach(([lng, lat], i) => i ? ctx.lineTo(X(lng), Y(lat)) : ctx.moveTo(X(lng), Y(lat)));
+  const mid = (P.lo0 + P.lo1) / 2, kx = W / (P.lo1 - P.lo0), ky = H / (P.la1 - P.la0);
+  let off = 0, prev = null, sum = 0;
+  const pts = new Array(ring.length);
+  for(let i = 0; i < ring.length; i++){
+    const lng = ring[i][0];
+    if(prev !== null){ const d = lng + off - prev; if(d > 180) off -= 360; else if(d < -180) off += 360; }
+    prev = lng + off; pts[i] = prev; sum += prev;
+  }
+  let sh = mid - sum / ring.length; sh = Math.round(sh / 360) * 360;
+  let lx = -1e9, ly = -1e9;
+  for(let i = 0; i < ring.length; i++){
+    const x = (pts[i] + sh - P.lo0) * kx, y = (P.la1 - ring[i][1]) * ky;
+    if(!i){ ctx.moveTo(x, y); lx = x; ly = y; continue; }
+    if(Math.abs(x-lx) + Math.abs(y-ly) < 1 && i < ring.length - 1) continue;   // 小於 1 像素的點不畫
+    ctx.lineTo(x, y); lx = x; ly = y;
+  }
   ctx.closePath();
 }
 function patchFeatPath(ctx, f, P, W, H){
@@ -445,7 +497,7 @@ function paintPatch(P){
   tiles();
   const cv = P.cv, W = cv.width, H = cv.height, c = cv.getContext('2d');
   const ppd = W / (P.lo1 - P.lo0);                         // 每度幾個像素
-  const feats = (FEATS || []).filter(f => {
+  const feats = (PFEATS || FEATS || []).filter(f => {
     const [a, b, cc, d] = featBox(f);
     if(b < P.la0 || a > P.la1) return false;
     if(d - cc > 300) return true;                          // 跨換日線的大國:保留,讓 patchRing 處理
@@ -461,12 +513,12 @@ function paintPatch(P){
   const land = () => { c.beginPath(); for(const f of feats) patchFeatPath(c, f, P, W, H); };
   // 淺海
   land();
-  c.save(); c.fillStyle = '#4a9bc9';
-  c.shadowColor = 'rgba(100,190,230,.75)'; c.shadowBlur = Math.min(60, ppd * .9); c.fill();
-  c.shadowColor = 'rgba(150,215,240,.8)';  c.shadowBlur = Math.min(24, ppd * .25); c.fill();
-  c.restore();
+  c.lineJoin = 'round';
+  for(const [w, a] of [[Math.min(40, ppd*.7), .16], [Math.min(22, ppd*.35), .22], [Math.min(10, ppd*.15), .32]]){
+    c.lineWidth = w; c.strokeStyle = `rgba(110,195,232,${a})`; c.stroke();
+  }
   // 陸地:底色 + 依緯度的色帶 + 釘在經緯度上的斑塊與森林
-  c.save(); land(); c.clip();
+  c.save(); land(); c.clip('evenodd');
   c.fillStyle = '#6e9a4c'; c.fillRect(0, 0, W, H);
   c.fillStyle = bandGrad(c, 0, H, P.la1, P.la0); c.fillRect(0, 0, W, H);
   c.fillStyle = anchoredPattern(c, TILE_F, 1.2, P, W, H); c.fillRect(0, 0, W, H);
@@ -478,7 +530,7 @@ function paintPatch(P){
       const m = /,\s*([\d.]+)\)$/.exec(col);
       if(!m || +m[1] < .09) continue;
       c.beginPath(); patchFeatPath(c, f, P, W, H);
-      c.fillStyle = col.replace(/,\s*([\d.]+)\)$/, (s, a) => `,${Math.min(.72, +a * 1.6).toFixed(3)})`); c.fill();
+      c.fillStyle = col.replace(/,\s*([\d.]+)\)$/, (s, a) => `,${Math.min(.72, +a * 1.6).toFixed(3)})`); c.fill('evenodd');
       c.lineWidth = 3.5; c.strokeStyle = col.replace(/,\s*([\d.]+)\)$/, ',.95)'); c.stroke();
     }
   }
@@ -538,26 +590,30 @@ function patchCheck(){
   const lat = clamp(pov.lat, -80, 80);
   const halfLng = Math.min(170, half * asp / Math.max(.2, Math.cos(lat * Math.PI / 180)));
   if(PATCH && !patchDirty && PATCH.mesh.visible){
-    const inLat = Math.abs(lat - (PATCH.la0 + PATCH.la1) / 2) < (PATCH.la1 - PATCH.la0) * .22;
+    const inLat = Math.abs(lat - (PATCH.la0 + PATCH.la1) / 2) < (PATCH.la1 - PATCH.la0) * .28;
     let dl = pov.lng - (PATCH.lo0 + PATCH.lo1) / 2; dl -= Math.round(dl / 360) * 360;
-    const inLng = Math.abs(dl) < (PATCH.lo1 - PATCH.lo0) * .22;
+    const inLng = Math.abs(dl) < (PATCH.lo1 - PATCH.lo0) * .28;
     const r = alt / PATCH.alt;
-    if(inLat && inLng && r > .72 && r < 1.35) return;       // 還在這一片裡面,不用重畫
+    if(inLat && inLng && r > .66 && r < 1.45) return;       // 還在這一片裡面,不用重畫
   }
   patchDirty = false;
   const P = PATCH || {};
   P.la0 = clamp(lat - half, -89, 89); P.la1 = clamp(lat + half * 1.25, -89, 89);   // 北邊多留:傾斜時看得比較遠
   P.lo0 = pov.lng - halfLng; P.lo1 = pov.lng + halfLng; P.alt = alt;
-  const small = texSize() <= 4096;
-  const M = small ? 1536 : 2048;
+  const M = texSize() <= 2048 ? 1024 : 1536;
   const rw = (P.lo1 - P.lo0) * Math.cos(lat * Math.PI / 180), rh = P.la1 - P.la0;
   if(!P.cv){ P.cv = document.createElement('canvas'); }
-  P.cv.width = rw >= rh ? M : Math.max(256, Math.round(M * rw / rh));
-  P.cv.height = rh >= rw ? M : Math.max(256, Math.round(M * rh / rw));
+  const nw = rw >= rh ? M : Math.max(256, Math.round(M * rw / rh));
+  const nh = rh >= rw ? M : Math.max(256, Math.round(M * rh / rw));
+  /* ⚠ 畫布換了尺寸,GPU 上那張貼圖一定要先釋放。three.js 的貼圖儲存空間是配置一次就
+     固定的,不釋放的話新的內容會被塞進舊尺寸的格子裡 —— 畫面上就是糊掉又錯位的地圖
+     (實際發生過:局部地圖本身畫得很清楚,貼到球上卻是一格一格的)。 */
+  if(P.tex && (P.cv.width !== nw || P.cv.height !== nh)) P.tex.dispose();
+  P.cv.width = nw; P.cv.height = nh;
   if(!P.tex){
     P.tex = new TEX.constructor(P.cv);
     P.tex.colorSpace = TEX.colorSpace;
-    try{ P.tex.anisotropy = G.renderer().capabilities.getMaxAnisotropy(); }catch(e){}
+    try{ P.tex.anisotropy = Math.min(4, G.renderer().capabilities.getMaxAnisotropy()); }catch(e){}
     P.mat = new T.Phong({ map: P.tex, transparent: true, shininess: 4,
                           polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
     P.mat.depthWrite = false;
@@ -574,9 +630,21 @@ function patchCheck(){
   P.mesh.visible = true;
   PATCH = P;
 }
-function patchSoon(){ clearTimeout(patchTimer); patchTimer = setTimeout(patchCheck, 160); }
+/* 鏡頭停下來 350ms 之後才重畫 —— 快速拉近再拖動的時候,中間每一個停頓都重畫一次
+   就是使用者說的「快速放大然後移動會卡」。 */
+function patchSoon(){ clearTimeout(patchTimer); patchTimer = setTimeout(patchCheck, 350); }
 
-W3D.repaint = () => { const before = SIG; paintTop(false); if(SIG !== before){ patchDirty = true; patchSoon(); } };
+/* 換圖層時:按鈕和面板先反應,地圖顏色下一幀才重畫 —— 點下去的那一刻不要卡住。 */
+W3D._paintTop = force => paintTop(force);   // 給效能量測用
+let repaintQ = 0;
+W3D.repaint = () => {
+  if(repaintQ) return;
+  repaintQ = requestAnimationFrame(() => {
+    repaintQ = 0;
+    const before = SIG; paintTop(false);
+    if(SIG !== before){ patchDirty = true; patchSoon(); }
+  });
+};
 W3D._topo = topoFeatures;            // 給測試用:國界解碼要驗得到
 
 /* 點在球面上的哪一國。高解析度國界到了就用它（岸邊不會點錯國），不然用 110m。 */
@@ -592,6 +660,10 @@ W3D.featAt = function(lat, lng){
   const list = FEATS || (typeof countries !== 'undefined' ? countries : []);
   for(const f of list){
     const g = f.geometry; if(!g) continue;
+    /* 先用外框篩掉:滑鼠每動一下就要判斷一次,不篩的話每次都把兩百多國的
+       每一個點走一遍 —— 那就是「移動地圖很卡」的另一個原因。 */
+    const b = featBox(f);
+    if(lat < b[0] || lat > b[1] || (b[3] - b[2] < 300 && (lng < b[2] || lng > b[3]))) continue;
     const polys = g.type === 'Polygon' ? [g.coordinates] : g.type === 'MultiPolygon' ? g.coordinates : [];
     for(const poly of polys){
       if(!poly[0] || !pip([lng, lat], poly[0])) continue;
@@ -741,48 +813,74 @@ function geoFor(key, fill){
    在路上的部隊如果正在海上，就畫成一艘船 —— 參考那款遊戲的海上單位。
    ============================================================================= */
 const TEAM = '#2f8fe0';
+/* 使用者:「軍隊可以再精細一點點,但是也不要讓地圖太卡」。
+   所以多的是**形狀的細節**(負重輪、艙蓋、階梯、桅杆、手腳),不是多邊形數量的暴增 ——
+   一支部隊還是幾百個三角形,而且同一種組合的幾何只算一次。 */
 function drawUnit(g, k, x, y, z, tint){
   const T2 = tint || TEAM;
   switch(k){
     case 'raid': {                                  // 併購小組:戰車
-      const hull = lin('#5d6b45'), top = lin('#7d8d5c');
-      const t = box(g, x, y, z, .34, .2, .08, hull, top);
-      box(g, x - .02, y, t, .17, .14, .07, lin('#6c7b50'), lin('#8fa068'));
-      box(g, x + .13, y, t + .025, .2, .03, .03, lin('#3d472e'), lin('#56623f'));
-      box(g, x, y - .115, z, .36, .03, .05, lin('#2b2f24'), lin('#3b4031'));   // 履帶
-      box(g, x, y + .115, z, .36, .03, .05, lin('#2b2f24'), lin('#3b4031'));
-      box(g, x - .1, y + .05, t + .07, .015, .015, .12, lin('#cccccc'), lin('#ffffff'));
-      box(g, x - .06, y + .05, t + .16, .08, .01, .05, lin(T2, .9), lin(T2, 1.1)); // 小旗
+      const hull = lin('#5d6b45'), top = lin('#7d8d5c'), dark = lin('#2b2f24'), dt = lin('#3b4031');
+      for(const s of [-1, 1]){
+        box(g, x, y + s*.115, z, .38, .04, .055, dark, dt);                      // 履帶
+        for(let i = 0; i < 5; i++) frustum(g, x - .14 + i*.07, y + s*.14, z + .005, .022, .022, .012, 8, lin('#4a4f40'), lin('#6a705c'));  // 負重輪
+      }
+      let t = box(g, x, y, z + .03, .34, .2, .06, hull, top);
+      box(g, x + .15, y, z + .03, .04, .18, .045, hull, top);                    // 前裝甲斜面
+      const tr = box(g, x - .03, y, t, .17, .14, .065, lin('#6c7b50'), lin('#8fa068'));
+      frustum(g, x - .06, y + .03, tr, .025, .022, .02, 8, lin('#55613f'), lin('#7d8d5c'));   // 艙蓋
+      box(g, x + .14, y, t + .025, .22, .028, .028, lin('#3d472e'), lin('#56623f'));        // 砲管
+      box(g, x + .255, y, t + .025, .03, .038, .038, lin('#2f3824'), lin('#46523a'));       // 砲口
+      box(g, x - .16, y - .06, t - .02, .03, .04, .03, lin('#3a3a32'), lin('#555'));        // 排氣
+      box(g, x - .1, y + .05, tr, .01, .01, .16, lin('#cccccc'), lin('#ffffff'));          // 天線
+      box(g, x - .065, y + .05, tr + .11, .07, .008, .045, lin(T2, .9), lin(T2, 1.1));     // 小旗
       break; }
-    case 'law': {                                   // 律師團:法院(柱廊 + 三角山牆)
-      const w = lin('#e9e6dc'), wt = lin('#ffffff');
-      const t = box(g, x, y, z, .32, .22, .04, lin('#c9c4b6'), wt);
-      for(const cx of [-.11, -.037, .037, .11]) box(g, x + cx, y - .06, t, .028, .028, .15, w, wt);
-      box(g, x, y + .03, t, .28, .1, .15, lin('#d8d3c6'), wt);
-      const r = box(g, x, y, t + .15, .34, .24, .035, w, wt);
+    case 'law': {                                   // 律師團:法院(階梯 + 柱廊 + 山牆)
+      const w = lin('#e9e6dc'), wt = lin('#ffffff'), st = lin('#c9c4b6');
+      box(g, x, y - .02, z, .36, .28, .02, st, wt);
+      box(g, x, y - .01, z + .02, .34, .24, .02, st, wt);
+      const t = box(g, x, y, z + .04, .32, .22, .02, st, wt);
+      for(const cx of [-.12, -.06, 0, .06, .12]) frustum(g, x + cx, y - .07, t, .016, .014, .15, 6, w, wt);
+      box(g, x, y + .035, t, .28, .1, .15, lin('#d8d3c6'), wt);
+      const r = box(g, x, y, t + .15, .34, .24, .03, w, wt);
       pyramid(g, x, y, r, .3, .08, lin(T2, 1));
+      box(g, x, y - .12, r - .01, .1, .01, .03, lin('#e0b23c'), lin('#ffd76a'));   // 門楣上的徽章
       break; }
-    case 'lobby': {                                 // 遊說團:講台 + 旗子
+    case 'lobby': {                                 // 遊說團:講台 + 麥克風 + 旗子 + 兩個聽眾
       const t = box(g, x, y, z, .16, .12, .15, lin('#6b4a2e'), lin('#8a6440'));
       box(g, x, y - .02, t, .12, .05, .02, lin('#2a2a2a'), lin('#444'));
+      box(g, x, y - .03, t + .02, .008, .008, .05, lin('#222'), lin('#555'));        // 麥克風
       box(g, x + .1, y + .04, z, .014, .014, .38, lin('#bbbbbb'), lin('#eeeeee'));
       box(g, x + .18, y + .04, z + .28, .16, .01, .1, lin(T2, .95), lin(T2, 1.15));
+      for(const dx of [-.07, .04]){                                                   // 聽眾
+        const b = frustum(g, x + dx, y - .17, z, .03, .026, .09, 6, lin('#3c4556'), lin('#4e586b'));
+        frustum(g, x + dx, y - .17, b, .022, .022, .03, 6, lin('#e2b894'), lin('#f0c9a4'));
+      }
       break; }
-    case 'mgr': {                                   // 經理人:西裝人像 + 公事包
-      const suit = lin('#2d3440'), sk = lin('#e2b894');
-      const t = prism(g, x, y, z, .065, .19, 8, suit, lin('#3c4556'));
-      prism(g, x, y, t, .05, .075, 8, sk, lin('#f0c9a4'));
-      box(g, x, y - .062, t - .06, .03, .012, .06, lin(T2), lin(T2, 1.2));      // 領帶
-      box(g, x + .1, y, z, .1, .04, .08, lin('#5a3a22'), lin('#7a5234'));        // 公事包
+    case 'mgr': {                                   // 經理人:西裝人像(腿、身體、手臂、頭)+ 公事包
+      const suit = lin('#2d3440'), st = lin('#3c4556'), sk = lin('#e2b894');
+      for(const dy of [-.025, .025]) box(g, x, y + dy, z, .035, .03, .09, suit, st);    // 腿
+      const t = frustum(g, x, y, z + .09, .06, .07, .12, 8, suit, st);
+      for(const dy of [-.08, .08]) box(g, x, y + dy, t - .11, .03, .025, .1, suit, st); // 手臂
+      prism(g, x, y, t, .045, .065, 8, sk, lin('#f0c9a4'));
+      box(g, x, y, t + .06, .1, .1, .012, lin('#222'), lin('#333'));                  // 頭髮
+      box(g, x - .062, y, t - .06, .012, .03, .06, lin(T2), lin(T2, 1.2));            // 領帶
+      box(g, x + .01, y + .1, z + .03, .09, .035, .07, lin('#5a3a22'), lin('#7a5234')); // 公事包
       break; }
-    case 'ship': {                                  // 海上:一艘船
+    case 'ship': {                                  // 海上:一艘船(船身、艦橋、砲塔、桅杆)
       const hull = lin('#5f6b78'), deck = lin('#8a96a2');
-      const t = box(g, x - .04, y, z, .36, .15, .07, hull, deck);
-      tri(g, [x + .14, y - .075, z], [x + .26, y, z], [x + .14, y - .075, t], hull);
-      tri(g, [x + .14, y + .075, t], [x + .26, y, z], [x + .14, y + .075, z], hull);
-      tri(g, [x + .14, y - .075, t], [x + .26, y, z], [x + .14, y + .075, t], deck);
-      const b = box(g, x - .08, y, t, .13, .1, .08, lin('#d9dde2'), lin('#f4f6f8'));
-      box(g, x - .08, y, b, .03, .03, .08, lin(T2), lin(T2, 1.2));
+      const t = box(g, x - .04, y, z, .38, .15, .07, hull, deck);
+      tri(g, [x + .15, y - .075, z], [x + .28, y, z], [x + .15, y - .075, t], hull);
+      tri(g, [x + .15, y + .075, t], [x + .28, y, z], [x + .15, y + .075, z], hull);
+      tri(g, [x + .15, y - .075, t], [x + .28, y, z], [x + .15, y + .075, t], deck);
+      box(g, x - .04, y, z + .02, .39, .155, .008, lin('#c8322a'), lin('#d9443a'));    // 吃水線
+      const b = box(g, x - .1, y, t, .12, .1, .08, lin('#d9dde2'), lin('#f4f6f8'));
+      box(g, x - .1, y - .051, t + .05, .1, .004, .015, lin('#223'), lin('#334'));    // 艦橋窗
+      box(g, x - .1, y, b, .02, .02, .14, lin('#bbb'), lin('#eee'));                   // 桅杆
+      box(g, x - .1, y, b + .1, .07, .01, .01, lin('#bbb'), lin('#eee'));
+      frustum(g, x + .08, y, t, .035, .03, .03, 8, lin('#6c7884'), lin('#95a1ad'));    // 砲塔
+      box(g, x + .13, y, t + .015, .08, .012, .012, lin('#444'), lin('#666'));
+      box(g, x - .2, y, t, .03, .03, .06, lin(T2), lin(T2, 1.2));                     // 船尾旗
       break; }
   }
 }
@@ -802,8 +900,198 @@ function buildTroop(d){
   });
 }
 
+/* =============================================================================
+   城市地標 —— 使用者:「每個城市都可以有地標或是特色建築」
+   -----------------------------------------------------------------------------
+   44 座城市各配一個一眼認得出來的地標,用最基本的幾何(方塊、稜柱、錐台、角錐)
+   拼出來:每一個只有幾百個三角形,同一種地標的幾何只算一次,所以整張地圖多出來的
+   負擔大約是 44 個 draw call —— 不會讓地圖變卡。
+   遠看(部隊變成圖示的那個高度)一律收起來:那時候它們只會是一堆擠在一起的小點。
+   ============================================================================= */
+/* 錐台:底半徑 r0、頂半徑 r1 的 n 邊柱。r1 = 0 就是角錐,r0 = r1 就是稜柱。 */
+function frustum(g, cx, cy, z0, r0, r1, h, n, side, top, rot){
+  const z1 = z0 + h, A = [], B = [];
+  for(let i = 0; i < n; i++){
+    const a = (rot || 0) + i / n * Math.PI * 2, c = Math.cos(a), s = Math.sin(a);
+    A.push([cx + c*r0, cy + s*r0]); B.push([cx + c*r1, cy + s*r1]);
+  }
+  for(let i = 0; i < n; i++){
+    const j = (i + 1) % n;
+    quad(g, [A[i][0],A[i][1],z0], [A[j][0],A[j][1],z0], [B[j][0],B[j][1],z1], [B[i][0],B[i][1],z1], side);
+    if(r1 > 0) tri(g, [cx,cy,z1], [B[i][0],B[i][1],z1], [B[j][0],B[j][1],z1], top || side);
+  }
+  return z1;
+}
+/* 球(或圓頂):幾段錐台疊起來 */
+function ball(g, cx, cy, z0, r, col, half){
+  const seg = half ? 3 : 6, n = 10;
+  let z = z0;
+  for(let i = 0; i < seg; i++){
+    const t0 = half ? i / seg * Math.PI/2 : -Math.PI/2 + i / seg * Math.PI;
+    const t1 = half ? (i+1) / seg * Math.PI/2 : -Math.PI/2 + (i+1) / seg * Math.PI;
+    const h = r * (Math.sin(t1) - Math.sin(t0));
+    z = frustum(g, cx, cy, z, r * Math.cos(t0), r * Math.cos(t1), h, n, col, col);
+  }
+  return z;
+}
+const LM = {
+  // 台北 101:八節往外張的竹節 + 尖塔
+  t101(g){ const gl = lin('#5f8f86'), gt = lin('#8ec3b8');
+    let z = box(g, 0, 0, 0, .3, .3, .3, gl, gt);
+    for(let i = 0; i < 8; i++) z = frustum(g, 0, 0, z, .1, .145, .1, 4, gl, gt, Math.PI/4);
+    z = box(g, 0, 0, z, .12, .12, .08, gl, gt);
+    box(g, 0, 0, z, .02, .02, .3, lin('#dddddd'), lin('#ffffff')); },
+  // 東京鐵塔 / 石油井架:往上收的格架,紅白相間
+  lattice(g, red){ let z = 0, w = .42;
+    for(let i = 0; i < 6; i++){ const c = red ? lin(i % 2 ? '#f2f2f2' : '#e0452f') : lin(i % 2 ? '#9aa3ab' : '#6d767e');
+      const nw = w * .7; z = frustum(g, 0, 0, z, w * .7, nw * .7, .2, 4, c, c, Math.PI/4); w = nw;
+      if(i === 2) box(g, 0, 0, z, .18, .18, .05, lin('#d0d0d0'), lin('#f0f0f0')); }
+    box(g, 0, 0, z, .015, .015, .22, lin('#dddddd'), lin('#ffffff')); },
+  eiffel(g){ const b = lin('#8a6f4d'), bt = lin('#a88b62');
+    for(const [x, y] of [[-.14,-.14],[.14,-.14],[-.14,.14],[.14,.14]]) frustum(g, x, y, 0, .06, .035, .22, 4, b, bt, Math.PI/4);
+    let z = box(g, 0, 0, .22, .36, .36, .04, b, bt);
+    z = frustum(g, 0, 0, z, .17, .08, .35, 4, b, bt, Math.PI/4);
+    z = box(g, 0, 0, z, .14, .14, .03, b, bt);
+    z = frustum(g, 0, 0, z, .07, .02, .5, 4, b, bt, Math.PI/4);
+    box(g, 0, 0, z, .012, .012, .12, b, bt); },
+  bigben(g){ const s = lin('#c8b27a'), st = lin('#e2cf9b');
+    let z = box(g, 0, 0, 0, .16, .16, .75, s, st);
+    z = box(g, 0, 0, z, .19, .19, .14, lin('#e9e2cf'), lin('#fff8e6'));
+    pyramid(g, 0, 0, z, .19, .28, lin('#4b5a4f'));
+    box(g, .28, 0, 0, .34, .2, .25, s, st); },
+  liberty(g){ const p = lin('#9a9486'), pt = lin('#bdb7a8'), v = lin('#6fae98'), vt = lin('#8fd0b8');
+    let z = frustum(g, 0, 0, 0, .2, .16, .12, 4, p, pt, Math.PI/4);
+    z = box(g, 0, 0, z, .16, .16, .22, p, pt);
+    const t = frustum(g, 0, 0, z, .07, .045, .38, 8, v, vt);
+    ball(g, 0, 0, t, .045, v);
+    box(g, .05, 0, t - .05, .025, .025, .22, v, vt);
+    frustum(g, .05, 0, t + .17, .03, .045, .05, 8, lin('#e0b23c'), lin('#ffd76a')); },
+  burj(g){ const c = lin('#c9d3dc'), ct = lin('#eef3f7'); let z = 0, r = .16;
+    for(let i = 0; i < 7; i++){ const nr = r * .78; z = frustum(g, 0, 0, z, r, nr, .22, 6, c, ct); r = nr; }
+    frustum(g, 0, 0, z, r, 0, .35, 6, c, ct); },
+  pearl(g){ const s = lin('#b9b9c4'), p = lin('#d86aa0');
+    for(const [x, y] of [[-.1,-.06],[.1,-.06],[0,.1]]) frustum(g, x, y, 0, .03, .03, .5, 6, s, s);
+    ball(g, 0, 0, .12, .14, p);
+    const z = frustum(g, 0, 0, .4, .035, .03, .45, 6, s, s);
+    ball(g, 0, 0, z - .1, .08, p);
+    frustum(g, 0, 0, z + .06, .015, 0, .3, 6, s, s); },
+  mbs(g){ const c = lin('#d9dde2'), ct = lin('#f4f6f8');
+    for(const x of [-.2, 0, .2]){ box(g, x, -.04, 0, .1, .08, .55, c, ct); box(g, x, .05, 0, .1, .08, .5, c, ct); }
+    box(g, .04, 0, .55, .62, .14, .04, lin('#8fae78'), lin('#b9d6a0')); },
+  opera(g){ const w = lin('#f2efe6'), b = lin('#b5886a');
+    box(g, 0, 0, 0, .56, .3, .06, b, lin('#c99e7f'));
+    for(const [x, h, s] of [[-.2,.24,.16],[-.07,.3,.2],[.07,.26,.17],[.2,.2,.14]]) pyramid(g, x, 0, .06, s, h, w); },
+  bridge(g){ const r = lin('#c8442c'), rt = lin('#e45a3f');
+    for(const x of [-.3, .3]){ box(g, x, -.04, 0, .05, .05, .6, r, rt); box(g, x, .04, 0, .05, .05, .6, r, rt); box(g, x, 0, .5, .05, .13, .04, r, rt); }
+    box(g, 0, 0, .18, .9, .1, .03, r, rt);
+    for(let i = 0; i < 6; i++){ const x = -.3 + i * .12, h = .22 + Math.abs(Math.cos(i / 5 * Math.PI)) * .28;
+      box(g, x, .045, .21, .01, .01, h - .21, lin('#a33'), lin('#c44')); } },
+  pagoda(g, gold){ const wall = lin(gold ? '#c9a227' : '#b53a2a'), roof = lin(gold ? '#e8c050' : '#2f5d4a'), rt = lin(gold ? '#ffe08a' : '#3f7a60');
+    let z = box(g, 0, 0, 0, .4, .3, .08, lin('#9c9384'), lin('#bbb2a1'));
+    for(let i = 0; i < 3; i++){ const s = .3 - i * .07;
+      z = box(g, 0, 0, z, s, s * .8, .12, wall, wall);
+      z = frustum(g, 0, 0, z, s * .85, s * .45, .07, 4, roof, rt, Math.PI/4); }
+    frustum(g, 0, 0, z, .025, 0, .18, 6, lin('#e0b23c'), lin('#ffd76a')); },
+  stupa(g){ const c = lin('#d9a82c'), ct = lin('#ffd76a'); let z = 0, r = .24;
+    for(let i = 0; i < 5; i++){ z = frustum(g, 0, 0, z, r, r * .82, .08, 8, c, ct); r *= .78; }
+    ball(g, 0, 0, z, r * 1.3, c, true);
+    frustum(g, 0, 0, z + r * 1.2, r * .5, 0, .45, 8, c, ct); },
+  aztec(g){ const c = lin('#b89a68'), ct = lin('#d4b886'); let z = 0;
+    for(let i = 0; i < 4; i++) z = box(g, 0, 0, z, .5 - i * .1, .5 - i * .1, .08, c, ct);
+    box(g, 0, 0, z, .12, .12, .08, lin('#8a7550'), ct); },
+  mosque(g){ const w = lin('#ece3cf'), wt = lin('#fff8e8'), d = lin('#3f8a86');
+    let z = box(g, 0, 0, 0, .34, .34, .16, w, wt);
+    ball(g, 0, 0, z, .14, d, true);
+    for(const x of [-.24, .24]){ const t = frustum(g, x, -.14, 0, .03, .025, .55, 8, w, wt); frustum(g, x, -.14, t, .03, 0, .08, 8, d, d); } },
+  gateway(g){ const s = lin('#c9a46a'), st = lin('#e2c08a');
+    for(const x of [-.17, .17]) box(g, x, 0, 0, .12, .16, .3, s, st);
+    box(g, 0, 0, .3, .46, .16, .08, s, st);
+    for(const x of [-.19, -.06, .06, .19]) frustum(g, x, 0, .38, .03, 0, .12, 6, s, st); },
+  bank(g){ const w = lin('#e9e6dc'), wt = lin('#ffffff');
+    const t = box(g, 0, 0, 0, .44, .3, .05, lin('#c9c4b6'), wt);
+    for(const cx of [-.15, -.05, .05, .15]) box(g, cx, -.09, t, .04, .04, .22, w, wt);
+    box(g, 0, .05, t, .38, .14, .22, lin('#d8d3c6'), wt);
+    const r = box(g, 0, 0, t + .22, .46, .32, .04, w, wt);
+    pyramid(g, 0, 0, r, .36, .1, lin('#7c8c96')); },
+  skyline(g, tint){ const c = lin(tint || '#6f93b8'), ct = lin('#cfe3f5');
+    for(const [x, y, h, w] of [[0,0,.9,.13],[-.17,.06,.6,.12],[.16,-.05,.7,.12],[-.05,-.16,.45,.1],[.12,.15,.4,.1]]){
+      const t = box(g, x, y, 0, w, w, h, c, ct);
+      if(h > .8) frustum(g, x, y, t, w * .35, 0, .22, 4, c, ct, Math.PI/4); } },
+  needle(g, pod){ const c = lin('#cfcfcf'), ct = lin('#f0f0f0');
+    const z = frustum(g, 0, 0, 0, .09, .04, 1.1, 6, c, ct);
+    frustum(g, 0, 0, z - .3 + (pod || 0), .16, .16, .09, 10, lin('#8a9097'), lin('#b8bec5'));
+    frustum(g, 0, 0, z, .025, 0, .4, 6, c, ct);
+    box(g, 0, 0, 0, .3, .3, .05, lin('#9a9486'), lin('#bdb7a8')); },
+  palm(g){ const t = lin('#8a6a44'), l = lin('#3f9a4a'), lt = lin('#6cc46f');
+    let z = 0; for(let i = 0; i < 5; i++) z = frustum(g, i * .012, 0, z, .035, .03, .1, 6, t, t);
+    for(let i = 0; i < 6; i++){ const a = i / 6 * Math.PI * 2; box(g, .06 + Math.cos(a) * .12, Math.sin(a) * .12, z - .03, .2, .05, .02, l, lt); }
+    box(g, 0, 0, 0, .5, .34, .02, lin('#e6d6a8'), lin('#f4e6bc')); },
+  lighthouse(g){ let z = 0; for(let i = 0; i < 5; i++) z = frustum(g, 0, 0, z, .1 - i * .008, .092 - i * .008, .12, 10, lin(i % 2 ? '#f4f4f4' : '#c8322a'), lin('#fff'));
+    z = frustum(g, 0, 0, z, .07, .07, .08, 10, lin('#ffe08a'), lin('#fff4c0'));
+    frustum(g, 0, 0, z, .08, 0, .08, 10, lin('#333'), lin('#444')); },
+  fab(g){ const w = lin('#dfe5ea'), wt = lin('#ffffff');
+    const t = box(g, 0, 0, 0, .6, .36, .16, w, wt);
+    for(let i = 0; i < 4; i++) pyramid(g, -.22 + i * .15, 0, t, .14, .06, lin('#8fa6b8'));
+    for(const x of [-.2, .2]) frustum(g, x, .22, 0, .04, .035, .42, 8, lin('#b0b7bd'), lin('#d0d6db')); },
+  headframe(g){ const s = lin('#6d767e'), st = lin('#9aa3ab');
+    let z = 0, w = .3; for(let i = 0; i < 4; i++){ z = frustum(g, 0, 0, z, w * .7, w * .55, .14, 4, s, st, Math.PI/4); w *= .78; }
+    frustum(g, 0, 0, z, .1, .1, .03, 12, lin('#444'), lin('#666'));
+    box(g, .3, 0, 0, .26, .22, .12, lin('#8a6a44'), lin('#a98256')); },
+  saucer(g){ const c = lin('#c9a46a'), ct = lin('#e2c08a');
+    const z = frustum(g, 0, 0, 0, .1, .09, .7, 10, c, ct);
+    frustum(g, 0, 0, z, .12, .22, .05, 12, lin('#8a6a44'), lin('#a98256'));
+    box(g, .22, 0, 0, .2, .3, .14, lin('#b0a898'), lin('#d0c8b8')); },
+  luxor(g){ pyramid(g, 0, 0, 0, .56, .5, lin('#2b2f3a'));
+    frustum(g, 0, 0, .5, .01, .01, .6, 4, lin('#fff6c0'), lin('#fff6c0')); },
+  casino(g){ const w = lin('#efe6d2'), wt = lin('#fffaf0');
+    const t = box(g, 0, 0, 0, .5, .3, .18, w, wt);
+    ball(g, 0, 0, t, .1, lin('#6b8c84'), true);
+    for(const x of [-.21, .21]){ const tt = box(g, x, 0, t, .08, .08, .1, w, wt); pyramid(g, x, 0, tt, .09, .08, lin('#6b8c84')); } },
+  spire(g){ frustum(g, 0, 0, 0, .05, 0, 1.3, 8, lin('#c9d3dc'), lin('#eef3f7'));
+    box(g, 0, 0, 0, .3, .3, .03, lin('#9a9486'), lin('#bdb7a8')); },
+  kingdom(g){ const c = lin('#8fa2b3'), ct = lin('#c7d6e3');
+    const z = frustum(g, 0, 0, 0, .2, .14, .8, 4, c, ct, Math.PI/4);
+    for(const s of [-1, 1]) frustum(g, s * .07, 0, z, .07, .01, .3, 4, c, ct, Math.PI/4);
+    box(g, 0, 0, z + .2, .16, .04, .03, lin('#dfe8f0'), lin('#fff')); },
+  monas(g){ const w = lin('#f0f0ea'), wt = lin('#ffffff');
+    let z = frustum(g, 0, 0, 0, .3, .24, .1, 4, w, wt, Math.PI/4);
+    z = frustum(g, 0, 0, z, .07, .04, .75, 4, w, wt, Math.PI/4);
+    frustum(g, 0, 0, z, .07, .04, .09, 8, lin('#e0b23c'), lin('#ffd76a')); },
+  castle(g){ const w = lin('#f2f0ea'), wt = lin('#fff'), r = lin('#3c5a6e'), rt = lin('#56788e');
+    let z = box(g, 0, 0, 0, .46, .4, .14, lin('#8e8a82'), lin('#aaa59b'));
+    for(let i = 0; i < 4; i++){ const s = .32 - i * .06; z = box(g, 0, 0, z, s, s * .85, .1, w, wt); z = frustum(g, 0, 0, z, s * .8, s * .5, .06, 4, r, rt, Math.PI/4); }
+    box(g, 0, 0, z, .04, .04, .06, lin('#e0b23c'), lin('#ffd76a')); },
+};
+/* 每座城市用哪一個。名字會出現在城市的懸停小卡上。 */
+const LANDMARK = {
+  nyc:['liberty','自由女神像'], sfo:['bridge','金門大橋'], mia:['palm','南灘'], las:['luxor','賭城大道'],
+  hou:['lattice','石油井架',0], del:['bank','公司註冊處'], chi:['skyline','天際線','#4c5d73'], tor:['needle','西恩塔'],
+  lon:['bigben','大笨鐘'], zur:['bank','班霍夫大街銀行'], fra:['skyline','銀行區','#5d7fa6'], par:['eiffel','艾菲爾鐵塔'],
+  dub:['spire','都柏林尖塔'], lux:['castle','盧森堡老城'], mon:['casino','蒙地卡羅賭場'], hkg:['skyline','維港天際線','#3f6c8e'],
+  sha:['pearl','東方明珠'], shz:['skyline','平安金融中心','#6a8aa6'], bjs:['pagoda','天安門'], tpe:['t101','台北 101'],
+  hsz:['fab','晶圓廠'], tky:['lattice','東京鐵塔',1], osa:['castle','大阪城'], seo:['needle','首爾塔',.12],
+  sin:['mbs','濱海灣金沙'], bkk:['stupa','大皇宮'], jkt:['monas','民族紀念碑'], hcm:['skyline','金融塔','#5f8fa0'],
+  syd:['opera','雪梨歌劇院'], dxb:['burj','哈里發塔'], ruh:['kingdom','王國中心'], doh:['mosque','伊斯蘭藝術館'],
+  tlv:['skyline','白城天際線','#8aa4b8'], bom:['gateway','印度門'], blr:['fab','科技園區'], sao:['skyline','保利斯塔大道','#7b8794'],
+  mex:['aztec','太陽金字塔'], scl:['needle','科斯塔內拉塔',-.1], jnb:['headframe','金礦井架'], lag:['skyline','維多利亞島','#7a9a8a'],
+  nbo:['saucer','肯亞塔國際會議中心'], cay:['palm','七哩海灘'], vgb:['palm','維京群島'], bmu:['lighthouse','吉布斯山燈塔'],
+};
+W3D.landmarkName = id => (LANDMARK[id] || [])[1] || '';
+function buildLandmark(d){
+  const L = LANDMARK[d.id]; if(!L) return null;
+  const [k, , arg] = L;
+  const geo = geoFor('lm:' + d.id, g => (LM[k] || LM.skyline)(g, arg));
+  const root = new T.O3();
+  root.add(new T.Mesh(geo, MAT));
+  root.userData.site = d; root.userData.lm = true;
+  root.visible = !FAR;
+  OBJS.add(root);
+  return root;
+}
+
 /* 一個據點（或一個對手大本營）的整座小城 */
 function buildSite(d){
+  if(d._lm) return buildLandmark(d) || new T.O3();
   if(d._units || d._threat){
     const root = new T.O3();
     root.add(new T.Mesh(buildTroop(d), MAT));
@@ -877,7 +1165,7 @@ function placeSite(obj, d){
 }
 function applyScale(obj, now){
   // 部隊棋子比建築大一號 —— 它們是你要常常點、常常看的東西
-  const s = bScale() * (obj.userData.troop ? 1.45 : 1);
+  const s = bScale() * (obj.userData.troop ? 1.45 : obj.userData.lm ? 1.6 : 1);   // 地標也放大:中距離要認得出是哪一座
   let k = 1;
   const g0 = obj.userData.grow;
   if(g0){
@@ -1038,6 +1326,9 @@ W3D.attach = function(globe){
        .ringRepeatPeriod(d => d._p || 1100);
       if(typeof G.ringAltitude === 'function') G.ringAltitude(d => d._alt || .012);
     }
+    /* 高解析度螢幕(像素比 2~3)等於每一幀畫四到九倍的像素。上限 1.5:
+       肉眼幾乎看不出差別,GPU 的工作量少一半以上。 */
+    try{ G.renderer().setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5)); }catch(e){}
     installTilt();
     setupPaths();
     W3D.ok = true;
@@ -1080,7 +1371,13 @@ W3D.sites = function(mine, rivals, troops){
     return o;
   });
   TROOPS = tr;
-  G.customLayerData([...mine, ...rivals, ...tr]);
+  /* 地標:每一座城市都有。你有據點的城市,地標站在小城的西北邊,不要跟你的建築擠在一起;
+     對手大本營同理。其餘城市就站在城市正中央。 */
+  const taken = new Set([...mine.map(d => d.id), ...rivals.map(d => d.id)]);
+  const lms = (typeof TY_SITES !== 'undefined' ? TY_SITES : []).map(st => ({
+    id: st.id, lat: st.lat, lng: st.lng, iso: st.iso, _lm: true, _k: 'lm:' + st.id, _base: .0008,
+    _off: taken.has(st.id) ? [-1.25, 1.0] : null }));
+  G.customLayerData([...mine, ...rivals, ...tr, ...lms]);
   tagsOn();
   buildRoutes(tr);
   pushPaths();
@@ -1154,7 +1451,25 @@ function tagStep(){
                參考那款遊戲點一支部隊時看到的那條線
      懸停      滑鼠移到一個國家 → 描出它的國界;移到一座城市 → 畫出它的範圍圈
    ============================================================================= */
-let ROUTES = [], HOVER = [];
+let ROUTES = [], HOVER = [], SELB = [];
+/* 城市的真實範圍(cities.json:Natural Earth 的都市範圍,沒有的用省州邊界)。
+   使用者:「城市範圍是城市的真實邊界」—— 第一版畫的是一個圓圈。
+   44 座城市、壓縮後約 40KB,第一次需要的時候才抓。抓不到就退回圓圈。 */
+let CITY_B = null, cityLoading = false;
+function cityBounds(){
+  if(CITY_B || cityLoading) return CITY_B;
+  cityLoading = true;
+  fetch('cities.json').then(r => r.ok ? r.json() : null).then(j => {
+    CITY_B = j || {};
+    hoverKey = ''; W3D.rings();                               // 抓到了:重畫選中城市的邊界
+  }).catch(() => { CITY_B = {}; });
+  return null;
+}
+function cityPaths(id, col, w){
+  const b = cityBounds();
+  if(!b || !b[id] || !b[id].length) return null;
+  return b[id].map(r => ({ pts: r, col, w, alt: .0016 }));
+}
 function gcPts(a, b, n){
   const out = [];
   for(let i = 0; i <= n; i++){ const p = tyGeoLerp(a, b, i / n); out.push([p.lng, p.lat]); }
@@ -1162,7 +1477,7 @@ function gcPts(a, b, n){
 }
 function pushPaths(){
   if(!W3D.ok || typeof G.pathsData !== 'function') return;
-  G.pathsData([...ROUTES, ...HOVER]);
+  G.pathsData([...ROUTES, ...SELB, ...HOVER]);
 }
 function setupPaths(){
   if(typeof G.pathsData !== 'function') return;
@@ -1212,7 +1527,7 @@ function featOutline(f){
   // 只描大的那幾塊(離島一千個小環描起來只會很亂)
   const rings = polys.map(p => p[0]).filter(r => r && r.length > 6)
     .sort((a, b) => b.length - a.length).slice(0, 12);
-  return rings.map(r => ({ pts: thin(r, 900), col: 'rgba(255,236,150,.95)', w: .38, alt: .0016 }));
+  return rings.map(r => ({ pts: thin(r, 900), col: 'rgba(255,236,150,.95)', w: .7, alt: .0016 }));
 }
 function nearSite(x, y){
   if(typeof TY_SITES === 'undefined') return null;
@@ -1241,9 +1556,11 @@ function hoverAt(x, y){
     key = 'site:' + s.id;
     if(key !== hoverKey){
       const t = tySiteStuff(s.id), R0 = TY_REGIONS[s.reg];
-      HOVER = [{ pts: ringPts(s.lat, s.lng, clamp(W3D.alt * 2.6, .25, 4)), col: 'rgba(255,236,150,.95)', w: .4, alt: .0016,
+      HOVER = cityPaths(s.id, 'rgba(255,236,150,1)', .9)
+           || [{ pts: ringPts(s.lat, s.lng, clamp(W3D.alt * 2.6, .25, 4)), col: 'rgba(255,236,150,.95)', w: .4, alt: .0016,
                  dash: .06, gap: .03, anim: 4000 }];
       html = `<b>${flag(s.iso)} ${escH(s.nm)}${t.val > 0 ? ` <em class="lv">${tySiteLv(t.val)}</em>` : ''}</b>`
+        + (W3D.landmarkName(s.id) ? `<span class="dim">地標 · ${escH(W3D.landmarkName(s.id))}</span>` : '')
         + `<span>${escH(R0.nm)} · 稅率 ${(s.tax*100).toFixed(1)}% · 景氣 ${((tyRegIdx(s.reg)-1)*100).toFixed(1)}%</span>`
         + (t.val > 0 ? `<span>你在這裡:${tyM(t.val)}</span>` : `<span class="dim">還沒進場 · 點一下看能做什麼</span>`);
     }
@@ -1304,6 +1621,9 @@ W3D.rings = function(){
   const out = [];
   const home = tySite(TY.home);
   out.push({ lat: home.lat, lng: home.lng, _rgb: '255,205,90', _a: .7, _r: 2.6, _v: 1.2, _p: 2200 });
+  // 選中的城市:常駐描出它的真實邊界(青色)
+  SELB = (typeof TY_SEL !== 'undefined' && TY_SEL && cityPaths(TY_SEL, 'rgba(79,215,255,1)', 1.1)) || [];
+  pushPaths();
   if(typeof TY_SEL !== 'undefined' && TY_SEL){
     const s = tySite(TY_SEL);
     out.push({ lat: s.lat, lng: s.lng, _rgb: '79,195,247', _a: .95, _r: 1.8, _v: 2.4, _p: 800 });
@@ -1338,7 +1658,7 @@ function farMode(){
   FAR = far;
   const host = document.getElementById('tyGlobeHost');
   if(host) host.dataset.far = far ? '1' : '';
-  for(const o of OBJS) if(o.userData.troop) o.visible = !far;
+  for(const o of OBJS) if(o.userData.troop || o.userData.lm) o.visible = !far;
 }
 
 /* =============================================================================
