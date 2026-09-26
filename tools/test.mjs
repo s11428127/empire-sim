@@ -1634,6 +1634,69 @@ test('帝國打擊:飛彈與空襲有效果、有冷卻、打錯目標會被擋'
   await page.__ctx.close();
 });
 
+test('帝國事業等級、金庫、資料頁:升級看得到回本、金庫一頁看完槓桿、資料一頁看完全部', async (browser) => {
+  /* 使用者:「事業、手法有太多東西,不知道要幹嘛,也不知道有沒有用」「想要一個可以一次看到自己所有東西的資料」。
+     等級是從資本算出來的(不另外存),所以舊存檔也要有等級;升級一次 = 資本 ×1.5。 */
+  const page = await freshPage(browser, { seed: SEED, hash: '#/tycoon' });
+  const r = await page.evaluate(() => {
+    tyStart('heir', 7); TY.cash = 500e8;
+    const b = TY.biz[0];
+    const out = { lv0: tyBizLv(b), cap0: b.cap };
+    const pv = tyUpPreview(b);
+    out.pv = pv;
+    out.msg = tyUpgrade(b.id);
+    out.lv1 = tyBizLv(b); out.cap1 = b.cap;
+    // 舊存檔:沒有 cap0 也要算得出等級
+    delete b.cap0; out.lvOld = tyBizLv(b);
+    TY.cash = 1e14;                     // 升到頂要很多錢,這裡只測上限
+    for (let i = 0; i < 12; i++) tyUpgrade(b.id);
+    out.lvMax = tyBizLv(b);
+    out.blockMax = tyBlock('upgrade', b);
+    // 空殼不能升級
+    tyFound('shell', 'cay');
+    const sh = TY.biz.find(x => TY_BIZ[x.k].shell);
+    out.shellBlock = tyBlock('upgrade', sh);
+    // 事業頁:升級是主按鈕,其餘收在「更多動作」;按鈕狀態跟引擎一致
+    TY_MODAL = 'biz'; renderPage();
+    const mb = document.querySelector('.tg-mb');
+    out.upBtns = mb.querySelectorAll('[data-ty="upgrade"]').length;
+    out.more = !!mb.querySelector('details.c-more [data-ty="sellbiz"]');
+    out.bizBad = [...mb.querySelectorAll('[data-ty="upgrade"]')].filter(x =>
+      x.disabled !== !!tyBlock('upgrade', TY.biz.find(z => z.id === +x.dataset.id))).length;
+    // 金庫
+    TY_MODAL = 'vault'; renderPage();
+    const vt = document.querySelector('.tg-mb').textContent;
+    out.vault = ['抵押借款的槓桿', '借款', '質押', '控股層', '錢放在哪裡', '信託'].filter(k => !vt.includes(k));
+    // 手法頁不再有借款
+    TY_MODAL = 'play'; renderPage();
+    out.playBorrow = !!document.querySelector('.tg-mb [data-ty="borrow"]');
+    // 資料頁
+    TY_MODAL = 'data'; renderPage();
+    const dt = document.querySelector('.tg-mb').textContent;
+    out.data = ['身家', '資產', '事業', '部隊', '對手', 'Lv'].filter(k => !dt.includes(k));
+    out.nav = ['vault', 'data'].map(k => !!document.querySelector(`[data-ty="modal:${k}"]`));
+    return out;
+  });
+  eq(r.lv0, 1, '剛開的公司是 Lv1');
+  eq(r.lv1, 2, '升一次就是 Lv2');
+  near(r.cap1 / r.cap0, 1.5, 1e-9, '升一級 = 資本 ×1.5');
+  ok(r.pv.cost > 0 && isFinite(r.pv.pay) && r.pv.pay > 0, `升級要看得到回本季數:${JSON.stringify(r.pv)}`);
+  ok(/季回本/.test(r.msg), `升級的回覆要講幾季回本:${r.msg}`);
+  eq(r.lvOld, 2, '舊存檔沒有 cap0 也要算得出等級');
+  eq(r.lvMax, 10, '最高 Lv10');
+  ok(r.blockMax && /最高/.test(r.blockMax), `Lv10 之後要擋:${r.blockMax}`);
+  ok(r.shellBlock && /空殼/.test(r.shellBlock), '空殼公司不能升級');
+  ok(r.upBtns >= 1, '事業頁要有升級按鈕');
+  ok(r.more, '其他動作要收進「更多動作」');
+  eq(r.bizBad, 0, '升級按鈕的狀態要跟引擎一致');
+  eq(r.vault, [], `金庫少了:${r.vault}`);
+  eq(r.playBorrow, false, '借款已經搬到金庫,手法頁不應該再有');
+  eq(r.data, [], `資料頁少了:${r.data}`);
+  eq(r.nav, [true, true], '金庫在底部、資料在右側都要按得到');
+  ok(page.__errors.length === 0, `有 JS 錯誤:\n      ${page.__errors.join('\n      ')}`);
+  await page.__ctx.close();
+});
+
 /* =========================================================================
    跑
    ========================================================================= */

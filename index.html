@@ -4677,6 +4677,75 @@
     .ty-unit .u-nm b{font-size:16.5px} .ty-ucard p{font-size:13.5px} .ty-ucard .uc-h b{font-size:16.5px}
     .tg-mb .expo-note{font-size:13.5px}
   }
+
+  /* ═══════════ 事業等級、金庫、資料頁 ═══════════ */
+  .ty-card .c-lv{display:inline-block;font-size:12.5px;font-weight:800;padding:2px 7px;border-radius:5px;margin-right:7px;
+    background:linear-gradient(180deg,#f4d27a,#c9951f);color:#2a1c02;vertical-align:1px}
+  .ty-card .c-lvbar{display:grid;grid-template-columns:repeat(10,1fr);gap:3px;margin:2px 0 12px}
+  .ty-card .c-lvbar i{height:7px;border-radius:2px;background:rgba(150,200,235,.14)}
+  .ty-card .c-lvbar i.on{background:linear-gradient(90deg,#4fc3f7,#2f8fd0)}
+  .ty-card .c-lvbar i.ms{box-shadow:0 0 0 1px #e0b23c inset}
+  .ty-b.up{background:linear-gradient(180deg,#2fb86a,#1d8a4c);border-color:#5fe093;color:#fff;font-weight:700}
+  .c-more{margin-top:8px}
+  .c-more summary{cursor:pointer;font-size:13px;color:var(--g-t2);padding:6px 2px}
+  .c-more[open] summary{color:var(--g-t)}
+  .ty-gauge{margin:8px 0 14px}
+  .ty-gauge .g-h{display:flex;justify-content:space-between;align-items:baseline;gap:8px;font-size:13px}
+  .ty-gauge .g-h b{font-size:20px;font-variant-numeric:tabular-nums}
+  .ty-gauge .g-bar{position:relative;height:16px;border-radius:8px;margin-top:7px;overflow:hidden;
+    background:linear-gradient(90deg,#1d8a4c 0 50%,#c9951f 50% 80%,#b3261e 80% 100%);opacity:.9}
+  .ty-gauge .g-bar u{position:absolute;top:-3px;bottom:-3px;width:4px;margin-left:-2px;background:#fff;border-radius:2px;
+    box-shadow:0 0 6px rgba(0,0,0,.8)}
+  .ty-gauge .g-lab{display:flex;justify-content:space-between;font-size:11px;color:var(--g-t3);margin-top:4px}
+  .ty-gauge .g-say{font-size:12.5px;color:var(--g-t2);margin-top:6px;line-height:1.6}
+  .ty-data{width:100%;border-collapse:collapse;font-size:13px;margin:4px 0 8px}
+  .ty-data th{text-align:left;font-weight:600;color:var(--g-t3);font-size:11.5px;padding:5px 6px;border-bottom:1px solid var(--g-line)}
+  .ty-data td{padding:6px;border-bottom:1px solid rgba(43,74,102,.45);font-variant-numeric:tabular-nums;vertical-align:top}
+  .ty-data td.n,.ty-data th.n{text-align:right;white-space:nowrap}
+  .ty-data tr[data-ty]{cursor:pointer} .ty-data tr[data-ty]:hover td{background:rgba(79,195,247,.07)}
+  .ty-stack{display:flex;height:18px;border-radius:5px;overflow:hidden;margin:8px 0 4px}
+  .ty-stack i{display:block;height:100%}
+  .ty-legend{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:12px;color:var(--g-t2)}
+  .ty-legend b{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:4px;vertical-align:-1px}
+  .ty-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+
+  /* ═══════════ 爆炸與震動 ═══════════ */
+  .w3d-flash,.w3d-boom,.w3d-shock,.w3d-spark,.w3d-fire,.w3d-smoke{position:absolute;pointer-events:none;transform:translate(-50%,-50%)}
+  .w3d-flash{width:60px;height:60px;border-radius:50%;background:radial-gradient(circle,#fff 0,rgba(255,250,220,.9) 25%,rgba(255,220,150,0) 70%);
+    animation:w3dFlash .5s ease-out forwards;mix-blend-mode:screen}
+  .w3d-flash.big{width:120px;height:120px}
+  @keyframes w3dFlash{0%{opacity:0;transform:translate(-50%,-50%) scale(.3)}15%{opacity:1}100%{opacity:0;transform:translate(-50%,-50%) scale(2.4)}}
+  .w3d-boom{width:26px;height:26px;margin:0;border-radius:50%;
+    background:radial-gradient(circle,#fff6c8 0,#ffb23c 28%,#ff5a2a 52%,rgba(120,30,10,.6) 66%,rgba(60,20,10,0) 74%);
+    animation:w3dBoom2 1.2s ease-out forwards}
+  .w3d-boom.big{width:40px;height:40px;animation-duration:1.3s}
+  @keyframes w3dBoom2{0%{transform:translate(-50%,-50%) scale(.2);opacity:1}35%{opacity:1}100%{transform:translate(-50%,-50%) scale(4.2);opacity:0}}
+  .w3d-shock{width:30px;height:18px;border-radius:50%;border:3px solid rgba(255,230,190,.9);
+    animation:w3dShock 1.1s ease-out forwards}
+  .w3d-shock.big{border-width:4px}
+  @keyframes w3dShock{0%{transform:translate(-50%,-50%) scale(.3);opacity:1}100%{transform:translate(-50%,-50%) scale(7);opacity:0}}
+  .w3d-spark{width:5px;height:5px;border-radius:50%;background:#fff3b0;box-shadow:0 0 6px 2px #ffb23c;
+    animation:w3dSpark .9s cubic-bezier(.15,.7,.4,1) forwards}
+  @keyframes w3dSpark{0%{transform:translate(-50%,-50%);opacity:1}
+    100%{transform:translate(calc(-50% + var(--dx)),calc(-50% + var(--dy) + 30px));opacity:0}}
+  .w3d-fire{width:16px;height:22px;border-radius:50% 50% 45% 45%;
+    background:radial-gradient(ellipse at 50% 70%,#fff2a0 0,#ffb13a 35%,#ff5a1f 60%,rgba(200,40,10,0) 75%);
+    transform:translate(calc(-50% + var(--dx)),calc(-80% + var(--dy)));transform-origin:50% 100%;
+    animation:w3dFire .28s ease-in-out infinite alternate, w3dFireOut 3.2s linear forwards;mix-blend-mode:screen}
+  @keyframes w3dFire{from{scale:1 1}to{scale:1.15 1.35}}
+  @keyframes w3dFireOut{0%,70%{opacity:1}100%{opacity:0}}
+  .w3d-smoke{width:22px;height:22px;border-radius:50%;background:radial-gradient(circle,rgba(70,70,75,.7) 0,rgba(70,70,75,0) 70%);
+    opacity:0;animation:w3dSmoke 3s ease-out forwards}
+  @keyframes w3dSmoke{0%{opacity:0;transform:translate(-50%,-50%) scale(.6)}20%{opacity:.9}
+    100%{opacity:0;transform:translate(calc(-50% + var(--dx)),calc(-50% - 70px)) scale(3)}}
+  /* 震動:整個地圖抖一下(炸彈小抖、飛彈大抖) */
+  .w3d-shake{animation:w3dShake .4s linear}
+  .w3d-shake2{animation:w3dShake2 .6s linear}
+  @keyframes w3dShake{0%,100%{transform:none}20%{transform:translate(-4px,2px)}40%{transform:translate(4px,-3px)}
+    60%{transform:translate(-3px,-2px)}80%{transform:translate(2px,3px)}}
+  @keyframes w3dShake2{0%,100%{transform:none}10%{transform:translate(-9px,4px)}25%{transform:translate(8px,-6px)}
+    40%{transform:translate(-7px,-4px)}55%{transform:translate(6px,5px)}70%{transform:translate(-4px,2px)}85%{transform:translate(2px,-2px)}}
+  @media (prefers-reduced-motion:reduce){ .w3d-shake,.w3d-shake2{animation:none} }
 </style>
 </head>
 <body data-route="tycoon">
@@ -7198,12 +7267,17 @@ const tyBuyPts = (amt, base, unit, cap) =>
 
 /* ---- 門檻表 ---- */
 function tyNeeds(act, arg){
-  const biz = ['expand','ipo','reverse','sellbiz','strip','ch11'].includes(act)
+  const biz = ['upgrade','expand','ipo','reverse','sellbiz','strip','ch11'].includes(act)
     ? (arg && typeof arg==='object' ? arg : TY.biz.find(x=>x.id===+arg)) : null;
   const d = biz ? TY_BIZ[biz.k] : null;
   const cashFor = amt => tyNd('現金', TY.cash, amt, tyM);
 
   switch(act){
+    case 'upgrade':
+      if(!biz) return [];
+      return [ tyNb('有實際業務', !d.shell, '空殼公司沒有業務可以升級'),
+               tyNb(`還沒到 Lv${TY_LV_MAX}`, tyBizLv(biz)<TY_LV_MAX, `已經是最高等級 Lv${TY_LV_MAX}`),
+               cashFor(tyUpCost(biz)) ];
     case 'expand':
       if(!biz) return [];
       return [ tyNb('有實際業務', !d.shell, '空殼公司沒有業務可以加碼'),
@@ -7514,13 +7588,54 @@ function tyFound(k, site, free){
     const blocked=tyBlock('found',{k,site}); if(blocked) return blocked;
     TY.cash-=cost;
   }
-  TY.biz.push({ id:TY.bizId++, k, site, cap:cost, own:1, pub:false, cf:0, born:TY.t });
+  TY.biz.push({ id:TY.bizId++, k, site, cap:cost, cap0:cost, own:1, pub:false, cf:0, born:TY.t });
   if(d.shell) TY.heat=tyClamp(TY.heat+5,0,120);
   tyLog('biz',`在${tySite(site).nm}成立${d.nm}`);
   if(!free) tySave();
   return `${d.nm}在${tySite(site).nm}成立,投入資本 ${tyM(cost)}。`
        + (d.shell?`此地法定公司稅率 ${(tySite(site).tax*100).toFixed(1)}% —— 可以拿它當控股層。`:'');
 }
+/* =========================================================================
+   事業等級 —— 參考那款遊戲的城市建築升級
+   -------------------------------------------------------------------------
+   使用者:「事業有點不知道要幹嘛,也不知道有沒有用」。原本的「加碼擴張」要自己填金額,
+   按下去之後也看不出值不值得。改成一格一格的升級:
+     · 每升一級 = 投入資本 × 1.5(花的就是現在資本的一半)
+     · 按下去之前就寫著:花多少、每季多賺多少、**幾季回本**
+     · 等級 1~10,地圖上的建築跟著長高(建築高度本來就看估值)
+   ⚠ 等級是從「現在的資本 ÷ 開辦時的資本」**算出來的**,不另外存 ——
+     舊存檔、合資、買來的公司都自動有等級,不會有兩份資料對不上。
+   ========================================================================= */
+const TY_LV_MAX = 10, TY_LV_STEP = 1.5;
+const tyBizCap0 = b => b.cap0 || tyBizCost(b.k, b.site||TY.home);
+function tyBizLv(b){
+  if(!b || TY_BIZ[b.k].shell) return 0;
+  return tyClamp(1+Math.floor(Math.log(Math.max(1e-9,b.cap/tyBizCap0(b)))/Math.log(TY_LV_STEP)+1e-6), 1, TY_LV_MAX);
+}
+const tyUpCost = b => b.cap*(TY_LV_STEP-1);
+/* 這一家一季大概賺多少:上一季真的有數字就用真的,剛開的用模型估 */
+function tyBizCfEst(b){
+  if(b.cf) return b.cf;
+  const d=TY_BIZ[b.k]; if(d.shell) return 0;
+  const rate=d.fameCf ? .015+TY.fame/100*.20 : d.cf;
+  return b.cap*rate*tySpecMul(b.site||TY.home,'biz',b.k,'cf')*tyClamp(tyRegIdx(tySite(b.site||TY.home).reg),.3,2.2);
+}
+function tyUpPreview(b){
+  const cost=tyUpCost(b), dcf=tyBizCfEst(b)*(TY_LV_STEP-1);
+  return { cost, dcf, pay: dcf>0 ? cost/dcf : Infinity, dval: tyBizVal(b)*(TY_LV_STEP-1) };
+}
+function tyUpgrade(id){
+  const b=TY.biz.find(x=>x.id===id); if(!b) return '';
+  const blocked=tyBlock('upgrade', b); if(blocked) return blocked;
+  const d=TY_BIZ[b.k], lv=tyBizLv(b), pv=tyUpPreview(b);
+  TY.cash-=pv.cost; b.cap+=pv.cost;
+  tyLog('biz', `${d.nm}(${tySite(b.site||TY.home).nm})升到 Lv${tyBizLv(b)}`);
+  tySave();
+  return `<b>${d.ic||''} ${d.nm} Lv${lv} → Lv${tyBizLv(b)}</b>。投入 ${tyM(pv.cost)},`
+       + (pv.dcf>0 ? `每季現金流大約多 <b>${tyM(pv.dcf)}</b>,${pv.pay.toFixed(1)} 季回本。`
+                   : `這一家目前還在燒錢 —— 升級會讓它燒得更快,賭的是估值(×${d.mult})。`);
+}
+
 function tyExpand(id){
   const b=TY.biz.find(x=>x.id===id); if(!b) return '';
   const d=TY_BIZ[b.k];
@@ -8089,40 +8204,52 @@ function tyBizActs(b){
       ${extra||''}</div>`;
   };
   const id=` data-id="${b.id}"`;
-  const out=[];
-
+  /* 主角只有一個:升級。其餘的(自訂加碼、借殼、賣掉、拆賣、破產保護)收進「更多動作」——
+     使用者說「太多東西了,不知道要幹嘛」,那就只把最常用、最看得懂的那一個擺在前面。 */
+  const main=[], more=[];
+  if(!d.shell){
+    const lv=tyBizLv(b), pv=tyUpPreview(b);
+    main.push(row('upgrade', lv>=TY_LV_MAX?`已經是 Lv${TY_LV_MAX}`:`⬆ 升到 Lv${lv+1}`, 'up', id,
+      lv>=TY_LV_MAX?'':`花 ${tyM(pv.cost)} · 每季 ${pv.dcf>=0?'+':''}${tyM(pv.dcf)} · ${
+        isFinite(pv.pay)?`<b>${pv.pay.toFixed(1)} 季回本</b>`:'<b class="down">還在燒錢</b>'}`));
+  }
+  if(!d.shell && !b.pub){
+    main.push(row('ipo','🔔 送上市 IPO','',id,
+      `賣兩成股權,約募得 ${tyM(val*.2*.93)}`,
+      `<div class="c-note">里程碑:上市之後你的身家由「別人願意付多少倍」決定 ——
+        名氣 +12、信用 +6,但估值從此跟著市場情緒一起跳。</div>`));
+  }
   if(!d.shell){
     const amt=tyAmtOf('expand', b, 'expand:'+b.id);
-    out.push(row('expand','加碼擴張','',id,
+    more.push(row('expand','自訂金額加碼','alt',id,
       amt>0?`+${tyM(amt)} → 資本 ${tyM(b.cap+amt)}`:'',
       tyAmtBox('expand', b, 'expand:'+b.id)));
   }
   if(!d.shell && !b.pub){
-    out.push(row('ipo','送上市 IPO','',id,
-      `賣兩成股權,約募得 ${tyM(val*.2*.93)}`,
-      `<div class="c-note">上市之後你的身家由「別人願意付多少倍」決定 ——
-        名氣 +12、信用 +6,但估值從此跟著市場情緒一起跳。</div>`));
-    out.push(row('reverse','借殼上市','alt',id,
+    more.push(row('reverse','借殼上市','alt',id,
       `賣 12% 股權,約入帳 ${tyM(val*.12*.9)}`,
       `<div class="c-note">併進一家空殼公司直接取得上市地位:沒有承銷商、
         沒有審查、不用等 —— 代價是<b>關注度 +18</b>,而且會吃掉那家空殼。</div>`));
   }
-  out.push(row('sellbiz', d.shell?'註銷這家空殼':`賣掉(約 ${tyM(val*b.own*.94)})`,'alt',id,
+  more.push(row('sellbiz', d.shell?'註銷這家空殼':`賣掉(約 ${tyM(val*b.own*.94)})`,'alt',id,
     d.shell?'':`交易成本 6% · 每季 ${tySgn(b.cf*b.own)} 的現金流從此不是你的`));
   if(!d.shell && TY.scn==='raider')
-    out.push(row('strip','拆賣資產','alt',id, `回收 ${tyM(b.cap*.8*b.own)}(土地與設備)`));
+    more.push(row('strip','拆賣資產','alt',id, `回收 ${tyM(b.cap*.8*b.own)}(土地與設備)`));
   if(!d.shell)
-    out.push(row('ch11','聲請破產保護','warn',id,
+    more.push(row('ch11','聲請破產保護','warn',id,
       `甩掉 ${tyM(Math.min(TY.debt, val*b.own*1.2))} 負債 · 信用 −24`));
-  return `<div class="c-acts">${out.join('')}</div>`;
+  return `<div class="c-acts">${main.join('')}</div>
+    ${more.length?`<details class="c-more"><summary>更多動作(${more.length})</summary>
+      <div class="c-acts">${more.join('')}</div></details>`:''}`;
 }
 
 function tyBizTab(){
   const mine=TY.biz.length ? TY.biz.map(b=>{
     const d=TY_BIZ[b.k], val=tyBizVal(b);
     const shell=d.shell;
+    const lv=tyBizLv(b);
     return `<div class="ty-card">
-      <div class="c-hd"><b>${d.nm}</b>
+      <div class="c-hd">${shell?'':`<span class="c-lv">Lv${lv}</span>`}<b>${d.ic||''} ${d.nm}</b>
         ${b.pub?'<span class="tag pub">上市</span>':''}
         ${shell?'<span class="tag shell">空殼</span>':''}
         ${TY.holdco===b.site&&shell?'<span class="tag shell">控股層</span>':''}
@@ -8134,6 +8261,8 @@ function tyBizTab(){
         <span>估值 <b>${shell?'—':tyM(val)}</b></span>
         <span>持股 <b>${(b.own*100).toFixed(0)}%</b></span>
         <span>上季現金流 <b class="${b.cf>=0?'up':'down'}">${shell?'—':tySgn(b.cf)}</b></span></div>
+      ${shell?'':`<div class="c-lvbar" title="等級 ${lv} / ${TY_LV_MAX}">${
+        Array.from({length:TY_LV_MAX},(_,i)=>`<i class="${i<lv?'on':''}${i===4?' ms':''}"></i>`).join('')}</div>`}
       ${tyBizActs(b)}
       <div class="c-dsc">${d.dsc}</div></div>`;
   }).join('') : '<div class="empty">你還沒有任何事業。買資產讓錢變多,開公司讓錢生錢。</div>';
@@ -8198,9 +8327,158 @@ function tyPlayCard(act, nm, sub, dsc, opt){
 }
 
 function tyPlayTab(){
-  const shells=TY.biz.filter(b=>TY_BIZ[b.k].shell).length;
+  /* 借款、質押、信託、控股層、錢放在哪裡 —— 全部搬到「金庫」(tyVaultTab)。
+     使用者說這一頁「太多東西,不知道要幹嘛」:原本十幾張卡混在一起,
+     財務結構和政商手法根本是兩件事。這裡只留「你住哪、跟誰合作、買影響力」。 */
+  return `<div class="expo-note">借款、質押、信託、控股層、錢放在哪裡,都在底部的 <b>🏦 金庫</b>。</div>
+  <div class="p-sec">稅務居住地<span>證券的資本利得由「你住在哪裡」決定,不動產由「它在哪裡」決定</span></div>
+  <div class="expo-note">遷過去要 ${tyM(tyMoveCost())}(律師、身分、資產重組),而且人脈會掉 10 點 ——
+    你離開了原本認識你的那一群人。</div>
+  <div class="ty-juris">${
+    TY_SITES.filter(x=>tyCg(x.id,1)<=0.05 || x.id===TY.home)
+      .slice(0,9).map(x=>{
+      const on=TY.home===x.id;
+      return `<div class="ty-j${on?' on':''}">
+        <div class="j-h"><b>${escH(x.nm)}</b><span>證券 ${(tyCg(x.id,1)*100).toFixed(1)}%</span></div>
+        <div class="j-d">不動產處分 ${(tyCg(x.id,0)*100).toFixed(1)}% ·
+          一般所得 ${(x.tax*100).toFixed(1)}%。${escH(x.note)}</div>
+        <div class="j-a">${on?'<span class="j-on">你住在這裡</span>'
+          :tyActBtn('movehome', x.id, `遷過去 ${tyM(tyMoveCost())}`, ` data-site="${x.id}"`, 'alt')}</div>
+        ${on?'':tyNeedHTML(tyNeeds('movehome', x.id),'tight')}
+      </div>`;
+    }).join('')}</div>
+  <div class="expo-note">這些是<b>概略稅率</b>,不是報稅用的:真實稅率會因持有期間、資產類別、
+    居住者身分與一堆例外而不同(台灣賣上市股票停徵所得稅、但有 0.3% 證交稅;
+    房地合一稅依持有年限 45% / 35% / 20% / 15%)。這裡各取一個代表值,
+    用途是讓「賣掉 vs 借錢」這個取捨有真實的量級。</div>
 
-  return `<div class="ty-opens">
+  <div class="p-sec">在地夥伴<span>政策風險高的地方,不是有錢就進得去</span></div>
+  <div class="ty-juris">${
+    Object.entries(TY_PARTNERS).map(([reg,d])=>{
+      const have=TY.partners[reg];
+      return `<div class="ty-j${have?' on':''}">
+        <div class="j-h"><b>${escH(d.nm)}</b><span>${TY_REGIONS[reg].nm}</span></div>
+        <div class="j-d">${escH(d.tag)}。抽走當地事業現金流的
+          ${((have?have.cut:d.cut)*100).toFixed(0)}%,但那個地區的政策風險對你只剩一半,
+          而且你買得到原本買不到的東西。</div>
+        <div class="j-a">${have?'<span class="j-on">已經是夥伴</span>'
+          :tyActBtn('partner', reg, `合資 ${tyM(tyPartnerCost())}`, ` data-reg="${reg}"`, 'alt')}</div>
+        ${have?'':tyNeedHTML(tyNeeds('partner', reg),'tight')}
+      </div>`;
+    }).join('')}</div>
+
+  <div class="p-sec">影響力<span>影響力:用錢買點數,金額自己選 —— 但效果是遞減的</span></div>
+  <div class="ty-opens">
+    ${tyPlayCard('lobby','政治獻金與遊說', `人脈 +9 起跳 · 關注度也會跟著上去`,
+       '基建標案的評選、危機時的紓困名單、法規的過渡期長短 —— 這些東西不看財報。',
+       {label:'送出獻金'})}
+    ${tyPlayCard('media','買一波媒體曝光', `名氣 +7 起跳${TY.scn==='self'?'(白手起家加倍)':''}`,
+       '專訪、封面、一本掛你名字的書。名氣夠高就能開品牌授權公司,幾乎不用資本。',
+       {label:'買曝光'})}
+    ${tyPlayCard('charity','成立慈善基金會', `關注 −16 起跳 · 名氣 +5 起跳`,
+       '一個正在蓋醫院的人,比較不像一個要被查的人。這是最貴、但也最乾淨的降溫方式。',
+       {label:'捐出去'})}
+  </div>
+  <div class="expo-note">⚠ 這三個手法的效果是 <b>0.6 次方遞減</b>而且單次有上限:
+    花兩倍的錢大約只買到 1.5 倍的效果,花十倍買到 4 倍。這是故意的 ——
+    線性的話,身家一大就能在一季之內把名氣與人脈買滿,後面四十季就沒有任何取捨了。</div>`;
+}
+
+/* =========================================================================
+   資料 —— 一頁看完你所有的東西
+   -------------------------------------------------------------------------
+   使用者:「我想要一個可以一次看到自己所有東西的資料」。
+   不做成另一個儀表板,就是一張張的表:身家怎麼組成、每一筆部位、每一家公司、
+   錢與架構、部隊與武器、對手。每一列點下去就是地圖上那個地方。
+   ========================================================================= */
+function tyDataTab(){
+  const nw=tyNW(), a=tyAssetVal(), bz=tyBizTotal();
+  const parts=[['現金',Math.max(0,TY.cash),'#30d158'],['資產',a,'#2997ff'],['事業',bz,'#bf5af2']];
+  const gross=Math.max(1,parts.reduce((s,x)=>s+x[1],0));
+  const row=(cells,attrs)=>`<tr${attrs||''}>${cells.map(c=>`<td${c&&c.n?' class="n"':''}>${c&&c.v!=null?c.v:c}</td>`).join('')}</tr>`;
+  const N=v=>({ v, n:true });
+  const pos=TY.pos.filter(p=>Math.abs(p.q)>1e-9).map(p=>{
+    const v=tyPosVal(p), pl=v-p.cb;
+    return row([escH(tyAsset(p.k).nm)+(p.q<0?' <em>空單</em>':''), escH(tySite(p.site).nm), N(tyM(v)), N(tyM(p.cb)),
+      N(`<span class="${pl>=0?'up':'down'}">${tySgn(pl)}</span>`)], ` data-ty="site" data-k="${p.site}"`);
+  }).join('');
+  const biz=TY.biz.map(b=>{
+    const d=TY_BIZ[b.k];
+    return row([`${d.ic||''} ${escH(d.nm)}${b.pub?' <em>上市</em>':''}`, escH(tySite(b.site||TY.home).nm),
+      d.shell?'—':'Lv'+tyBizLv(b), N(d.shell?'—':tyM(tyBizVal(b)*b.own)),
+      N(d.shell?'—':`<span class="${b.cf>=0?'up':'down'}">${tySgn(b.cf*b.own)}</span>`)], ` data-ty="site" data-k="${b.site||TY.home}"`);
+  }).join('');
+  const units=tyUnits().map(u=>row([`${TY_UNITS[u.k].ic} ${TY_UNITS[u.k].nm}`,
+    u.to?`→ ${escH(tySite(u.to).nm)}(下季到位)`:escH(tySite(u.site).nm), N(tyM(u.up)+'/季')])).join('');
+  const strikes=Object.entries(TY_STRIKES).map(([k,d])=>row([`${d.ic} ${d.nm}`,
+    tyStrikeReady(k)?'<span class="up">可以用</span>':`冷卻到 ${tyWhen(TY.cd[k])}`, N(tyM(tyStrikeCost(k)))])).join('');
+  const rv=tyRivalsA().slice().sort((x,y)=>y.nw-x.nw).map(r=>row([`${r.ic||''} ${escH(r.nm)}`, escH(tySite(r.home).nm),
+    N(tyM(r.nw)), N(`${tyRelTxt(r.rel||0)}(${(r.rel||0).toFixed(0)})`), r.pact>TY.t?'互不侵犯':''],
+    ` data-ty="rival" data-k="${r.id}"`)).join('');
+  const T=(head,body,empty)=>body?`<div class="ty-scroll"><table class="ty-data"><thead><tr>${
+    head.map(h=>`<th${h[1]?' class="n"':''}>${h[0]}</th>`).join('')}</tr></thead><tbody>${body}</tbody></table></div>`
+    :`<div class="empty">${empty}</div>`;
+  return `
+  <div class="p-sec">身家<span>淨值 ${tyM(nw)} · 富豪榜第 ${tyRank()} 名</span></div>
+  <div class="ty-stack">${parts.map(x=>`<i style="width:${(x[1]/gross*100).toFixed(1)}%;background:${x[2]}"></i>`).join('')}</div>
+  <div class="ty-legend">${parts.map(x=>`<span><b style="background:${x[2]}"></b>${x[0]} ${tyM(x[1])}</span>`).join('')}
+    <span><b style="background:#e05252"></b>負債 −${tyM(TY.debt)}</span></div>
+  <div class="ty-facts">
+    <div><em>信用</em><b>${TY.credit.toFixed(0)}</b></div><div><em>名氣</em><b>${TY.fame.toFixed(0)}</b></div>
+    <div><em>人脈</em><b>${TY.infl.toFixed(0)}</b></div><div><em>關注</em><b class="${TY.heat>=60?'down':''}">${TY.heat.toFixed(0)}</b></div>
+    <div><em>居住地 / 現金在</em><b>${escH(tySite(TY.home).nm)} / ${escH(tySite(TY.cashSite).nm)}</b></div>
+    <div><em>集團稅率 / 控股層</em><b>${(tyTaxRate()*100).toFixed(1)}% / ${TY.holdco?escH(tySite(TY.holdco).nm):'—'}</b></div>
+    <div><em>累計繳稅</em><b>${tyM(TY.taxPaid||0)}</b></div><div><em>累計利息</em><b>${tyM(TY.interest||0)}</b></div>
+  </div>
+  <div class="p-sec">資產<span>${TY.pos.filter(p=>Math.abs(p.q)>1e-9).length} 筆 · ${tyM(a)}</span></div>
+  ${T([['資產'],['在哪'],['市值',1],['成本',1],['損益',1]], pos, '還沒有任何部位。')}
+  <div class="p-sec">事業<span>${TY.biz.length} 家 · ${tyM(bz)}</span></div>
+  ${T([['公司'],['在哪'],['等級'],['你的持股價值',1],['每季',1]], biz, '還沒有任何事業。')}
+  <div class="p-sec">部隊與武器<span>${tyUnits().length} / ${TY_UNIT_MAX} 支 · 維持費 ${tyM(tyUnitUpkeep())}/季</span></div>
+  ${T([['部隊'],['位置'],['維持費',1]], units, '還沒有部隊。')}
+  ${T([['武器'],['狀態'],['一發',1]], strikes, '')}
+  ${tyThreats().length?`<div class="expo-note">⚠ 有 ${tyThreats().length} 支敵軍正在路上 —— 到「部隊」看防守率。</div>`:''}
+  <div class="p-sec">在地夥伴<span>${Object.keys(TY.partners||{}).length} 個</span></div>
+  <div class="expo-note">${Object.keys(TY.partners||{}).map(k=>`${escH(TY_PARTNERS[k].nm)}(${TY_REGIONS[k].nm})`).join('、')||'還沒有。'}</div>
+  <div class="p-sec">對手<span>點一列開談判</span></div>
+  ${T([['對手'],['大本營'],['身家',1],['關係',1],['']], rv, '')}`;
+}
+
+/* =========================================================================
+   金庫 —— 你的錢是怎麼疊起來的
+   -------------------------------------------------------------------------
+   借了多少、還能借多少、離被追繳還有多遠 —— 一個儀表看完。
+   底下才是可以動的東西:借 / 還、質押、控股層與空殼、錢放在哪裡、信託。
+   ========================================================================= */
+function tyGauge(lab, used, max, say){
+  const r = max>0 ? used/max : (used>0?1.2:0);
+  const pct = tyClamp(r, 0, 1.2)/1.2*100;
+  /* ⚠ 不能用 .up / .down:站上是「紅漲綠跌」,.up 是紅色 —— 「安全」會被塗成紅的 */
+  const zone = r<.5 ? ['安全','#30d158'] : r<.8 ? ['小心','#ffb13a'] : r<1 ? ['危險','#ff453a'] : ['會被追繳','#ff453a'];
+  return `<div class="ty-gauge">
+    <div class="g-h"><span>${lab}</span><span><b style="color:${zone[1]}">${(r*100).toFixed(0)}%</b> ${zone[0]}</span></div>
+    <div class="g-bar"><u style="left:${pct.toFixed(1)}%"></u></div>
+    <div class="g-lab"><span>0</span><span>50% 小心</span><span>80% 危險</span><span>超過 100% 強制處分</span></div>
+    ${say?`<div class="g-say">${say}</div>`:''}
+  </div>`;
+}
+function tyVaultTab(){
+  const shells=TY.biz.filter(b=>TY_BIZ[b.k].shell).length;
+  const sbl=Math.min(TY.sbl||0, TY.debt);
+  const intr=(TY.debt-sbl)*tyRate()/100/4 + sbl*tySblRate()/100/4;
+  return `
+  ${tyGauge('抵押借款的槓桿', TY.debt, tyBorrowMax(),
+     `負債 <b>${tyM(TY.debt)}</b> / 抵押上限 ${tyM(tyBorrowMax())} · 每季利息 <b class="down">${tyM(intr)}</b>(年利率 ${tyRate().toFixed(2)}%)。
+      資產一跌,上限跟著縮 —— 同樣的負債,比例會自己往右跑。`)}
+  ${(TY.sbl||0)>0 || tySecVal()>0 ? tyGauge('證券質押的維持率', TY.sbl||0, tySblMax(),
+     `質押 ${tyM(TY.sbl||0)} / 額度 ${tyM(tySblMax())}。超過 115% 券商會直接賣你的證券 —— 一賣就實現獲利、當場課稅。`) : ''}
+  <div class="ty-facts">
+    <div><em>現金</em><b>${tyM(TY.cash)}</b></div>
+    <div><em>現金放在</em><b>${escH(tySite(TY.cashSite).nm)}</b></div>
+    <div><em>集團稅率</em><b>${(tyTaxRate()*100).toFixed(1)}%</b></div>
+    <div><em>信託</em><b>${TY.struct.trust?'✓ 已設立':'沒有'}</b></div>
+  </div>
+  <div class="ty-opens">
     ${tyPlayCard('borrow','抵押借款',
        `上限 ${tyM(tyBorrowMax())} · 目前 ${tyM(TY.debt)} · 年利率 ${tyRate().toFixed(2)}%`,
        '把手上的資產拿去抵押。槓桿讓好決定變成兩倍好,也讓壞決定變成兩倍壞 —— 而且利息不管你賺不賺錢都要付。',
@@ -8210,33 +8488,6 @@ function tyPlayTab(){
        '沒有人在景氣好的時候還債。但被追繳保證金的那一季,你會希望自己有。',
        {label:'還款'})}
   </div>
-
-  <div class="p-sec">法人登記:選一個司法管轄區<span>稅率是各地的法定公司所得稅率,真實數字</span></div>
-  <div class="expo-note">空殼公司沒有員工、沒有營收,只有一份登記文件。它本身不賺錢 ——
-    但境外控股、信託隔離、借殼上市三件事都要先有它,而且<b>它登記在哪裡決定你整個集團的稅率</b>。
-    目前有 ${shells} 家,每家 ${tyM(TY_BIZ.shell.cost)}。</div>
-  <div class="ty-juris">${
-    TY_SITES.filter(x=>x.kind.includes('shell')).map(x=>{
-      const has=TY.biz.some(b=>TY_BIZ[b.k].shell && b.site===x.id);
-      const isHold=TY.holdco===x.id;
-      return `<div class="ty-j${isHold?' on':''}">
-        <div class="j-h"><b>${escH(x.nm)}</b><span>${(x.tax*100).toFixed(1)}%</span></div>
-        <div class="j-d">${escH(x.note)}</div>
-        <div class="j-a">
-          ${tyActBtn('found',{k:'shell',site:x.id}, has?'再開一家':`開空殼公司 ${tyM(TY_BIZ.shell.cost)}`,
-                     ` data-k="shell" data-site="${x.id}"`,'alt')}
-          ${isHold ? '<span class="j-on">控股層在這裡</span>'
-                   : tyActBtn('holdco', x.id, '設為控股層', ` data-site="${x.id}"`, 'warn')}
-        </div>
-        ${isHold?'':tyNeedHTML(tyNeeds('holdco', x.id),'tight')}
-        </div>`;
-    }).join('')}</div>
-  <div class="expo-note">目前稅率 <b>${(tyTaxRate()*100).toFixed(1)}%</b>
-    (出身地 ${escH(tySite(TY.home).nm)} 是 ${(tyHomeTax()*100).toFixed(1)}%)。
-    ${tyTaxGap()>0
-      ? `每一季會因此累積約 ${(tyTaxGap()*14).toFixed(1)} 點監理關注度 ——
-         <b>省得越多,被盯上得越快</b>。這個手法從來不是被抓到才失敗,是被盯久了才失敗。`
-      : `沒有比出身地低,所以不會招來額外的注意。`}</div>
 
   <div class="p-sec">不賣,改成借<span>Buy · Borrow · Die —— 這是這一頁最重要的一段</span></div>
   ${(()=>{ const un=tyUnreal(), sec=tySecVal(), max=tySblMax(), used=TY.sbl||0;
@@ -8267,26 +8518,32 @@ function tyPlayTab(){
         補不出錢就被強制處分 —— 而一被處分就實現獲利,那筆你一直沒繳的稅會在最壞的時候一次到期。</div>
     </div>`; })()}
 
-  <div class="p-sec">稅務居住地<span>證券的資本利得由「你住在哪裡」決定,不動產由「它在哪裡」決定</span></div>
-  <div class="expo-note">遷過去要 ${tyM(tyMoveCost())}(律師、身分、資產重組),而且人脈會掉 10 點 ——
-    你離開了原本認識你的那一群人。</div>
+  <div class="p-sec">法人登記:選一個司法管轄區<span>稅率是各地的法定公司所得稅率,真實數字</span></div>
+  <div class="expo-note">空殼公司沒有員工、沒有營收,只有一份登記文件。它本身不賺錢 ——
+    但境外控股、信託隔離、借殼上市三件事都要先有它,而且<b>它登記在哪裡決定你整個集團的稅率</b>。
+    目前有 ${shells} 家,每家 ${tyM(TY_BIZ.shell.cost)}。</div>
   <div class="ty-juris">${
-    TY_SITES.filter(x=>tyCg(x.id,1)<=0.05 || x.id===TY.home)
-      .slice(0,9).map(x=>{
-      const on=TY.home===x.id;
-      return `<div class="ty-j${on?' on':''}">
-        <div class="j-h"><b>${escH(x.nm)}</b><span>證券 ${(tyCg(x.id,1)*100).toFixed(1)}%</span></div>
-        <div class="j-d">不動產處分 ${(tyCg(x.id,0)*100).toFixed(1)}% ·
-          一般所得 ${(x.tax*100).toFixed(1)}%。${escH(x.note)}</div>
-        <div class="j-a">${on?'<span class="j-on">你住在這裡</span>'
-          :tyActBtn('movehome', x.id, `遷過去 ${tyM(tyMoveCost())}`, ` data-site="${x.id}"`, 'alt')}</div>
-        ${on?'':tyNeedHTML(tyNeeds('movehome', x.id),'tight')}
-      </div>`;
+    TY_SITES.filter(x=>x.kind.includes('shell')).map(x=>{
+      const has=TY.biz.some(b=>TY_BIZ[b.k].shell && b.site===x.id);
+      const isHold=TY.holdco===x.id;
+      return `<div class="ty-j${isHold?' on':''}">
+        <div class="j-h"><b>${escH(x.nm)}</b><span>${(x.tax*100).toFixed(1)}%</span></div>
+        <div class="j-d">${escH(x.note)}</div>
+        <div class="j-a">
+          ${tyActBtn('found',{k:'shell',site:x.id}, has?'再開一家':`開空殼公司 ${tyM(TY_BIZ.shell.cost)}`,
+                     ` data-k="shell" data-site="${x.id}"`,'alt')}
+          ${isHold ? '<span class="j-on">控股層在這裡</span>'
+                   : tyActBtn('holdco', x.id, '設為控股層', ` data-site="${x.id}"`, 'warn')}
+        </div>
+        ${isHold?'':tyNeedHTML(tyNeeds('holdco', x.id),'tight')}
+        </div>`;
     }).join('')}</div>
-  <div class="expo-note">這些是<b>概略稅率</b>,不是報稅用的:真實稅率會因持有期間、資產類別、
-    居住者身分與一堆例外而不同(台灣賣上市股票停徵所得稅、但有 0.3% 證交稅;
-    房地合一稅依持有年限 45% / 35% / 20% / 15%)。這裡各取一個代表值,
-    用途是讓「賣掉 vs 借錢」這個取捨有真實的量級。</div>
+  <div class="expo-note">目前稅率 <b>${(tyTaxRate()*100).toFixed(1)}%</b>
+    (出身地 ${escH(tySite(TY.home).nm)} 是 ${(tyHomeTax()*100).toFixed(1)}%)。
+    ${tyTaxGap()>0
+      ? `每一季會因此累積約 ${(tyTaxGap()*14).toFixed(1)} 點監理關注度 ——
+         <b>省得越多,被盯上得越快</b>。這個手法從來不是被抓到才失敗,是被盯久了才失敗。`
+      : `沒有比出身地低,所以不會招來額外的注意。`}</div>
 
   <div class="p-sec">錢放在哪裡<span>外匯管制、銀行危機、資產凍結只發生在錢所在的地方</span></div>
   <div class="expo-note">搬過去的成本是現金的 0.15%(電匯與換匯),目前約 ${tyM(TY.cash*.0015)}。</div>
@@ -8301,39 +8558,12 @@ function tyPlayTab(){
       </div>`;
     }).join('')}</div>
 
-  <div class="p-sec">在地夥伴<span>政策風險高的地方,不是有錢就進得去</span></div>
-  <div class="ty-juris">${
-    Object.entries(TY_PARTNERS).map(([reg,d])=>{
-      const have=TY.partners[reg];
-      return `<div class="ty-j${have?' on':''}">
-        <div class="j-h"><b>${escH(d.nm)}</b><span>${TY_REGIONS[reg].nm}</span></div>
-        <div class="j-d">${escH(d.tag)}。抽走當地事業現金流的
-          ${((have?have.cut:d.cut)*100).toFixed(0)}%,但那個地區的政策風險對你只剩一半,
-          而且你買得到原本買不到的東西。</div>
-        <div class="j-a">${have?'<span class="j-on">已經是夥伴</span>'
-          :tyActBtn('partner', reg, `合資 ${tyM(tyPartnerCost())}`, ` data-reg="${reg}"`, 'alt')}</div>
-        ${have?'':tyNeedHTML(tyNeeds('partner', reg),'tight')}
-      </div>`;
-    }).join('')}</div>
-
-  <div class="p-sec">其他手法<span>三個用錢買點數的手法,金額自己選 —— 但效果是遞減的</span></div>
+  <div class="p-sec">資產隔離信託<span>破產時唯一的降落傘</span></div>
   <div class="ty-opens">
     ${tyPlayCard('trust','資產隔離信託', `需要 2 家空殼 · 費用 ${tyM(tyTrustCost())}(淨值 3%)`,
        '把個人資產放進債權人拿不走的地方。破產時它是你唯一的降落傘;平常它讓富豪榜上的你看起來窮三成。',
        {done: TY.struct.trust ? '已設立' : ''})}
-    ${tyPlayCard('lobby','政治獻金與遊說', `人脈 +9 起跳 · 關注度也會跟著上去`,
-       '基建標案的評選、危機時的紓困名單、法規的過渡期長短 —— 這些東西不看財報。',
-       {label:'送出獻金'})}
-    ${tyPlayCard('media','買一波媒體曝光', `名氣 +7 起跳${TY.scn==='self'?'(白手起家加倍)':''}`,
-       '專訪、封面、一本掛你名字的書。名氣夠高就能開品牌授權公司,幾乎不用資本。',
-       {label:'買曝光'})}
-    ${tyPlayCard('charity','成立慈善基金會', `關注 −16 起跳 · 名氣 +5 起跳`,
-       '一個正在蓋醫院的人,比較不像一個要被查的人。這是最貴、但也最乾淨的降溫方式。',
-       {label:'捐出去'})}
-  </div>
-  <div class="expo-note">⚠ 這三個手法的效果是 <b>0.6 次方遞減</b>而且單次有上限:
-    花兩倍的錢大約只買到 1.5 倍的效果,花十倍買到 4 倍。這是故意的 ——
-    線性的話,身家一大就能在一季之內把名氣與人脈買滿,後面四十季就沒有任何取捨了。</div>`;
+  </div>`;
 }
 
 /* =========================================================================
@@ -8474,6 +8704,9 @@ function tyTroopTab(){
 /* 派遣 / 打擊之後,把剛剛發生的事交給畫面層演出來(飛機、船、飛彈、戰機) */
 function tyPlayLast(){
   if(!window.W3D || !W3D.ok) return;
+  /* 手機上面板是整張蓋住地圖的(而且面板打開時地球會暫停繪圖)——
+     不先收起來,飛機、飛彈全部在面板底下播完,等於沒有動畫。 */
+  if((TY_LAST_MOVE || TY_LAST_STRIKE) && TY_MODAL && !tySideModal()){ TY_MODAL=null; renderPage(); }
   if(TY_LAST_MOVE){ W3D.animMove(TY_LAST_MOVE); TY_LAST_MOVE=null; }
   if(TY_LAST_STRIKE){ W3D.animStrike(TY_LAST_STRIKE); TY_LAST_STRIKE=null; }
 }
@@ -10058,6 +10291,7 @@ function tySideBtns(){
   /* 縮放按鈕:手機上兩指捏合不好按(而且地球本來就吃拖曳),
      所以照參考的那款遊戲給一組 +/− 。最近可以貼到城市那麼近。 */
   return `<div class="tg-side">
+      ${b('modal:data','📊','資料')}
       ${b('overview','🌐','總覽')}
       ${b('modal:log','📋','大事記')}
       ${b('modal:learn','🎓','怎麼玩')}
@@ -10067,9 +10301,10 @@ function tySideBtns(){
 }
 
 /* 底部功能列。每一格開一張蓋在地圖上的面板。 */
+/* 富豪榜不在這一列:頂列金色的淨值鈕點下去就是富豪榜。空出來的位置給「金庫」。 */
 const TY_NAV = [
-  ['asset','資產','▤'], ['biz','事業','▥'], ['play','手法','♟'],
-  ['troop','部隊','🎖'], ['rival','對手','⚔'], ['rank','富豪榜','🏆'], ['more','更多','☰'],
+  ['asset','資產','▤'], ['biz','事業','▥'], ['vault','金庫','🏦'], ['play','手法','♟'],
+  ['troop','部隊','🎖'], ['rival','對手','⚔'], ['more','更多','☰'],
 ];
 function tyNavBar(){
   return `<div class="tg-nav">${TY_NAV.map(([k,nm,ic])=>
@@ -10094,10 +10329,14 @@ function tyTicker(){
 
 const TY_MODAL_NM = { asset:'資產', biz:'事業', play:'手法', rank:'富豪榜',
                       rival:'對手', learn:'怎麼玩', log:'大事記', more:'更多', site:'據點',
-                      troop:'資本部隊' };
+                      troop:'資本部隊', vault:'金庫', data:'我的全部資料' };
 
 function tyMoreSheet(){
   return `<div class="tg-more">
+      <button type="button" class="tg-ml" data-ty="modal:data"><b>我的全部資料</b>
+        <span>身家組成、每一筆資產與事業、部隊、對手 —— 一頁看完</span></button>
+      <button type="button" class="tg-ml" data-ty="modal:rank"><b>富豪榜</b>
+        <span>你跟對手、跟真實世界的距離</span></button>
       <button type="button" class="tg-ml" data-ty="modal:learn"><b>怎麼玩</b>
         <span>名詞表、三條路、大師的走法</span></button>
       <button type="button" class="tg-ml" data-ty="modal:log"><b>大事記</b>
@@ -10117,6 +10356,8 @@ function tyModalHTML(){
              : k==='play'  ? tyPlayTab()
              : k==='rival' ? tyRivalTab()
              : k==='troop' ? tyTroopTab()
+             : k==='vault' ? tyVaultTab()
+             : k==='data'  ? tyDataTab()
              : k==='rank'  ? tyRankTab()
              : k==='learn' ? tyLearnTab()
              : k==='log'   ? tyLogTab()
@@ -10215,6 +10456,7 @@ const TY_ACT = {
   movehome:e=>tyMoveHome(e.dataset.site),
   found:  e=>tyFound(e.dataset.k, e.dataset.site),
   expand: e=>tyExpand(+e.dataset.id),
+  upgrade:e=>tyUpgrade(+e.dataset.id),
   ipo:    e=>tyIPO(+e.dataset.id),
   reverse:e=>tyReverse(+e.dataset.id),
   strip:  e=>tyStrip(+e.dataset.id),
@@ -10324,7 +10566,12 @@ function bindTycoon(root){
     if(a==='layer'){ TY_LAYER=b.dataset.k; if(TYG) TYG.polygonCapColor(tyCountryColor).polygonSideColor(tyCountrySide).polygonAltitude(tyCountryAlt); renderPage(); if(window.W3D) W3D.repaint(); return; }
     if(a==='zoomin'||a==='zoomout'){ tyZoom(a==='zoomin'?-1:1); return; }
     if(a==='ranktab'){ TY_RANK=b.dataset.k; renderPage(); if(TY_RANK==='real') loadRich(); return; }
-    if(a==='rival'){ TY_RIVAL = TY_RIVAL===b.dataset.k ? null : b.dataset.k; TY_DEAL=null; renderPage(); return; }
+    if(a==='rival'){
+      // 從別的面板(例如「資料」)點對手 → 直接打開對手面板並展開那一位
+      if(TY_MODAL!=='rival'){ TY_MODAL='rival'; TY_RIVAL=b.dataset.k; }
+      else TY_RIVAL = TY_RIVAL===b.dataset.k ? null : b.dataset.k;
+      TY_DEAL=null; renderPage(); return;
+    }
     if(a==='dealx'){ TY_DEAL = TY_DEAL===b.dataset.k ? null : b.dataset.k; renderPage(); return; }
     if(a==='iso'){ tyPickIso(b.dataset.k || (TY_ISO||'')); return; }
     if(a==='site'){ tyPickSite(b.dataset.k, b.dataset.r||null); return; }

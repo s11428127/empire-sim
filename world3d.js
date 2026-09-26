@@ -1166,7 +1166,7 @@ function placeSite(obj, d){
 }
 function applyScale(obj, now){
   // 部隊棋子比建築大一號 —— 它們是你要常常點、常常看的東西
-  const s = bScale() * (obj.userData.troop ? 1.45 : obj.userData.lm ? 1.6 : 1);   // 地標也放大:中距離要認得出是哪一座
+  const s = bScale() * (obj.userData.troop ? 1.45 : obj.userData.lm ? 1.15 : 1);   // 地標也放大:中距離要認得出是哪一座
   let k = 1;
   const g0 = obj.userData.grow;
   if(g0){
@@ -1513,7 +1513,7 @@ function gcPts(a, b, n){
 function pushPaths(){
   if(!W3D.ok || typeof G.pathsData !== 'function') return;
   const tr = [];
-  for(const t of TRAILS.values()) if(t.length > 1) tr.push({ pts: t, col: ['rgba(255,220,160,0)', 'rgba(255,150,60,.95)'], w: 1.3 });
+  for(const t of TRAILS.values()) if(t.pts.length > 1) tr.push({ pts: t.pts, col: t.col, w: t.w });
   G.pathsData([...ROUTES, ...SELB, ...HOVER, ...AIMP, ...tr]);
 }
 function setupPaths(){
@@ -1652,39 +1652,126 @@ function armHover(){
 }
 
 /* =============================================================================
-   出發動畫 —— 飛機、船、卡車、飛彈、戰機
+   出發與打擊的動畫 —— 參考那款遊戲的手感
    -----------------------------------------------------------------------------
-   使用者:「律師團要去國外可以有飛機起飛,依照航線到目的地降落;搭船也會下港、
-            開船依照航線到目的地上岸。飛彈、空襲都要有動畫」。
-   規則上派出去的部隊下一季才到位 —— 這裡演的是「出發的那一趟」,演完它就站在
-   目的地,標籤寫著下季到位。動畫一律是畫面層的事,不碰任何數字。
-
+   使用者第二輪的要求:「飛機、船不要太快結束」「飛機用運輸機或客機,船用高級一點的軍艦」
+   「炸彈炸下去要有震動,空襲要有火花」「飛彈空襲要確定有動畫」。所以:
+     · 每一趟都放慢(飛機 5~10 秒、船 8~16 秒、飛彈 4~7 秒)
+     · 開演之前鏡頭先飛過去,讓起點與目標都在畫面裡 —— 看不到的動畫等於沒有
+     · 手機上面板是整張蓋住地圖的:按下發射的那一刻先把面板收起來(見 index 的 tyPlayLast)
+     · 客機(圓機身、後掠翼、四具引擎、窗戶)/ 驅逐艦(艦橋、雷達、主砲、垂直發射器、直升機甲板)
+       / 三輛軍用卡車的車隊 / 有尾焰的飛彈 / 戰鬥機
+     · 飛機拉凝結尾、船拉航跡;爆炸 = 震動 + 閃光 + 火花 + 會燒一陣子的火 + 煙 + 衝擊波
    載具的方向:x = 前進方向、z = 地表法線,每一幀用前後兩點算。
    ============================================================================= */
+/* 沿 x 軸的圓柱 / 錐:機身、砲管、飛彈 */
+function cylX(g, x0, x1, y, z, r0, r1, n, col, cap){
+  const P = (x, r, a) => [x, y + Math.cos(a) * r, z + Math.sin(a) * r];
+  for(let i = 0; i < n; i++){
+    const a = i / n * Math.PI * 2, b = (i + 1) / n * Math.PI * 2;
+    quad(g, P(x0, r0, a), P(x0, r0, b), P(x1, r1, b), P(x1, r1, a), col);
+    if(cap !== false && r0 > 0) tri(g, [x0, y, z], P(x0, r0, b), P(x0, r0, a), col);
+    if(cap !== false && r1 > 0) tri(g, [x1, y, z], P(x1, r1, a), P(x1, r1, b), col);
+  }
+}
+/* 任意凸多邊形擠出:pts 是平面上的點,axis 'z' = 在 xy 平面上、往上擠(機翼、船身);
+   'y' = 在 xz 平面上、往側面擠(垂直尾翼)。順序不用管,這裡自己轉成逆時針。 */
+function extrude(g, pts, axis, a0, a1, side, cap){
+  let area = 0; for(let i = 0; i < pts.length; i++){ const p = pts[i], q = pts[(i+1) % pts.length]; area += p[0]*q[1] - q[0]*p[1]; }
+  const P = area < 0 ? pts.slice().reverse() : pts;
+  const V = axis === 'z' ? (p, h) => [p[0], p[1], h] : (p, h) => [p[0], -h, p[1]];
+  // 'y' 軸擠出時,平面座標 (x, z) 的逆時針在 -y 方向看;所以側面與頂面的順序要反過來
+  const flip = axis === 'y';
+  const t = (A, B, C, c) => flip ? tri(g, A, C, B, c) : tri(g, A, B, C, c);
+  const n = P.length, c0 = P[0];
+  for(let i = 1; i < n - 1; i++){
+    t(V(c0, a1), V(P[i], a1), V(P[i+1], a1), cap || side);   // 頂
+    t(V(c0, a0), V(P[i+1], a0), V(P[i], a0), cap || side);   // 底
+  }
+  for(let i = 0; i < n; i++){
+    const p = P[i], q = P[(i+1) % n];
+    t(V(p, a0), V(q, a0), V(q, a1), side); t(V(p, a0), V(q, a1), V(p, a1), side);
+  }
+}
 const VEH = {
-  plane(g){ const w = lin('#eef2f6'), wt = lin('#ffffff'), b = lin(TEAM);
-    box(g, 0, 0, 0, .5, .08, .08, w, wt);                    // 機身
-    frustum(g, .25, 0, .0, .04, 0, .1, 6, w, wt);              // 機鼻(朝上的錐,之後用方向蓋過去也看得出來)
-    box(g, .02, 0, .03, .14, .62, .02, lin('#c9d3dc'), wt);  // 主翼
-    box(g, -.22, 0, .03, .07, .22, .015, lin('#c9d3dc'), wt);// 水平尾翼
-    box(g, -.22, 0, .08, .08, .015, .12, b, lin(TEAM, 1.2));  // 垂直尾翼(隊伍色)
-    for(const y of [-.16, .16]) box(g, .05, y, -.02, .1, .045, .04, lin('#8a96a2'), lin('#b0bac4')); },  // 引擎
-  ship(g){ drawUnit(g, 'ship', 0, 0, 0); },
-  truck(g){ const c = lin('#5d6b45'), ct = lin('#7d8d5c');
-    box(g, -.04, 0, .03, .26, .14, .11, c, ct);
-    box(g, .15, 0, .03, .1, .13, .08, lin('#46523a'), lin('#5d6b45'));
-    for(const x of [-.12, .02, .15]) for(const y of [-.075, .075]) frustum(g, x, y, 0, .035, .035, .02, 8, lin('#222'), lin('#444')); },
-  missile(g){ const w = lin('#e9ecef'), r = lin('#c8322a');
-    box(g, 0, 0, 0, .34, .05, .05, w, lin('#ffffff'));
-    box(g, .2, 0, 0, .06, .04, .04, r, r);
-    for(const [y, z] of [[.05, 0], [-.05, 0], [0, .05], [0, -.05]]) box(g, -.15, y, z, .06, y ? .04 : .01, z ? .04 : .01, r, r); },
-  jet(g){ const c = lin('#7c8792'), ct = lin('#a3adb7');
-    box(g, 0, 0, 0, .42, .06, .06, c, ct);
-    box(g, .24, 0, 0, .08, .04, .04, lin('#5d6770'), ct);
-    box(g, -.02, 0, .01, .18, .44, .015, c, ct);
-    box(g, -.18, 0, .05, .07, .012, .1, lin('#c8322a'), lin('#e04a3a')); },
+  /* 客機:白色機身、隊伍色的腰線與垂直尾翼、四具引擎、一排窗戶 */
+  plane(g){
+    const w = lin('#f2f4f7'), wd = lin('#d6dbe1'), tm = lin(TEAM), dk = lin('#1b2530'), en = lin('#9aa3ad');
+    cylX(g, -.42, .36, 0, 0, .075, .075, 10, w);
+    cylX(g, .36, .52, 0, 0, .075, .012, 10, w);                         // 機鼻
+    cylX(g, -.62, -.42, 0, .02, .03, .075, 10, w);                      // 機尾
+    box(g, -.03, .076, -.02, .74, .004, .018, tm, tm);                  // 腰線
+    box(g, -.03, -.076, -.02, .74, .004, .018, tm, tm);
+    for(let i = 0; i < 9; i++){ const x = -.3 + i * .075;               // 窗戶
+      box(g, x, .077, .025, .03, .003, .018, dk, dk); box(g, x, -.077, .025, .03, .003, .018, dk, dk); }
+    box(g, .41, 0, .035, .06, .13, .025, dk, dk);                       // 駕駛艙窗
+    for(const s of [1, -1]){
+      extrude(g, [[.1, .06*s], [-.1, .06*s], [-.3, .62*s], [-.2, .62*s]], 'z', -.025, -.005, wd, w);   // 後掠主翼
+      extrude(g, [[-.48, .03*s], [-.58, .03*s], [-.66, .24*s], [-.6, .24*s]], 'z', .03, .045, wd, w);  // 水平尾翼
+      for(const y of [.22, .4]){ cylX(g, -.12 - y*.25, .04 - y*.25, y*s, -.07, .035, .035, 8, en);
+                                 cylX(g, .04 - y*.25, .06 - y*.25, y*s, -.07, .035, .025, 8, dk); }
+    }
+    extrude(g, [[-.44, .05], [-.6, .05], [-.66, .3], [-.58, .3]], 'y', -.01, .01, tm, tm);              // 垂直尾翼
+  },
+  /* 驅逐艦:灰色艦身、紅色水線、疊起來的艦橋、雷達桅杆、主砲、垂直發射器、煙囪、直升機甲板 */
+  ship(g){
+    const hull = lin('#5c6670'), deck = lin('#8b949c'), sup = lin('#a9b1b9'), dk = lin('#1e262e'), red = lin('#8e2a22');
+    const H = [[-.55, -.085], [.3, -.085], [.6, 0], [.3, .085], [-.55, .085]];
+    extrude(g, H.map(([x, y]) => [x * 1.01, y * 1.06]), 'z', 0, .018, red, red);   // 水線
+    extrude(g, H, 'z', .018, .09, hull, deck);
+    const s1 = box(g, -.02, 0, .09, .26, .13, .07, sup, sup);
+    const s2 = box(g, .02, 0, s1, .14, .11, .05, sup, sup);
+    box(g, .09, 0, s2 - .025, .004, .1, .015, dk, dk);                   // 艦橋窗
+    box(g, .0, 0, s2, .03, .03, .2, dk, dk);                             // 桅杆
+    box(g, .0, 0, s2 + .15, .02, .16, .015, dk, dk);                     // 雷達橫桿
+    ball(g, .0, 0, s2 + .19, .03, lin('#e8ecef'));                       // 雷達罩
+    frustum(g, -.19, 0, .09, .045, .035, .12, 8, lin('#6d767e'), dk);    // 煙囪
+    frustum(g, .36, 0, .09, .045, .04, .035, 10, sup, sup);              // 主砲塔
+    cylX(g, .38, .56, 0, .11, .012, .01, 6, dk);                         // 主砲管
+    for(let i = 0; i < 4; i++) for(const y of [-.03, .03]) box(g, .2 + i*.028 - .04, y, .09, .02, .02, .008, dk, dk);   // 垂直發射器
+    for(let i = 0; i < 3; i++) for(const y of [-.03, .03]) box(g, -.3 + i*.028, y, .09, .02, .02, .008, dk, dk);
+    box(g, -.46, 0, .09, .15, .15, .004, lin('#46505a'), lin('#46505a'));  // 直升機甲板
+    box(g, -.46, -.025, .094, .07, .01, .002, lin('#ffffff'), lin('#ffffff'));
+    box(g, -.46, .025, .094, .07, .01, .002, lin('#ffffff'), lin('#ffffff'));
+    box(g, -.46, 0, .094, .01, .05, .002, lin('#ffffff'), lin('#ffffff'));
+    box(g, -.53, 0, .09, .005, .005, .1, dk, dk); box(g, -.51, 0, .17, .05, .004, .03, lin(TEAM), lin(TEAM, 1.2));   // 旗
+  },
+  /* 軍用卡車車隊:三輛一列 */
+  truck(g){
+    for(const [dx, s] of [[.26, 1], [0, .95], [-.26, .9]]){
+      const c = lin('#56663f'), ct = lin('#6f8250'), cv = lin('#7a7f5a');
+      box(g, dx + .07, 0, .03, .07, .12, .08, c, ct);                    // 駕駛座
+      box(g, dx + .1, 0, .07, .01, .1, .03, lin('#223'), lin('#223'));    // 擋風玻璃
+      box(g, dx - .04, 0, .03, .15, .13, .05, c, ct);                    // 車斗
+      box(g, dx - .04, 0, .08, .15, .13, .05, cv, lin('#949a70'));        // 帆布
+      for(const x of [dx + .08, dx - .02, dx - .09]) for(const y of [-.07, .07]) cylX(g, x - .02, x + .02, y, .025, .025, .025, 8, lin('#1f1f1f'));
+    }
+  },
+  /* 飛彈:白色彈體、紅色彈頭、四片尾翼、橘黃色尾焰 */
+  missile(g){
+    const w = lin('#eef1f4'), r = lin('#c8322a');
+    cylX(g, -.28, .2, 0, 0, .04, .04, 10, w);
+    cylX(g, .2, .34, 0, 0, .04, .005, 10, r);
+    for(const s of [1, -1]){ extrude(g, [[-.28, .04*s], [-.18, .04*s], [-.3, .12*s]], 'z', -.004, .004, r, r);
+                             extrude(g, [[-.28, .04*s], [-.18, .04*s], [-.3, .12*s]], 'y', -.004, .004, r, r); }
+    cylX(g, -.45, -.28, 0, 0, .0, .045, 10, lin('#ffd24a', 1.6), false);   // 尾焰(外)
+    cylX(g, -.38, -.28, 0, 0, .0, .028, 8, lin('#ffffff', 1.6), false);    // 尾焰(內)
+  },
+  jet(g){
+    const c = lin('#6f7a85'), ct = lin('#95a0ab'), dk = lin('#1b2530');
+    cylX(g, -.3, .22, 0, 0, .04, .04, 8, c);
+    cylX(g, .22, .38, 0, 0, .04, .005, 8, c);
+    box(g, .18, 0, .035, .09, .04, .02, dk, dk);                         // 座艙罩
+    for(const s of [1, -1]){ extrude(g, [[.12, .03*s], [-.2, .03*s], [-.22, .32*s], [-.12, .32*s]], 'z', -.005, .005, c, ct);
+                             extrude(g, [[-.2, .02*s], [-.3, .02*s], [-.32, .14*s], [-.27, .14*s]], 'z', 0, .008, c, ct); }
+    extrude(g, [[-.18, .03], [-.3, .03], [-.33, .16], [-.27, .16]], 'y', .03, .042, lin('#c8322a'), lin('#c8322a'));
+    extrude(g, [[-.18, .03], [-.3, .03], [-.33, .16], [-.27, .16]], 'y', -.042, -.03, lin('#c8322a'), lin('#c8322a'));
+    cylX(g, -.36, -.3, 0, 0, .0, .03, 8, lin('#ffb13a', 1.5), false);    // 後燃器
+  },
+  bomb(g){ cylX(g, -.08, .06, 0, 0, .025, .025, 8, lin('#2b2f33')); cylX(g, .06, .11, 0, 0, .025, .004, 8, lin('#2b2f33'));
+           extrude(g, [[-.08, .02], [-.12, .02], [-.13, .05]], 'z', -.003, .003, lin('#444'), lin('#444')); },
 };
-function vehGeo(k){ return geoFor('veh:' + k, g => VEH[k](g)); }
+function vehGeo(k){ return geoFor('veh2:' + k, g => VEH[k](g)); }
 
 /* ---- 海上航線 ----
    不做真的航海計算:約六十個航點(海峽、運河、大洋上的轉折點)連成一張網,
@@ -1742,39 +1829,50 @@ function routeFor(kind, A, B){
   return pts;
 }
 
-/* 播一趟:沿著路線走,依載具換模型;飛機 / 飛彈有高度曲線。 */
-let ANIMS = [], animOn = false;
-function animHost(){ return patchHost(); }
+/* 播一趟:沿著路線走,依載具換模型;飛機 / 飛彈 / 戰機有高度曲線。 */
+let ANIMS = [], animOn = false, VMAT = null;
+function vmat(){
+  // 載具用雙面材質:手拼的模型只要有一面繞向算反,單面材質就會破一個洞
+  if(!VMAT){ VMAT = new T.Phong({ vertexColors: true, shininess: 40, side: 2 }); VMAT.emissive && VMAT.emissive.set('#1a1f26'); }
+  return VMAT;
+}
 function spawnVeh(k){
-  const m = new T.Mesh(vehGeo(k), MAT);
-  const h = animHost(); if(!h) return null;
+  const h = patchHost(); if(!h) return null;
+  const m = new T.Mesh(vehGeo(k), vmat());
+  m.renderOrder = 3;
   h.add(m); return m;
 }
 function orient(obj, p, q){
-  // p、q:世界(圖層)座標的目前位置與下一個位置
   const l = Math.hypot(p.x, p.y, p.z) || 1, nx = p.x/l, ny = p.y/l, nz = p.z/l;
   let fx = q.x - p.x, fy = q.y - p.y, fz = q.z - p.z;
-  const fl = Math.hypot(fx, fy, fz) || 1; fx /= fl; fy /= fl; fz /= fl;
-  // 上方向:法線去掉跟前進方向平行的部分(爬升 / 俯衝時機身會跟著仰 / 俯)
+  const fl = Math.hypot(fx, fy, fz);
+  if(fl < 1e-9){ obj.position.set(p.x, p.y, p.z); return; }
+  fx /= fl; fy /= fl; fz /= fl;
   const dot = nx*fx + ny*fy + nz*fz;
   let ux = nx - dot*fx, uy = ny - dot*fy, uz = nz - dot*fz;
   const ul = Math.hypot(ux, uy, uz) || 1; ux /= ul; uy /= ul; uz /= ul;
-  const yx = uy*fz - uz*fy, yy = uz*fx - ux*fz, yz = ux*fy - uy*fx;   // y = up × forward
+  const yx = uy*fz - uz*fy, yy = uz*fx - ux*fz, yz = ux*fy - uy*fx;
   obj.matrix.set(fx, yx, ux, 0,  fy, yy, uy, 0,  fz, yz, uz, 0,  0, 0, 0, 1);
   obj.quaternion.setFromRotationMatrix(obj.matrix);
   obj.position.set(p.x, p.y, p.z);
 }
-/* opt: { kind, from, to, dur, arc(高度峰值), off(側向偏移度數), done } */
+/* opt: { kind, from, to, dur, arc, off, trail, done, onPass(u) } */
 function fly(opt){
   if(!W3D.ok) return;
-  const pts = routeFor(opt.kind, opt.from, opt.to);
+  const pts = opt.pts || routeFor(opt.kind, opt.from, opt.to);
   if(pts.length < 2) return;
-  // 每一點的累積距離,速度才會均勻
-  const cum = [0]; for(let i = 1; i < pts.length; i++) cum.push(cum[i-1] + kmLL([pts[i-1].lat, pts[i-1].lng], [pts[i].lat, pts[i].lng]));
+  /* 每一小段的「權重」:卡車段 ×3 —— 開到港口那一小段在地圖上很短,不放慢的話一閃就過了 */
+  const cum = [0];
+  for(let i = 1; i < pts.length; i++){
+    const km = kmLL([pts[i-1].lat, pts[i-1].lng], [pts[i].lat, pts[i].lng]);
+    cum.push(cum[i-1] + km * (pts[i-1].mode === 'truck' ? 3 : 1));
+  }
   const tot = cum[cum.length-1] || 1;
-  const a = { pts, cum, tot, t0: performance.now(), dur: opt.dur || clamp(1800 + tot * .2, 2200, 6500),
-              arc: opt.arc || 0, off: opt.off || 0, kind: opt.kind, mesh: null, mk: '', done: opt.done, trail: opt.trail ? [] : null };
-  ANIMS.push(a);
+  ANIMS.push({ pts, cum, tot, t0: performance.now() + (opt.delay || 0), dur: opt.dur || 5000,
+               arc: opt.arc || 0, off: opt.off || 0, kind: opt.kind, mesh: null, mk: '',
+               done: opt.done, onPass: opt.onPass, passed: false,
+               trail: opt.trail || null, tr: opt.trail ? [] : null });
+  tyWake();
   if(!animOn){ animOn = true; requestAnimationFrame(animStep); }
 }
 function posAt(a, u){
@@ -1782,11 +1880,15 @@ function posAt(a, u){
   const s0 = a.cum[i-1], s1 = a.cum[i], f = s1 > s0 ? (u * a.tot - s0) / (s1 - s0) : 0;
   const p0 = a.pts[i-1], p1 = a.pts[i];
   let lat = p0.lat + (p1.lat - p0.lat) * f, lng = p0.lng + (((p1.lng - p0.lng + 540) % 360) - 180) * f;
-  if(a.off){ lat += a.off; }
-  // 高度:飛機起飛前在跑道上滑一段、降落後再滑一段;飛彈是一道拋物線
-  let alt = .0012;
+  // 編隊:起飛後散開,之後一路保持間距(第一版在後段會收回同一點,三架疊成一架)
+  if(a.off) lat += a.off * smooth(clamp(u / .2, 0, 1));
+  let alt = p0.mode === 'ship' ? .0006 : .0012;
+  if(a.kind === 'bomb') return { lat, lng, alt: .0012 + (a.fall || .03) * (1 - u*u), mode: 'bomb' };
   if(a.arc){
-    const e = a.kind === 'missile' ? Math.sin(Math.PI * u) : smooth(clamp((u - .06) / .22, 0, 1)) * smooth(clamp((.94 - u) / .22, 0, 1));
+    let e;
+    if(a.kind === 'missile') e = Math.pow(Math.sin(Math.PI * u), .8);        // 拋物線
+    else if(a.kind === 'jet') e = smooth(clamp(u / .15, 0, 1));             // 起飛後一路低空
+    else e = smooth(clamp((u - .08) / .2, 0, 1)) * smooth(clamp((.92 - u) / .2, 0, 1));   // 滑行 → 爬升 → 巡航 → 下降 → 滑行
     alt += a.arc * e;
   }
   return { lat, lng, alt, mode: p0.mode };
@@ -1794,25 +1896,31 @@ function posAt(a, u){
 function animStep(now){
   const keep = [];
   for(const a of ANIMS){
-    const u = clamp((now - a.t0) / a.dur, 0, 1);
-    const P = posAt(a, u), Q = posAt(a, Math.min(1, u + .004));
-    const mk = a.kind === 'jet' ? 'jet' : a.kind === 'missile' ? 'missile' : a.kind === 'plane' ? 'plane' : P.mode;
+    if(now < a.t0 && W3D._tfix == null){ keep.push(a); continue; }
+    // W3D._tfix:只給截圖驗證用 —— 開發機一幀要畫好幾秒,把動畫凍結在某個進度才拍得到
+    const u = W3D._tfix != null ? W3D._tfix : clamp((now - a.t0) / a.dur, 0, 1);
+    const P = posAt(a, u), Q = posAt(a, Math.min(1, u + .006));
+    const mk = a.kind === 'jet' ? 'jet' : a.kind === 'missile' ? 'missile' : a.kind === 'bomb' ? 'bomb' : a.kind === 'plane' ? 'plane' : P.mode;
     if(mk !== a.mk){ if(a.mesh && a.mesh.parent) a.mesh.parent.remove(a.mesh); a.mesh = spawnVeh(mk); a.mk = mk; }
     if(a.mesh){
-      const p = G.getCoords(P.lat, P.lng, P.alt), q = G.getCoords(Q.lat, Q.lng, Q.alt);
-      if(u >= 1){ q.x = p.x + (p.x - (a._lx || p.x)); q.y = p.y + (p.y - (a._ly || p.y)); q.z = p.z + (p.z - (a._lz || p.z)); }
-      orient(a.mesh, p, q); a._lx = p.x; a._ly = p.y; a._lz = p.z;
-      const s = bScale() * (mk === 'missile' ? 1.3 : 1.5);
+      const p = G.getCoords(P.lat, P.lng, P.alt);
+      let q = G.getCoords(Q.lat, Q.lng, Q.alt);
+      if(u >= .994 && a._p){ q = { x: p.x*2 - a._p.x, y: p.y*2 - a._p.y, z: p.z*2 - a._p.z }; }
+      if(a.kind === 'bomb') q = G.getCoords(P.lat, P.lng, P.alt - .01);  // 炸彈頭朝下
+      orient(a.mesh, p, q); a._p = p;
+      // 載具要比建築顯眼 —— 它們是這一刻畫面上的主角(第一版跟地標一樣大,遠看根本找不到)
+      const s = bScale() * (mk === 'missile' ? 3.6 : mk === 'ship' ? 3.2 : mk === 'plane' ? 3.2 : mk === 'jet' ? 3 : mk === 'bomb' ? 2.6 : 2.4);
       a.mesh.scale.set(s, s, s);
     }
-    if(a.trail){                                          // 飛彈的尾煙:沿路留下的點
-      a.trail.push([P.lng, P.lat, P.alt]);
-      TRAILS.set(a, a.trail);
+    if(a.tr){                                              // 尾跡:凝結尾 / 航跡 / 飛彈的煙
+      if(mk !== 'truck'){ a.tr.push([P.lng, P.lat, P.alt]); if(a.trail.max && a.tr.length > a.trail.max) a.tr.shift(); }
+      TRAILS.set(a, { pts: a.tr, col: a.trail.col, w: a.trail.w });
     }
-    if(u < 1) keep.push(a);
+    if(a.onPass && !a.passed && u >= (a.passAt || .5)){ a.passed = true; a.onPass(P); }
+    if(u < 1 || W3D._tfix != null) keep.push(a);
     else{
       if(a.mesh && a.mesh.parent) a.mesh.parent.remove(a.mesh);
-      if(a.trail) setTimeout(() => { TRAILS.delete(a); pushPaths(); }, 1200);
+      if(a.tr) setTimeout(() => { TRAILS.delete(a); pushPaths(); }, a.kind === 'missile' ? 2200 : 900);
       if(a.done) a.done();
     }
   }
@@ -1821,48 +1929,130 @@ function animStep(now){
   if(ANIMS.length) requestAnimationFrame(animStep); else animOn = false;
 }
 const TRAILS = new Map();
+/* 動畫播放時地球一定要醒著(面板打開時 index 會暫停 globe.gl 的繪圖) */
+function tyWake(){ try{ if(typeof tyGlobeAwake === 'function') tyGlobeAwake(true); }catch(e){} }
 
-/* 爆炸:一圈快速擴散的橘紅光圈 + 螢幕上的閃光與「💥」 */
-function boom(lat, lng, big){
-  W3D.extraRings = W3D.extraRings.concat([
-    { lat, lng, _rgb: '255,140,40', _a: 1, _r: big ? 4.5 : 2.6, _v: big ? 6 : 4, _p: 380 },
-    { lat, lng, _rgb: '255,60,30', _a: .9, _r: big ? 3 : 1.8, _v: 3, _p: 520 }]);
-  W3D.rings();
-  const fx = fxLayer();
-  if(fx){
-    let c = null; try{ c = G.getScreenCoords(lat, lng, .002); }catch(e){}
-    if(c){
-      const el = document.createElement('div'); el.className = 'w3d-boom' + (big ? ' big' : '');
-      el.style.left = c.x + 'px'; el.style.top = c.y + 'px';
-      fx.appendChild(el); setTimeout(() => el.remove(), 1100);
-    }
+/* ---- 爆炸 ----
+   震動(整個地圖抖一下)+ 白色閃光 + 火球 + 往外噴的火花 + 燒一陣子的火 + 往上飄的煙 + 地面衝擊波光圈。
+   火花、火、煙是 DOM 元素,每一幀跟著經緯度重新定位 —— 轉地圖的時候火會留在原地燒。 */
+const FXS = new Set(); let fxLoop = false;
+function anchorFx(el, lat, lng, alt, life){
+  const fx = fxLayer(); if(!fx) return;
+  fx.appendChild(el);
+  FXS.add({ el, lat, lng, alt: alt || .002, t1: performance.now() + life });
+  if(!fxLoop){ fxLoop = true; requestAnimationFrame(fxStep); }
+}
+function fxStep(now){
+  let cam; try{ cam = G.camera().position; }catch(e){ fxLoop = false; return; }
+  for(const f of FXS){
+    if(now > f.t1 || !f.el.isConnected){ f.el.remove(); FXS.delete(f); continue; }
+    let c = null; try{ c = G.getScreenCoords(f.lat, f.lng, f.alt); }catch(e){}
+    const q = G.getCoords(f.lat, f.lng, 0), vis = (q.x*cam.x + q.y*cam.y + q.z*cam.z) > R*R*1.001;
+    if(c){ f.el.style.left = c.x.toFixed(1) + 'px'; f.el.style.top = c.y.toFixed(1) + 'px'; }
+    f.el.style.visibility = vis ? 'visible' : 'hidden';
   }
+  if(FXS.size) requestAnimationFrame(fxStep); else fxLoop = false;
+}
+function shake(big){
+  const host = document.getElementById('tyGlobeHost'); if(!host || reduced()) return;
+  host.classList.remove('w3d-shake', 'w3d-shake2'); void host.offsetWidth;
+  host.classList.add(big ? 'w3d-shake2' : 'w3d-shake');
+  clearTimeout(shake._t); shake._t = setTimeout(() => host.classList.remove('w3d-shake', 'w3d-shake2'), big ? 650 : 420);
+}
+function boom(lat, lng, big){
+  shake(big);
+  const mk = (cls, css) => { const e = document.createElement('div'); e.className = cls; if(css) e.style.cssText = css; return e; };
+  anchorFx(mk('w3d-flash' + (big ? ' big' : '')), lat, lng, .002, 700);
+  anchorFx(mk('w3d-boom' + (big ? ' big' : '')), lat, lng, .002, 1300);
+  anchorFx(mk('w3d-shock' + (big ? ' big' : '')), lat, lng, .001, 1200);
+  const rnd = Math.random;                                  // 純畫面效果,不碰遊戲的種子亂數
+  for(let i = 0, n = big ? 26 : 14; i < n; i++){            // 火花
+    const a = rnd() * Math.PI * 2, d = (big ? 60 : 36) + rnd() * (big ? 90 : 50);
+    anchorFx(mk('w3d-spark', `--dx:${(Math.cos(a)*d).toFixed(0)}px;--dy:${(Math.sin(a)*d - 20).toFixed(0)}px;animation-delay:${(rnd()*120).toFixed(0)}ms`), lat, lng, .002, 1300);
+  }
+  for(let i = 0, n = big ? 5 : 3; i < n; i++){              // 燒一陣子的火
+    const dx = (rnd() - .5) * (big ? 46 : 26), dy = (rnd() - .5) * (big ? 22 : 12);
+    anchorFx(mk('w3d-fire', `--dx:${dx.toFixed(0)}px;--dy:${dy.toFixed(0)}px;animation-delay:${(rnd()*300).toFixed(0)}ms`), lat, lng, .0015, big ? 4200 : 3000);
+  }
+  for(let i = 0, n = big ? 6 : 3; i < n; i++){              // 煙
+    anchorFx(mk('w3d-smoke', `--dx:${((rnd()-.5)*50).toFixed(0)}px;animation-delay:${(300 + i*260).toFixed(0)}ms`), lat, lng, .002, big ? 4600 : 3400);
+  }
+  W3D.extraRings = W3D.extraRings.concat([
+    { lat, lng, _rgb: '255,150,50', _a: 1, _r: big ? 5 : 2.6, _v: big ? 7 : 4, _p: 450 },
+    { lat, lng, _rgb: '255,60,30', _a: .9, _r: big ? 3.2 : 1.8, _v: 3, _p: 600 }]);
+  W3D.rings();
   clearTimeout(boom._t);
-  boom._t = setTimeout(() => { W3D.extraRings = []; W3D.rings(); }, 1800);
+  boom._t = setTimeout(() => { W3D.extraRings = []; W3D.rings(); }, 2600);
+}
+/* 開演之前鏡頭先飛過去:起點與終點都要在畫面裡 */
+function focusOn(A, B, cb){
+  const km = kmLL([A.lat, A.lng], [B.lat, B.lng]);
+  const mid = tyGeoLerp(A, B, .5);
+  const alt = clamp(.3 + km / 3800, .38, 2.1);
+  try{ G.controls().autoRotate = false; G.pointOfView({ lat: mid.lat, lng: mid.lng, altitude: alt }, W3D._tfix != null ? 0 : 1000); }catch(e){}
+  tyWake();
+  setTimeout(cb, W3D._tfix != null ? 0 : 1050);
 }
 
-/* 部隊出發:人搭飛機;併購小組近的開車、遠的走海運 */
+/* 部隊出發:人搭客機;併購小組近的車隊開過去、遠的開到港口 → 驅逐艦 → 上岸 */
+let moveBurst = { t: 0, n: 0 };
+W3D._boom = (lat, lng, big) => boom(lat, lng, big);    // 給截圖驗證用
+W3D._step = () => { const t = performance.now(); animStep(t); animStep(t + 1); };   // 給截圖驗證用:手動推一格
 W3D.animMove = function(m){
   if(!W3D.ok || !m) return;
   const A = tySite(m.from), B = tySite(m.to);
   const km = kmLL([A.lat, A.lng], [B.lat, B.lng]);
-  if(m.k === 'raid') fly({ kind: 'ground', from: A, to: B });
-  else fly({ kind: 'plane', from: A, to: B, arc: clamp(km / 9000 * .09, .012, .08) });
+  // 一次派好幾支(拉線勾了三支):一支一支錯開出發,不要疊成同一架飛機
+  const now = performance.now();
+  if(now - moveBurst.t > 400) moveBurst.n = 0;
+  moveBurst.t = now; const lag = moveBurst.n++ * 900;
+  focusOn(A, B, () => setTimeout(() => {
+    const land = () => floatAt(fxLayer(), B.lat, B.lng, `${TY_UNITS[m.k].ic} 抵達 ${escH(B.nm)}`, 'rv', 0);
+    if(m.k === 'raid'){
+      const pts = routeFor('ground', A, B);
+      const sea = pts.filter(p => p.mode === 'ship').length;
+      fly({ kind: 'ground', pts, dur: clamp((sea ? 7000 : 4500) + km * .55, 5000, 16000),
+            trail: sea ? { col: ['rgba(255,255,255,0)', 'rgba(220,240,255,.8)'], w: 1.6, max: 90 } : null, done: land });
+    }else{
+      fly({ kind: 'plane', from: A, to: B, arc: clamp(km / 9000 * .1, .018, .09), dur: clamp(4000 + km * .5, 5000, 10000),
+            trail: { col: ['rgba(255,255,255,0)', 'rgba(255,255,255,.75)'], w: 1.1, max: 70 }, done: land });
+    }
+  }, lag));
 };
-/* 打擊:飛彈從大本營拋過去;空襲是三架戰機編隊飛過去,到了一串爆炸 */
+/* 打擊:飛彈從大本營拋過去;空襲是三架戰機編隊,飛過目標上空一路投彈 */
 W3D.animStrike = function(s){
   if(!W3D.ok || !s) return;
   const A = tySite(s.from), B = tySite(s.to);
   const km = kmLL([A.lat, A.lng], [B.lat, B.lng]);
-  if(s.k === 'missile'){
-    fly({ kind: 'missile', from: A, to: B, arc: clamp(km / 6000 * .22, .05, .32), dur: clamp(1600 + km * .12, 1800, 3200),
-          trail: true, done: () => { boom(B.lat, B.lng, true); } });
-  }else{
-    for(const [off, delay] of [[0, 0], [.35, 120], [-.35, 240]]){
-      setTimeout(() => fly({ kind: 'jet', from: A, to: B, arc: .03, off, dur: clamp(1600 + km * .12, 1800, 3000),
-        done: () => { for(let i = 0; i < 3; i++) setTimeout(() => boom(B.lat + (i - 1) * .18 + off * .4, B.lng + (i - 1) * .22, false), i * 160); } }), delay);
+  focusOn(A, B, () => {
+    if(s.k === 'missile'){
+      fly({ kind: 'missile', from: A, to: B, arc: clamp(km / 6000 * .25, .06, .36), dur: clamp(3500 + km * .3, 4000, 7000),
+            trail: { col: ['rgba(200,200,200,0)', 'rgba(255,190,120,.95)'], w: 2.4 },
+            done: () => { boom(B.lat, B.lng, true); setTimeout(() => boom(B.lat + .08, B.lng - .1, false), 260); } });
+    }else{
+      // 航線延伸過目標一截:戰機飛越目標上空投彈,再繼續飛走
+      const beyond = tyGeoLerp(A, B, 1.25);
+      const dur = clamp(4500 + km * .35, 5000, 8000);
+      const sep = clamp(km / 2500 * .8, 1.1, 1.8);             // 編隊間距跟著距離走:遠的看得出三架
+      [[0, 0], [sep, 220], [-sep, 440]].forEach(([off, delay], j) => {
+        const pts = routeFor('jet', A, beyond);
+        const a = { kind: 'jet', pts, arc: .025, off, dur, delay,
+          trail: { col: ['rgba(255,255,255,0)', 'rgba(255,255,255,.6)'], w: .8, max: 40 } };
+        fly(a);
+        const last = ANIMS[ANIMS.length - 1];
+        last.passAt = 1 / 1.25 - .04;
+        last.onPass = P => {
+          for(let i = 0; i < 3; i++) setTimeout(() => {
+            const lat = B.lat + off * .35 + (i - 1) * .12, lng = B.lng + (i - 1) * .16;
+            fly({ kind: 'bomb', pts: [{ lat: P.lat, lng: P.lng, mode: 'bomb' }, { lat, lng, mode: 'bomb' }],
+                  arc: 0, dur: 700, done: () => boom(lat, lng, false) });
+            // 炸彈的高度:從戰機的高度直直掉下來
+            const bb = ANIMS[ANIMS.length - 1]; bb.fall = P.alt;
+          }, i * 170 + j * 60);
+        };
+      });
     }
-  }
+  });
 };
 
 /* =============================================================================
