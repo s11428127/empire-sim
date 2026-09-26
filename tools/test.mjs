@@ -1374,7 +1374,7 @@ test('帝國地圖:城市等級落在 1–10,錢越多等級越高;有據點的�
   await page.__ctx.close();
 });
 
-test('帝國部隊:招募有上限、要養、要走路,到了才有效果', async (browser) => {
+test('帝國部隊:招募有上限、要養、下一季到位,到了才有效果', async (browser) => {
   const page = await freshPage(browser, { seed: SEED, hash: '#/tycoon' });
   const r = await page.evaluate(() => {
     const out = {};
@@ -1395,10 +1395,9 @@ test('帝國部隊:招募有上限、要養、要走路,到了才有效果', asy
     out.depMsg = msg; out.eta = mgr.eta - TY.t; out.moving = mgr.to === 'nyc';
     out.again = tyBlock('deploy', { u: mgr, site: 'nyc' });   // 已經在路上了
     const cash0 = TY.cash, up = tyUnitUpkeep();
+    out.movingNow = !!mgr.to;
     tyNext();
     out.upkeepPaid = up > 0;
-    out.stillMoving = !!mgr.to;
-    tyNext();
     out.arrived = mgr.site === 'nyc' && !mgr.to;
 
     /* 律師團壓關注度。只比「部隊結算」這一步 —— 整季跑下來會有事件,
@@ -1436,11 +1435,12 @@ test('帝國部隊:招募有上限、要養、要走路,到了才有效果', asy
   ok(/滿編/.test(r.seventh), `第七支被擋的訊息要講編制滿了:${r.seventh}`);
   ok(r.allHome, '剛招募的部隊要在大本營待命');
   eq([r.tpeHsz, r.tpeNyc], [1, 2], '同一區 1 季、跨洋 2 季');
-  ok(r.moving && r.eta === 2, `派去紐約應該在路上、2 季後到:${r.depMsg}`);
+  /* 使用者:「部隊可以直接變成下一季就有效」—— 不管多遠,自己的部隊一律下一季到位 */
+  ok(r.moving && r.eta === 1, `派去紐約應該下一季到位:${r.depMsg}`);
   ok(r.again && /路上/.test(r.again), '已經在路上的部隊不能再派一次去同一個地方');
   ok(r.upkeepPaid, '有部隊就要付維持費');
-  ok(r.stillMoving, '第一季還在路上');
-  ok(r.arrived, '第二季要抵達');
+  ok(r.movingNow, '派出去的當下還沒到(這一季不生效)');
+  ok(r.arrived, '下一季要到位');
   near(r.lawHeat[0], r.lawHeat[1] - 3, 1e-9, '兩位律師團一季要壓掉 3 點關注度');
   ok(r.oddsUp > .15, `兩支併購小組駐在對手大本營,敵意收購的成功率要明顯變高:+${r.oddsUp}`);
   near(r.turfCut, 6, .01, '兩支併購小組一季要削掉他 6 點勢力');
@@ -1589,6 +1589,47 @@ test('帝國地圖:每座城市都有真實邊界與地標,每個國家都歸得
   ok(noLm.length === 0, `這些城市沒有地標:${noLm.join(', ')}`);
   eq(r.ph, 'apac', '菲律賓要歸到東南亞,不可以因為離台北近就被算成台灣的景氣');
   ok(r.steps.every((v, i) => i === 0 || v < r.steps[i - 1]), `景氣色階要由熱到冷排好:${r.steps}`);
+  ok(page.__errors.length === 0, `有 JS 錯誤:\n      ${page.__errors.join('\n      ')}`);
+  await page.__ctx.close();
+});
+
+test('帝國打擊:飛彈與空襲有效果、有冷卻、打錯目標會被擋', async (browser) => {
+  /* 使用者:「多加一些武器對應完經濟的攻擊,像是飛彈、空襲」「攻擊手段需要冷卻時間比較公平」。
+     要驗的是規則本身:打得到、打完真的少一塊、冷卻期間按不下去、目標不對要說清楚為什麼。 */
+  const page = await freshPage(browser, { seed: SEED, hash: '#/tycoon' });
+  const r = await page.evaluate(() => {
+    tyStart('heir', 99); TY.cash = 300e8;
+    const r1 = tyRival('r1');                       // 鄭天賜,大本營香港,中國地區勢力 55
+    const out = { nw0: r1.nw, cash0: TY.cash };
+    // 目標不對:要在冷卻之前檢查,不然訊息會被「冷卻中」蓋掉
+    out.wrongLon = tyBlock('strike', { k: 'missile', site: 'lon' });
+    out.m1 = tyStrike('missile', 'hkg');
+    out.nw1 = r1.nw; out.rel1 = r1.rel; out.cash1 = TY.cash; out.cost = tyStrikeCost('missile');
+    out.m2 = tyStrike('missile', 'hkg');            // 冷卻中
+    out.nw2 = r1.nw;
+    const t0 = tyTurf(r1, 'cn');
+    out.a1 = tyStrike('air', 'sha');
+    out.turfCut = t0 - tyTurf(r1, 'cn');
+    out.airBlocked = tyBlock('strike', { k: 'air', site: 'sha' });
+    for (let i = 0; i < 4; i++) tyNext();
+    out.readyAgain = tyStrikeReady('missile');
+    // 面板上的武器卡要畫得出來,按鈕狀態與引擎一致
+    TY_MODAL = 'troop'; TY_STRK = { missile: 'hkg' }; renderPage();
+    const btn = document.querySelector('[data-ty="strike"][data-k="missile"]');
+    out.btnOk = btn && (btn.disabled === !!tyBlock('strike', { k: 'missile', site: 'hkg' }));
+    out.panel = /做空飛彈/.test(document.querySelector('.tg-mb').textContent) && /輿論空襲/.test(document.querySelector('.tg-mb').textContent);
+    return out;
+  });
+  ok(r.nw1 < r.nw0 * .97 && r.nw1 > r.nw0 * .9, `飛彈要打掉他 4~8% 的身家:${r.nw0} → ${r.nw1}`);
+  ok(r.rel1 <= -29, '被飛彈打的對手要記恨');
+  ok(r.cash1 - (r.cash0 - r.cost) <= r.cost * 1.5 + 1, '賺回的錢不可以超過花費的 1.5 倍(不然變成印鈔機)');
+  ok(/冷卻/.test(r.m2) && r.nw2 === r.nw1, `冷卻中要被擋下,而且對手的身家不能再變:${r.m2}`);
+  ok(r.wrongLon && /大本營/.test(r.wrongLon), `打在沒有對手大本營的城市要說清楚:${r.wrongLon}`);
+  near(r.turfCut, 12, .01, '空襲要削掉他 12 點勢力');
+  ok(r.airBlocked && /冷卻/.test(r.airBlocked), '空襲打完也要冷卻');
+  ok(r.readyAgain, '四季之後飛彈要冷卻完');
+  ok(r.btnOk, '武器按鈕的狀態要跟引擎一致');
+  ok(r.panel, '部隊面板要列出兩種武器');
   ok(page.__errors.length === 0, `有 JS 錯誤:\n      ${page.__errors.join('\n      ')}`);
   await page.__ctx.close();
 });

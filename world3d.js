@@ -1142,7 +1142,8 @@ function buildSite(d){
 
 /* 建築的大小跟著鏡頭高度走：拉遠的時候放大，不然整座城只剩一個點；
    貼近的時候縮小，不然一棟樓會蓋掉整座城市。 */
-const bScale = () => clamp(.25 + W3D.alt * 2.3, .55, 5.5);
+/* 近看要縮小:第一版最小 .55,貼近台灣時一座小城比新竹市還大,半個都站到海裡去了 */
+const bScale = () => clamp(.15 + W3D.alt * 2.2, .38, 5.5);
 function placeSite(obj, d){
   const a = (d._base || .0085);
   const c = G.getCoords(d.lat, d.lng, a);
@@ -1315,7 +1316,10 @@ W3D.attach = function(globe){
     if(typeof G.onCustomLayerClick === 'function')
       G.onCustomLayerClick(d => {
         if(!d) return;
-        if(d._units || d._threat){ TY_MODAL = 'troop'; renderPage(); }
+        if(W3D.aiming()) return;
+        if(d._units){ let c = null; try{ c = G.getScreenCoords(d.lat, d.lng, .002); }catch(e){}
+                      unitPop(d, c ? c.x : 100, c ? c.y : 100); }
+        else if(d._threat){ TY_MODAL = 'troop'; renderPage(); }
         else if(d._rival){ TY_RIVAL = d._rival.id; TY_DEAL = null; TY_MODAL = 'rival'; renderPage(); }
         else tyPickSite(d.id);
       });
@@ -1357,26 +1361,56 @@ function landDir(d){
   return [Math.cos(a) * 1.2, Math.sin(a) * 1.2];
 }
 
+/* 一座城市周圍有哪幾個方向是陸地(依偏好排好:東南、西南、東北、西北、南、北、東、西)。
+   使用者截圖:「怎麼建築在海上」、「如果之後對手也在台灣設點會很擠」——
+   同一座城市旁邊可能同時有你的小城、對手的大本營、地標、兩群部隊。
+   所以先把「陸地上的空位」列出來,再一個一個分出去,不要全部擠在同一點、也不要站到海上。 */
+const SLOTS_C = Object.create(null);
+function citySlots(id, lat, lng){
+  const key = id + (W3D.hiFeats ? ':h' : '');
+  if(SLOTS_C[key]) return SLOTS_C[key];
+  const land = [], sea = [];
+  for(const a of DIRS){
+    const k = 1 / Math.max(.2, Math.cos(lat * Math.PI / 180));
+    const on = r => W3D.featAt(lat + Math.sin(a) * r, lng + Math.cos(a) * r * k);
+    (on(.28) && on(.5) ? land : on(.28) ? land : sea).push(a);
+  }
+  return (SLOTS_C[key] = land.concat(sea));
+}
+const slotOff = (a, r) => [Math.cos(a) * (r || 1.3), Math.sin(a) * (r || 1.3)];
+
 W3D.sites = function(mine, rivals, troops){
   if(!W3D.ok) return;
   paintSkin();
   const rvMax = Math.max(1, ...rivals.map(r => r._v || 0));
   rivals.forEach(r => { r._rvk = Math.sqrt((r._v || 0) / rvMax); });
+  /* 分位子:城市正中央給你的小城(沒有的話給對手大本營),其餘的依序拿陸地上的空位 */
+  const used = Object.create(null);
+  const take = (id, lat, lng, r) => {
+    const sl = citySlots(id, lat, lng), n = used[id] = (used[id] || 0);
+    used[id]++;
+    return slotOff(sl[n % sl.length], r || (1.3 + Math.floor(n / sl.length) * .9));
+  };
+  const center = new Set(mine.map(d => d.id));
+  for(const d of rivals){
+    if(center.has(d.id)) d._off = take(d.id, d.lat, d.lng);
+    else { d._off = null; center.add(d.id); }
+  }
+  const siteOf = d => (typeof TY_SITES !== 'undefined' ? TY_SITES : []).find(st => Math.abs(st.lat - d.lat) < 1e-6 && Math.abs(st.lng - d.lng) < 1e-6);
   const tr = (troops || []).map(d => {
     const o = { ...d, _base: .0008 };
     delete o._arc;
-    if(d._units && !d._mv) o._off = landDir(d);            // 駐紮:城市旁邊的陸地上
-    else o._sea = !W3D.featAt(d.lat, d.lng);                // 路上:在海上就是船
-    if(d._threat) o._off = null;
+    if(d._threat){ o._off = null; o._sea = !W3D.featAt(d.lat, d.lng); return o; }
+    const st = siteOf(d);
+    if(st){ o._off = take(st.id, st.lat, st.lng); o._sea = false; }   // 駐紮 / 下季到位:城市旁邊的陸地上
+    else o._sea = !W3D.featAt(d.lat, d.lng);
     return o;
   });
   TROOPS = tr;
-  /* 地標:每一座城市都有。你有據點的城市,地標站在小城的西北邊,不要跟你的建築擠在一起;
-     對手大本營同理。其餘城市就站在城市正中央。 */
-  const taken = new Set([...mine.map(d => d.id), ...rivals.map(d => d.id)]);
+  /* 地標:每一座城市都有。正中央空著就站中央,不然也去拿一個陸地上的空位。 */
   const lms = (typeof TY_SITES !== 'undefined' ? TY_SITES : []).map(st => ({
     id: st.id, lat: st.lat, lng: st.lng, iso: st.iso, _lm: true, _k: 'lm:' + st.id, _base: .0008,
-    _off: taken.has(st.id) ? [-1.25, 1.0] : null }));
+    _off: center.has(st.id) ? take(st.id, st.lat, st.lng) : null }));
   G.customLayerData([...mine, ...rivals, ...tr, ...lms]);
   tagsOn();
   buildRoutes(tr);
@@ -1405,10 +1439,11 @@ function tagsOn(){
       el.title = `${d._r.nm}的併購小組 → ${tySite(d._threat.site).nm}`;
     }else{
       const ics = d._units.map(u => TY_UNITS[u.k].ic).join('');
-      el.innerHTML = `${ics}${d._mv ? ` <b>${d._mv}季</b>` : d._units.length > 1 ? ` <b>×${d._units.length}</b>` : ''}`;
+      el.innerHTML = `${ics}${d._mv ? ` <b>下季到位</b>` : d._units.length > 1 ? ` <b>×${d._units.length}</b>` : ''}`;
       el.title = d._units.map(u => TY_UNITS[u.k].nm + (u.to ? ` → ${tySite(u.to).nm}` : '')).join('、');
     }
-    el.onclick = () => { TY_MODAL = 'troop'; renderPage(); };
+    if(d._threat) el.onclick = () => { TY_MODAL = 'troop'; renderPage(); };
+    else armTagDrag(el, d);
     el._d = d;
     TAGS.appendChild(el);
   }
@@ -1477,13 +1512,15 @@ function gcPts(a, b, n){
 }
 function pushPaths(){
   if(!W3D.ok || typeof G.pathsData !== 'function') return;
-  G.pathsData([...ROUTES, ...SELB, ...HOVER]);
+  const tr = [];
+  for(const t of TRAILS.values()) if(t.length > 1) tr.push({ pts: t, col: ['rgba(255,220,160,0)', 'rgba(255,150,60,.95)'], w: 1.3 });
+  G.pathsData([...ROUTES, ...SELB, ...HOVER, ...AIMP, ...tr]);
 }
 function setupPaths(){
   if(typeof G.pathsData !== 'function') return;
   G.pathsData([])
    .pathPoints('pts').pathPointLat(p => p[1]).pathPointLng(p => p[0])
-   .pathPointAlt(d => d.alt || .0012)
+   .pathPointAlt(p => p[2] != null ? p[2] : .0014)
    .pathColor(d => d.col).pathStroke(d => d.w || null)
    .pathDashLength(d => d.dash || 1).pathDashGap(d => d.gap || 0)
    .pathDashAnimateTime(d => d.anim || 0)
@@ -1495,7 +1532,7 @@ function buildRoutes(troops){
   for(const d of troops){
     let to = null, col;
     if(d._threat){ to = tySite(d._threat.site); col = 'rgba(255,90,70,1)'; }
-    else if(d._mv && d._units && d._units[0].to){ to = tySite(d._units[0].to); col = 'rgba(120,215,255,1)'; }
+
     if(!to) continue;
     const km = typeof tyKm === 'function' ? tyKm(d, to) : 2000;
     const n = clamp(Math.round(km / 60), 8, 160);
@@ -1614,6 +1651,368 @@ function armHover(){
   el.addEventListener('pointerleave', () => { hoverKey = 'x'; hoverAt(-999, -999); });
 }
 
+/* =============================================================================
+   出發動畫 —— 飛機、船、卡車、飛彈、戰機
+   -----------------------------------------------------------------------------
+   使用者:「律師團要去國外可以有飛機起飛,依照航線到目的地降落;搭船也會下港、
+            開船依照航線到目的地上岸。飛彈、空襲都要有動畫」。
+   規則上派出去的部隊下一季才到位 —— 這裡演的是「出發的那一趟」,演完它就站在
+   目的地,標籤寫著下季到位。動畫一律是畫面層的事,不碰任何數字。
+
+   載具的方向:x = 前進方向、z = 地表法線,每一幀用前後兩點算。
+   ============================================================================= */
+const VEH = {
+  plane(g){ const w = lin('#eef2f6'), wt = lin('#ffffff'), b = lin(TEAM);
+    box(g, 0, 0, 0, .5, .08, .08, w, wt);                    // 機身
+    frustum(g, .25, 0, .0, .04, 0, .1, 6, w, wt);              // 機鼻(朝上的錐,之後用方向蓋過去也看得出來)
+    box(g, .02, 0, .03, .14, .62, .02, lin('#c9d3dc'), wt);  // 主翼
+    box(g, -.22, 0, .03, .07, .22, .015, lin('#c9d3dc'), wt);// 水平尾翼
+    box(g, -.22, 0, .08, .08, .015, .12, b, lin(TEAM, 1.2));  // 垂直尾翼(隊伍色)
+    for(const y of [-.16, .16]) box(g, .05, y, -.02, .1, .045, .04, lin('#8a96a2'), lin('#b0bac4')); },  // 引擎
+  ship(g){ drawUnit(g, 'ship', 0, 0, 0); },
+  truck(g){ const c = lin('#5d6b45'), ct = lin('#7d8d5c');
+    box(g, -.04, 0, .03, .26, .14, .11, c, ct);
+    box(g, .15, 0, .03, .1, .13, .08, lin('#46523a'), lin('#5d6b45'));
+    for(const x of [-.12, .02, .15]) for(const y of [-.075, .075]) frustum(g, x, y, 0, .035, .035, .02, 8, lin('#222'), lin('#444')); },
+  missile(g){ const w = lin('#e9ecef'), r = lin('#c8322a');
+    box(g, 0, 0, 0, .34, .05, .05, w, lin('#ffffff'));
+    box(g, .2, 0, 0, .06, .04, .04, r, r);
+    for(const [y, z] of [[.05, 0], [-.05, 0], [0, .05], [0, -.05]]) box(g, -.15, y, z, .06, y ? .04 : .01, z ? .04 : .01, r, r); },
+  jet(g){ const c = lin('#7c8792'), ct = lin('#a3adb7');
+    box(g, 0, 0, 0, .42, .06, .06, c, ct);
+    box(g, .24, 0, 0, .08, .04, .04, lin('#5d6770'), ct);
+    box(g, -.02, 0, .01, .18, .44, .015, c, ct);
+    box(g, -.18, 0, .05, .07, .012, .1, lin('#c8322a'), lin('#e04a3a')); },
+};
+function vehGeo(k){ return geoFor('veh:' + k, g => VEH[k](g)); }
+
+/* ---- 海上航線 ----
+   不做真的航海計算:約六十個航點(海峽、運河、大洋上的轉折點)連成一張網,
+   船走最短路徑。每座城市的港口 = 離它最近的航點;內陸城市先開卡車到港口。 */
+const SEA = {
+  twn:[24,119.6], luz:[20.5,121.5], hkg:[21.8,114.3], scs:[14.5,114.5], vnm:[9.5,108.5], gth:[10.5,101.5],
+  sgp:[1.2,104.3], mal:[4.5,99], jav:[-5.5,110.5], ecs:[29.5,124], yel:[36,123.5], krs:[34.3,129.2],
+  jpn:[33.5,136], tky:[34.8,140.2], phl:[12,127], cor:[-18,155], syd:[-34,151.8], aus:[-38,120],
+  hwi:[21,-157.5], npc:[40,-150], sfo:[37.6,-123.3], mxp:[16,-102], pnp:[7.5,-79.8], pnc:[10,-79.3],
+  car:[17.5,-78], cay:[19.2,-81.5], gom:[25,-90], hou:[28.8,-94.5], mia:[25.6,-79.8], vgb:[18.6,-64.4],
+  bmu:[32.2,-64.6], nyc:[40.3,-73.3], del:[38.7,-74.8], nat:[42,-45], eng:[49.9,-3], nse:[53,3.5],
+  irl:[53.3,-5.8], bis:[45,-9], gib:[36,-6.5], med:[37.5,6], mon:[43.4,7.6], emd:[33.5,28], sue:[30,32.5],
+  red:[20,38.5], adn:[12.5,45.5], ara:[18,62], hor:[26.3,56.6], pgf:[26,52], bom:[18.6,72.3], lka:[5.8,80.5],
+  ben:[15,88], ind:[-10,90], cpt:[-35,18.5], moz:[-25,37], mbs:[-4.2,40.5], gng:[4,3], lag:[6.2,3.4],
+  waf:[14,-19], bra:[-8,-33], san:[-24.3,-45.5], sat:[-20,-10], chl:[-33,-72], per:[-12,-78.5], hrn:[-56,-67],
+};
+const SEA_E = ('twn-hkg twn-luz twn-ecs luz-phl luz-scs hkg-scs scs-vnm vnm-gth vnm-sgp gth-sgp sgp-mal sgp-jav '
+  + 'mal-lka mal-ben jav-cor jav-aus ecs-yel ecs-krs ecs-jpn krs-jpn jpn-tky tky-npc phl-cor phl-hwi cor-syd '
+  + 'syd-aus aus-ind npc-hwi npc-sfo hwi-sfo sfo-mxp mxp-pnp pnp-per per-chl chl-hrn hrn-san pnp-pnc pnc-car '
+  + 'car-cay car-gom gom-hou gom-mia car-vgb mia-bmu mia-nyc bmu-nyc bmu-nat vgb-nat vgb-bra nyc-del nyc-nat '
+  + 'nat-eng nat-irl nat-bis eng-nse eng-irl eng-bis bis-gib gib-med med-mon med-emd emd-sue sue-red red-adn '
+  + 'adn-ara ara-hor hor-pgf ara-bom bom-lka lka-ben lka-ind adn-mbs mbs-moz moz-cpt ind-moz cpt-sat sat-bra '
+  + 'sat-gng gng-lag gng-waf waf-gib waf-bra bra-san san-sat').split(' ').map(e => e.split('-'));
+const kmLL = (a, b) => typeof tyKm === 'function' ? tyKm({ lat: a[0], lng: a[1] }, { lat: b[0], lng: b[1] }) : 1000;
+function seaPath(from, to){
+  const near = p => Object.keys(SEA).sort((x, y) => kmLL(p, SEA[x]) - kmLL(p, SEA[y]))[0];
+  const a = near(from), b = near(to);
+  const adj = {}; for(const [x, y] of SEA_E){ (adj[x] = adj[x] || []).push(y); (adj[y] = adj[y] || []).push(x); }
+  const dist = { [a]: 0 }, prev = {}, left = new Set(Object.keys(SEA));
+  while(left.size){
+    let u = null; for(const n of left) if(dist[n] !== undefined && (u === null || dist[n] < dist[u])) u = n;
+    if(u === null || u === b) break;
+    left.delete(u);
+    for(const v of adj[u] || []){ const d = dist[u] + kmLL(SEA[u], SEA[v]); if(dist[v] === undefined || d < dist[v]){ dist[v] = d; prev[v] = u; } }
+  }
+  const nodes = [b]; while(nodes[0] !== a && prev[nodes[0]]) nodes.unshift(prev[nodes[0]]);
+  return nodes.map(n => SEA[n]);
+}
+/* 一條路線 = 很多小段,每段有它的交通工具。回傳細分好的點與每一點的載具。 */
+function legPts(a, b, mode, out){
+  const km = kmLL(a, b), n = clamp(Math.round(km / 80), 4, 120);
+  for(let i = out.length ? 1 : 0; i <= n; i++){
+    const p = tyGeoLerp({ lat: a[0], lng: a[1] }, { lat: b[0], lng: b[1] }, i / n);
+    out.push({ lat: p.lat, lng: p.lng, mode });
+  }
+}
+function routeFor(kind, A, B){
+  const a = [A.lat, A.lng], b = [B.lat, B.lng], pts = [];
+  if(kind === 'plane' || kind === 'missile' || kind === 'jet'){ legPts(a, b, kind, pts); return pts; }
+  if(kmLL(a, b) < 1200){ legPts(a, b, 'truck', pts); return pts; }
+  const sea = seaPath(a, b);
+  legPts(a, sea[0], 'truck', pts);                          // 開到港口
+  for(let i = 1; i < sea.length; i++) legPts(sea[i-1], sea[i], 'ship', pts);
+  legPts(sea[sea.length-1], b, 'truck', pts);                // 上岸
+  return pts;
+}
+
+/* 播一趟:沿著路線走,依載具換模型;飛機 / 飛彈有高度曲線。 */
+let ANIMS = [], animOn = false;
+function animHost(){ return patchHost(); }
+function spawnVeh(k){
+  const m = new T.Mesh(vehGeo(k), MAT);
+  const h = animHost(); if(!h) return null;
+  h.add(m); return m;
+}
+function orient(obj, p, q){
+  // p、q:世界(圖層)座標的目前位置與下一個位置
+  const l = Math.hypot(p.x, p.y, p.z) || 1, nx = p.x/l, ny = p.y/l, nz = p.z/l;
+  let fx = q.x - p.x, fy = q.y - p.y, fz = q.z - p.z;
+  const fl = Math.hypot(fx, fy, fz) || 1; fx /= fl; fy /= fl; fz /= fl;
+  // 上方向:法線去掉跟前進方向平行的部分(爬升 / 俯衝時機身會跟著仰 / 俯)
+  const dot = nx*fx + ny*fy + nz*fz;
+  let ux = nx - dot*fx, uy = ny - dot*fy, uz = nz - dot*fz;
+  const ul = Math.hypot(ux, uy, uz) || 1; ux /= ul; uy /= ul; uz /= ul;
+  const yx = uy*fz - uz*fy, yy = uz*fx - ux*fz, yz = ux*fy - uy*fx;   // y = up × forward
+  obj.matrix.set(fx, yx, ux, 0,  fy, yy, uy, 0,  fz, yz, uz, 0,  0, 0, 0, 1);
+  obj.quaternion.setFromRotationMatrix(obj.matrix);
+  obj.position.set(p.x, p.y, p.z);
+}
+/* opt: { kind, from, to, dur, arc(高度峰值), off(側向偏移度數), done } */
+function fly(opt){
+  if(!W3D.ok) return;
+  const pts = routeFor(opt.kind, opt.from, opt.to);
+  if(pts.length < 2) return;
+  // 每一點的累積距離,速度才會均勻
+  const cum = [0]; for(let i = 1; i < pts.length; i++) cum.push(cum[i-1] + kmLL([pts[i-1].lat, pts[i-1].lng], [pts[i].lat, pts[i].lng]));
+  const tot = cum[cum.length-1] || 1;
+  const a = { pts, cum, tot, t0: performance.now(), dur: opt.dur || clamp(1800 + tot * .2, 2200, 6500),
+              arc: opt.arc || 0, off: opt.off || 0, kind: opt.kind, mesh: null, mk: '', done: opt.done, trail: opt.trail ? [] : null };
+  ANIMS.push(a);
+  if(!animOn){ animOn = true; requestAnimationFrame(animStep); }
+}
+function posAt(a, u){
+  let i = 1; while(i < a.cum.length - 1 && a.cum[i] < u * a.tot) i++;
+  const s0 = a.cum[i-1], s1 = a.cum[i], f = s1 > s0 ? (u * a.tot - s0) / (s1 - s0) : 0;
+  const p0 = a.pts[i-1], p1 = a.pts[i];
+  let lat = p0.lat + (p1.lat - p0.lat) * f, lng = p0.lng + (((p1.lng - p0.lng + 540) % 360) - 180) * f;
+  if(a.off){ lat += a.off; }
+  // 高度:飛機起飛前在跑道上滑一段、降落後再滑一段;飛彈是一道拋物線
+  let alt = .0012;
+  if(a.arc){
+    const e = a.kind === 'missile' ? Math.sin(Math.PI * u) : smooth(clamp((u - .06) / .22, 0, 1)) * smooth(clamp((.94 - u) / .22, 0, 1));
+    alt += a.arc * e;
+  }
+  return { lat, lng, alt, mode: p0.mode };
+}
+function animStep(now){
+  const keep = [];
+  for(const a of ANIMS){
+    const u = clamp((now - a.t0) / a.dur, 0, 1);
+    const P = posAt(a, u), Q = posAt(a, Math.min(1, u + .004));
+    const mk = a.kind === 'jet' ? 'jet' : a.kind === 'missile' ? 'missile' : a.kind === 'plane' ? 'plane' : P.mode;
+    if(mk !== a.mk){ if(a.mesh && a.mesh.parent) a.mesh.parent.remove(a.mesh); a.mesh = spawnVeh(mk); a.mk = mk; }
+    if(a.mesh){
+      const p = G.getCoords(P.lat, P.lng, P.alt), q = G.getCoords(Q.lat, Q.lng, Q.alt);
+      if(u >= 1){ q.x = p.x + (p.x - (a._lx || p.x)); q.y = p.y + (p.y - (a._ly || p.y)); q.z = p.z + (p.z - (a._lz || p.z)); }
+      orient(a.mesh, p, q); a._lx = p.x; a._ly = p.y; a._lz = p.z;
+      const s = bScale() * (mk === 'missile' ? 1.3 : 1.5);
+      a.mesh.scale.set(s, s, s);
+    }
+    if(a.trail){                                          // 飛彈的尾煙:沿路留下的點
+      a.trail.push([P.lng, P.lat, P.alt]);
+      TRAILS.set(a, a.trail);
+    }
+    if(u < 1) keep.push(a);
+    else{
+      if(a.mesh && a.mesh.parent) a.mesh.parent.remove(a.mesh);
+      if(a.trail) setTimeout(() => { TRAILS.delete(a); pushPaths(); }, 1200);
+      if(a.done) a.done();
+    }
+  }
+  ANIMS = keep;
+  if(TRAILS.size) pushPaths();
+  if(ANIMS.length) requestAnimationFrame(animStep); else animOn = false;
+}
+const TRAILS = new Map();
+
+/* 爆炸:一圈快速擴散的橘紅光圈 + 螢幕上的閃光與「💥」 */
+function boom(lat, lng, big){
+  W3D.extraRings = W3D.extraRings.concat([
+    { lat, lng, _rgb: '255,140,40', _a: 1, _r: big ? 4.5 : 2.6, _v: big ? 6 : 4, _p: 380 },
+    { lat, lng, _rgb: '255,60,30', _a: .9, _r: big ? 3 : 1.8, _v: 3, _p: 520 }]);
+  W3D.rings();
+  const fx = fxLayer();
+  if(fx){
+    let c = null; try{ c = G.getScreenCoords(lat, lng, .002); }catch(e){}
+    if(c){
+      const el = document.createElement('div'); el.className = 'w3d-boom' + (big ? ' big' : '');
+      el.style.left = c.x + 'px'; el.style.top = c.y + 'px';
+      fx.appendChild(el); setTimeout(() => el.remove(), 1100);
+    }
+  }
+  clearTimeout(boom._t);
+  boom._t = setTimeout(() => { W3D.extraRings = []; W3D.rings(); }, 1800);
+}
+
+/* 部隊出發:人搭飛機;併購小組近的開車、遠的走海運 */
+W3D.animMove = function(m){
+  if(!W3D.ok || !m) return;
+  const A = tySite(m.from), B = tySite(m.to);
+  const km = kmLL([A.lat, A.lng], [B.lat, B.lng]);
+  if(m.k === 'raid') fly({ kind: 'ground', from: A, to: B });
+  else fly({ kind: 'plane', from: A, to: B, arc: clamp(km / 9000 * .09, .012, .08) });
+};
+/* 打擊:飛彈從大本營拋過去;空襲是三架戰機編隊飛過去,到了一串爆炸 */
+W3D.animStrike = function(s){
+  if(!W3D.ok || !s) return;
+  const A = tySite(s.from), B = tySite(s.to);
+  const km = kmLL([A.lat, A.lng], [B.lat, B.lng]);
+  if(s.k === 'missile'){
+    fly({ kind: 'missile', from: A, to: B, arc: clamp(km / 6000 * .22, .05, .32), dur: clamp(1600 + km * .12, 1800, 3200),
+          trail: true, done: () => { boom(B.lat, B.lng, true); } });
+  }else{
+    for(const [off, delay] of [[0, 0], [.35, 120], [-.35, 240]]){
+      setTimeout(() => fly({ kind: 'jet', from: A, to: B, arc: .03, off, dur: clamp(1600 + km * .12, 1800, 3000),
+        done: () => { for(let i = 0; i < 3; i++) setTimeout(() => boom(B.lat + (i - 1) * .18 + off * .4, B.lng + (i - 1) * .22, false), i * 160); } }), delay);
+    }
+  }
+};
+
+/* =============================================================================
+   拉線:點部隊(或武器)→ 拉一條線到目標城市
+   -----------------------------------------------------------------------------
+   使用者:「點一下部隊就可以選擇要派哪些部隊、去哪個城市、攻擊哪一個對手,可以用拉線的」。
+   兩種開始方式:
+     · 從地圖上的部隊標籤直接**拖曳**出去,放開在城市上
+     · 按「🎯 地圖上選」(部隊小卡、部隊面板、武器卡),然後點城市
+   瞄準中:線從出發點跟著游標走,停在可以選的城市上會吸附並變綠、跳出說明;
+   Esc 或「取消」離開。⚠ 瞄準中要擋掉地圖原本的點擊(開城市面板),不然點下去兩件事一起發生。
+   ============================================================================= */
+let AIM = null, AIMP = [];
+W3D.aiming = () => !!AIM;
+function aimBar(){
+  let b = document.getElementById('w3dAim');
+  const host = document.getElementById('tyGlobeHost');
+  if(!b && host){ b = document.createElement('div'); b.id = 'w3dAim'; host.appendChild(b); }
+  return b;
+}
+W3D.aim = function(opt){
+  if(!W3D.ok) return;
+  AIM = { ...opt, x: null, y: null, site: null };
+  const b = aimBar();
+  if(b){
+    b.innerHTML = `<b>🎯 ${escH(opt.label || '選一座城市')}</b><span>點目標城市 · 拖曳可以轉地圖 · Esc 取消</span>`
+      + `<button type="button">取消</button>`;
+    b.style.display = '';
+    b.querySelector('button').onclick = () => W3D.aimCancel();
+  }
+  const host = document.getElementById('tyGlobeHost'); if(host) host.dataset.aim = '1';
+  armAim();
+  drawAim();
+};
+W3D.aimCancel = function(){
+  AIM = null; AIMP = []; pushPaths();
+  const b = document.getElementById('w3dAim'); if(b) b.style.display = 'none';
+  const host = document.getElementById('tyGlobeHost'); if(host) host.dataset.aim = '';
+  if(hoverCard) hoverCard.style.display = 'none';
+};
+function drawAim(){
+  if(!AIM) return;
+  const A = AIM.from; let B = null, ok = false;
+  if(AIM.site){ B = tySite(AIM.site); ok = AIM.valid(AIM.site); }
+  else if(AIM.x != null){ try{ const p = G.toGlobeCoords(AIM.x, AIM.y); if(p) B = p; }catch(e){} }
+  AIMP = [];
+  if(B){
+    const km = kmLL([A.lat, A.lng], [B.lat, B.lng]);
+    const pts = gcPts(A, B, clamp(Math.round(km / 60), 6, 140));
+    const col = AIM.site ? (ok ? 'rgba(90,230,120,1)' : 'rgba(255,90,70,1)') : 'rgba(255,225,120,1)';
+    AIMP.push({ pts, col: 'rgba(8,20,31,.6)', w: 2.6 });
+    AIMP.push({ pts, col, w: 1.5, dash: .05, gap: .025, anim: 1500 });
+    if(AIM.site) AIMP.push({ pts: ringPts(B.lat, B.lng, clamp(W3D.alt * 1.6, .2, 3)), col, w: 1.2 });
+  }
+  pushPaths();
+  // 說明小卡
+  const host = document.getElementById('tyGlobeHost');
+  if(AIM.site && host && AIM.x != null){
+    if(!hoverCard || !hoverCard.isConnected){ hoverCard = document.createElement('div'); hoverCard.className = 'w3d-hover'; host.appendChild(hoverCard); }
+    const s = tySite(AIM.site), h = AIM.hint ? AIM.hint(AIM.site) : '';
+    hoverCard.innerHTML = `<b>${flag(s.iso)} ${escH(s.nm)}</b>${h ? `<span>${escH(h)}</span>` : ''}`
+      + `<span class="${ok ? 'ok' : 'dim'}">${ok ? '✓ 點一下確定' : '✕ 這裡不行'}</span>`;
+    hoverCard.style.display = '';
+    hoverCard.style.transform = `translate(${AIM.x + 16}px,${Math.max(4, AIM.y - 10)}px)`;
+  }else if(hoverCard) hoverCard.style.display = 'none';
+}
+function aimPick(x, y){
+  if(!AIM) return false;
+  const s = nearSite(x, y);
+  if(!s || !AIM.valid(s.id)){ AIM.x = x; AIM.y = y; AIM.site = s ? s.id : null; drawAim(); return true; }
+  const pick = AIM.pick;
+  W3D.aimCancel();
+  pick(s.id);
+  return true;
+}
+let aimArmed = false, aimT = 0;
+function armAim(){
+  if(aimArmed) return;
+  const host = document.getElementById('tyGlobeHost'); if(!host) return;
+  aimArmed = true;
+  const rel = ev => { const r = host.getBoundingClientRect(); return [ev.clientX - r.left, ev.clientY - r.top]; };
+  let down = null;
+  host.addEventListener('pointerdown', ev => { if(AIM) down = rel(ev); }, true);
+  host.addEventListener('pointermove', ev => {
+    if(!AIM) return;
+    const now = performance.now(); if(now - aimT < 30) return; aimT = now;
+    const [x, y] = rel(ev);
+    AIM.x = x; AIM.y = y;
+    const s = nearSite(x, y); AIM.site = s ? s.id : null;
+    drawAim();
+  }, true);
+  // 點擊 = 選目標(拖曳過的不算,那是在轉地圖)
+  host.addEventListener('click', ev => {
+    if(!AIM) return;
+    if(ev.target.closest && ev.target.closest('#w3dAim')) return;
+    ev.stopPropagation(); ev.preventDefault();
+    const [x, y] = rel(ev);
+    if(down && Math.hypot(x - down[0], y - down[1]) > 8) return;
+    aimPick(x, y);
+  }, true);
+  addEventListener('keydown', ev => { if(AIM && ev.key === 'Escape') W3D.aimCancel(); });
+}
+
+/* ---- 點部隊:一張小卡,勾選要派哪幾支 ---- */
+let UPOP = null;
+function unitPop(d, x, y){
+  const host = document.getElementById('tyGlobeHost'); if(!host) return;
+  if(!UPOP || !UPOP.isConnected){ UPOP = document.createElement('div'); UPOP.id = 'w3dUnitPop'; host.appendChild(UPOP); }
+  const units = d._units.slice();
+  const where = units[0].to ? `→ ${tySite(units[0].to).nm}(下季到位)` : `駐 ${tySite(units[0].site).nm}`;
+  UPOP.innerHTML = `<div class="up-h"><b>${units.length} 支部隊</b><em>${escH(where)}</em><button type="button" class="x">✕</button></div>`
+    + units.map(u => `<label><input type="checkbox" checked data-u="${u.id}"> ${TY_UNITS[u.k].ic} ${escH(TY_UNITS[u.k].nm)}</label>`).join('')
+    + `<div class="up-b"><button type="button" class="go">🎯 拉線派遣</button><button type="button" class="pn">部隊面板</button></div>`
+    + `<div class="up-n">也可以直接從部隊標籤拖一條線到城市</div>`;
+  UPOP.style.display = '';
+  const w = host.clientWidth;
+  UPOP.style.transform = `translate(${Math.min(w - 230, Math.max(6, x - 100))}px,${Math.max(6, y + 18)}px)`;
+  UPOP.querySelector('.x').onclick = () => { UPOP.style.display = 'none'; };
+  UPOP.querySelector('.pn').onclick = () => { UPOP.style.display = 'none'; TY_MODAL = 'troop'; renderPage(); };
+  UPOP.querySelector('.go').onclick = () => {
+    const ids = [...UPOP.querySelectorAll('input:checked')].map(i => +i.dataset.u);
+    UPOP.style.display = 'none';
+    const sel = tyUnits().filter(u => ids.includes(u.id));
+    if(sel.length) tyAimUnits(sel);
+  };
+}
+W3D.unitPop = unitPop;
+/* 標籤上直接拖:按下去往外拉超過 10 像素就進入瞄準,放開的位置就是目標 */
+function armTagDrag(el, d){
+  el.addEventListener('pointerdown', ev => {
+    if(!d._units) return;
+    ev.preventDefault();
+    const host = document.getElementById('tyGlobeHost'), r = host.getBoundingClientRect();
+    const sx = ev.clientX, sy = ev.clientY; let dragging = false;
+    const mv = e => {
+      if(!dragging && Math.hypot(e.clientX - sx, e.clientY - sy) > 10){
+        dragging = true;
+        tyAimUnits(d._units.slice());
+      }
+      if(dragging && AIM){ AIM.x = e.clientX - r.left; AIM.y = e.clientY - r.top; const s = nearSite(AIM.x, AIM.y); AIM.site = s ? s.id : null; drawAim(); }
+    };
+    const up = e => {
+      removeEventListener('pointermove', mv); removeEventListener('pointerup', up);
+      if(dragging){ aimPick(e.clientX - r.left, e.clientY - r.top); }
+      else unitPop(d, sx - r.left, sy - r.top);
+    };
+    addEventListener('pointermove', mv); addEventListener('pointerup', up);
+  });
+}
+
 /* 光圈：你的大本營一圈慢慢擴散的金色、目前選的據點一圈青色，
    加上過場時臨時加的（賺錢綠、賠錢紅、對手的顏色）。 */
 W3D.rings = function(){
@@ -1644,7 +2043,11 @@ W3D.rings = function(){
 
 W3D.onZoom = function(pov){
   if(!W3D.ok) return;
-  if(!W3D._logical && pov && isFinite(pov.altitude)) W3D.alt = pov.altitude;
+  /* ⚠ 一定要用這個事件帶來的高度。W3D.alt 是傾斜鏡頭每一幀「算完之後」才更新的,
+     而這個事件是在那之前觸發的 —— 用 W3D.alt 的話,鏡頭停下來的那一刻縮放的是
+     **上一刻**的高度,之後沒有新事件,建築就一直維持拉遠時的超大尺寸(偏移量也跟著放大,
+     部隊被推到海上去)。自轉的時候事件不斷,這個 bug 被蓋住了。 */
+  if(pov && isFinite(pov.altitude)) W3D.alt = pov.altitude;
   rescaleAll();
   patchSoon();
   farMode();
