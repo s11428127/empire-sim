@@ -4539,6 +4539,89 @@
   .w3d-tag.mv{border-style:dashed}
   .w3d-tag.th{background:rgba(90,18,18,.94);border-color:var(--rc,#ff453a)}
   .w3d-tag.th b{color:#ffb3aa}
+
+  /* ═══════════ 第三輪:字體放大、側欄、遠看兵種圖示、懸停 ═══════════
+     使用者:「整體來說字都太小了」。這一段放在最後面,覆蓋前面各處的字級。 */
+  .tg-id b{font-size:15px}
+  .tg-pill,.tg-reg{font-size:13px}
+  .tg-nwp b{font-size:16px} .tg-nwp em{font-size:12px}
+  .tg-go b{font-size:14px} .tg-go em{font-size:10.5px}
+  .tg-res .r b{font-size:14px} .tg-res .r em{font-size:10px} .tg-res .r i{font-size:12px}
+  .tg-nb i{font-size:18px} .tg-nb span{font-size:12px}
+  .tg-sb i{font-size:16px} .tg-sb span{font-size:11px}
+  .tg-c{font-size:12.5px;padding:4px 11px}
+  .tg-lay .lg{font-size:11.5px}
+  .tg-ticker .t-i{font-size:13px}
+  .tg-mt b{font-size:19px}
+  .tg-mb{font-size:14px}
+  .tg-mb .p-sec{font-size:13.5px}
+  .tg-mb .ty-facts em{font-size:12px} .tg-mb .ty-facts b{font-size:16px}
+  .tyk .k-n{font-size:11.5px;padding:3px 8px}
+  .tyk.idle .k-n{font-size:10.5px}
+  .tyk.rv .k-n{font-size:11px}
+  #tyGlobeHost[data-z="far"] .tyk .k-n{font-size:10.5px;padding:2px 6px}
+  #tyGlobeHost[data-z="near"] .tyk .k-n{font-size:13.5px;padding:4px 10px}
+  .w3d-tag{font-size:13px;padding:3px 6px} .w3d-tag b{font-size:12px}
+  /* 手機窄的時候資源列七格擠在一排:數字放大到 14px 會被截成「15.0...」 */
+  @media (max-width:420px){ .tg-res .r b{font-size:12.5px;letter-spacing:-.04em} .tg-res .r em{font-size:9.5px} }
+  @media (min-width:900px){
+    .tg-id b{font-size:17px}
+    .tg-pill,.tg-reg{font-size:14px}
+    .tg-nwp b{font-size:19px} .tg-nwp em{font-size:13px}
+    .tg-go{padding:5px 16px} .tg-go b{font-size:16px} .tg-go em{font-size:11.5px}
+    .tg-res .r{padding:6px 4px 5px} .tg-res .r b{font-size:18px} .tg-res .r em{font-size:12px} .tg-res .r i{font-size:15px}
+    .tg-nb{padding-top:8px;padding-bottom:8px} .tg-nb i{font-size:21px} .tg-nb span{font-size:14px}
+    .tg-sb{width:68px;min-height:56px} .tg-sb i{font-size:19px} .tg-sb span{font-size:12.5px}
+    .tg-c{font-size:14px;padding:5px 13px} .tg-lay .lg{font-size:13px}
+    .tg-ticker .t-i{font-size:14.5px}
+    .tg-mb{font-size:15px}
+    .tyk .k-n{font-size:13.5px;padding:3px 10px}
+    .tyk.idle .k-n{font-size:12px} .tyk.rv .k-n{font-size:12.5px}
+    #tyGlobeHost[data-z="far"] .tyk .k-n{font-size:12px}
+    #tyGlobeHost[data-z="near"] .tyk .k-n{font-size:15px;padding:4px 12px}
+    .w3d-tag{font-size:15px} .w3d-tag b{font-size:13px}
+    .w3d-ban b{font-size:34px} .w3d-ban em{font-size:13px} .w3d-ban span{font-size:16px} .w3d-ban i{font-size:14px}
+    .w3d-float{font-size:15px}
+  }
+
+  /* 側欄:桌機上點國家 / 城市 / 部隊 / 對手,地圖留著 */
+  .tycon[data-modal][data-side] #tyGlobeSlot,.tycon[data-modal][data-side] .tg-scrim,
+  .tycon[data-modal][data-side] .tg-lay,.tycon[data-modal][data-side] .tg-ticker{visibility:visible}
+  .tycon[data-side] .tg-modal{left:auto;width:min(480px,40vw);
+    border-left:1px solid var(--g-line2);box-shadow:-12px 0 40px rgba(0,0,0,.45);
+    background:rgba(10,23,34,.97)}
+  .tycon[data-side] .tg-side{right:min(480px,40vw)}
+
+  /* 國家卡 */
+  .p-flag{font-style:normal;font-size:26px;line-height:1;margin:4px 0 2px;display:block}
+  .ty-board{display:flex;flex-direction:column;gap:6px;margin:6px 0 4px}
+  .ty-board .b-r{display:grid;grid-template-columns:minmax(0,9em) 1fr 3em;gap:8px;align-items:center;font-size:13px}
+  .ty-board .b-r.me .b-n{color:#7fd4ff;font-weight:700}
+  .ty-board .b-n{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .ty-board .b-b{height:9px;border-radius:5px;background:rgba(150,200,235,.1);overflow:hidden}
+  .ty-board .b-b i{display:block;height:100%;border-radius:5px}
+  .ty-board .b-v{text-align:right;font-variant-numeric:tabular-nums;color:var(--g-t2)}
+  .ty-site .s-n .k-lv{margin-right:6px}
+
+  /* 遠看:3D 棋子收起來,標籤變成參考畫面那種方形兵種圖示(綠 = 你,紅 = 敵人) */
+  #tyGlobeHost[data-far="1"] .w3d-tag{display:flex;flex-direction:column;align-items:center;gap:1px;
+    min-width:34px;padding:4px 5px 3px;border-radius:4px;font-size:17px;line-height:1.05;
+    background:linear-gradient(180deg,#2f8a3a,#1d5c25);border:2px solid #d8f5c8;
+    box-shadow:0 2px 6px rgba(0,0,0,.6);transform-origin:50% 100%}
+  #tyGlobeHost[data-far="1"] .w3d-tag b{font-size:10.5px;color:#eaffdf}
+  #tyGlobeHost[data-far="1"] .w3d-tag.mv{border-style:dashed}
+  #tyGlobeHost[data-far="1"] .w3d-tag.th{background:linear-gradient(180deg,#b3261e,#7a1510);border-color:#ffd0c8}
+  #tyGlobeHost[data-far="1"] .w3d-tag.th b{color:#ffe1dc}
+
+  /* 滑鼠停在國家 / 城市上的小卡 */
+  .w3d-hover{position:absolute;left:0;top:0;z-index:175;pointer-events:none;max-width:240px;
+    display:flex;flex-direction:column;gap:3px;padding:8px 11px;border-radius:7px;
+    background:rgba(8,20,31,.94);border:1px solid rgba(255,236,150,.55);
+    box-shadow:0 6px 22px rgba(0,0,0,.5);font-size:12.5px;color:#d7e4ee}
+  .w3d-hover b{font-size:14.5px;color:#fff}
+  .w3d-hover .lv{font-style:normal;font-size:11px;padding:0 5px;border-radius:3px;background:#e0b23c;color:#2a1c02;margin-left:4px}
+  .w3d-hover .dim{color:#8aa3b8}
+  @media (min-width:900px){ .w3d-hover{font-size:13.5px} .w3d-hover b{font-size:16px} }
 </style>
 </head>
 <body data-route="tycoon">
@@ -8609,7 +8692,8 @@ function tyGlobeData(){
   /* 部隊與來襲的敵軍。駐紮的照城市合併成一枚徽章;在路上的站在
      「走了幾成」的位置,拉一條虛線弧到目的地 —— 你看得到它、對手也看得到你。 */
   const troops=tyTroopMarks();
-  for(const m of troops) if(m._arc) arcs.push(m._arc);
+  // 3D 啟用時行軍路線是貼地的虛線(world3d.js 的 paths 圖層),弧線只在退回模式用
+  if(!(window.W3D && W3D.ok)) for(const m of troops) if(m._arc) arcs.push(m._arc);
   TYG.arcsData(window.W3D ? arcs.concat(W3D.extraArcs||[]) : arcs);
 
   if(typeof TYG.htmlElementsData==='function'){
@@ -8965,7 +9049,12 @@ function tyPickIso(code){
     // 鏡頭飛到那個國家。有我的據點就用據點的重心,沒有就用第一個城市。
     const here=TY_SITES.filter(s=>s.iso===TY_ISO);
     const mine=tyIsoSites(TY_ISO);
-    if(here.length){
+    if(!here.length){
+      // 沒有城市的國家:飛到國土的中心
+      const c=tyIsoCenter(TY_ISO);
+      if(c){ TYG.controls().autoRotate=false;
+             TYG.pointOfView({ lat:c.lat, lng:c.lng, altitude:tyClamp(.9*((tyFitAlt()+1)/2.37), .5, 1.6) }, 900); }
+    }else{
       /* 鏡頭要對準「我的東西」,但拉遠到看得完**整個國家**。
          第一版用「我有幾個據點」決定高度 —— 於是在美國只有一棟樓的人會被
          拉到貼著曼哈頓,旁邊六個州一個都看不到,而那正是這一頁想給的資訊。 */
@@ -9053,10 +9142,62 @@ function tyWorldPanel(){
 }
 
 /* ---------- 國家 ---------- */
+/* ---------- 國家 ----------
+   使用者:「點一個國家可以顯示這個國家的所有訊息,經濟、政策等等」。
+   參考那款遊戲點國家會跳出一張國家卡:國旗、誰控制、資源、關係。
+   這裡的對應:景氣(地區指數)、長期成長與波動、政策風險、稅率、誰的勢力最大、
+   你的部隊、有沒有人正在打過來。
+
+   ⚠ 遊戲的經濟模型是以「地區」為單位的(TY_REGIONS),不是每一國一套。
+     沒有城市的國家(例如蒙古)歸到**離它最近的那座城市的地區** —— 畫面上會直說
+     「依最近的經濟圈推算」,不假裝它有自己的數字。 */
+function tyIsoName(code, f){
+  if(code && REGION_NAME[code]) return REGION_NAME[code];
+  try{ if(code && code.length===2 && typeof Intl!=='undefined' && Intl.DisplayNames)
+         return new Intl.DisplayNames(['zh-Hant'],{type:'region'}).of(code); }catch(e){}
+  return (f && f.properties && (f.properties.NAME||f.properties.ADMIN)) || code || '';
+}
+function tyIsoCenter(code, f){
+  const here=TY_SITES.filter(s=>s.iso===code);
+  if(here.length) return { lat:here.reduce((a,x)=>a+x.lat,0)/here.length, lng:here.reduce((a,x)=>a+x.lng,0)/here.length };
+  const feat=f || (window.W3D && W3D.hiFeats || countries || []).find(x=>iso(x)===code);
+  if(!feat || !feat.geometry) return null;
+  const g=feat.geometry, polys=g.type==='Polygon'?[g.coordinates]:g.coordinates;
+  const big=polys.map(p=>p[0]).sort((a,b)=>b.length-a.length)[0]||[];
+  if(!big.length) return null;
+  let la=0, lo=0; for(const [x,y] of big){ lo+=x; la+=y; }
+  return { lat:la/big.length, lng:lo/big.length };
+}
+function tyIsoInfo(code, f){
+  if(!TY) return null;
+  const here=TY_SITES.filter(s=>s.iso===code);
+  let reg=null, near=false;
+  if(here.length) reg=here[0].reg;
+  else{
+    const c=tyIsoCenter(code, f); if(!c) return null;
+    let best=null, bd=1e9;
+    for(const s of TY_SITES){ if(s.reg==='off') continue; const d=tyKm(c, s); if(d<bd){ bd=d; best=s; } }
+    if(!best) return null;
+    reg=best.reg; near=true;
+  }
+  const R=TY_REGIONS[reg], st=TY.reg[reg], idx=tyRegIdx(reg), own=tyRegOwner(reg);
+  const pol=R.pol||0;
+  const board=[{ nm:'你', v:tyMyTurf(reg), col:'41,151,255', me:true },
+    ...tyRivalsA().map(r=>({ nm:r.nm, ic:r.ic, v:tyTurf(r,reg), col:TY_RVCOL[r.id]||'200,200,210', r }))]
+    .filter(x=>x.v>.5).sort((a,b)=>b.v-a.v);
+  return { reg, near, here, R, st, idx, pol,
+    regNm:R.nm, idxTxt:`${idx>=1?'+':''}${((idx-1)*100).toFixed(1)}%`,
+    polTxt: pol>=.8?'高':pol>=.45?'中':'低',
+    ownerTxt: own.r ? `${own.r.ic||''} ${escH(own.r.nm)}的天下(勢力 ${own.v.toFixed(0)})`
+             : own.me>2 ? `你的天下(勢力 ${own.me.toFixed(0)})` : '沒有人獨大',
+    board };
+}
 function tyIsoPanel(code){
   const all=TY_SITES.filter(s=>s.iso===code);
   const mine=tyIsoSites(code);
   const tot=mine.reduce((a,s)=>a+tySiteStuff(s.id).val,0);
+  const I=tyIsoInfo(code);
+  const flag=window.W3D && W3D.flag ? W3D.flag(code) : '';
   /* 依州 / 省分組 —— 「點美國要看得到是哪幾個州」就是這一段。
      沒有州別的地方(新加坡、香港、開曼)就自己一組,不要硬掰一個名字。 */
   const groups={};
@@ -9071,19 +9212,55 @@ function tyIsoPanel(code){
       if(t.cash>0) bits.push(`現金 ${tyM(t.cash)}`);
       if(t.holdco) bits.push('控股層');
       return `<button type="button" class="ty-site${t.val>0?' has':''}" data-ty="site" data-k="${s.id}">
-        <span class="s-n">${escH(s.nm)}<em>${s.kind.map(k=>TY_KIND[k]).join(' · ')}</em></span>
+        <span class="s-n">${t.val>0?`<em class="k-lv">${tySiteLv(t.val)}</em>`:''}${escH(s.nm)}<em>${s.kind.map(k=>TY_KIND[k]).join(' · ')} · 稅 ${(s.tax*100).toFixed(1)}%</em></span>
         <span class="s-b">${bits.length?escH(bits.join(' · ')):'<i>還沒進場</i>'}</span>
         <span class="s-v">${t.val>0?tyM(t.val):''}</span></button>`;
     }).join('');
     return `<div class="ty-sub"><div class="sub-h">${escH(sub||'—')}</div>${rows}</div>`;
   }).join('');
 
+  let info='';
+  if(I){
+    const R=I.R, taxes=all.map(s=>s.tax);
+    const par=TY.partners[I.reg];
+    const units=tyUnits().filter(u=>!u.to && tySite(u.site).reg===I.reg);
+    const threats=tyThreats().filter(th=>th.reg===I.reg);
+    const mx=Math.max(1, ...I.board.map(x=>x.v));
+    info=`
+    ${I.near?`<div class="p-note">這個國家沒有可以進場的城市。以下是它所在的經濟圈
+      「${escH(I.regNm)}」的數字(依最近的經濟圈推算)。</div>`:''}
+    <div class="p-sec">經濟<span>${escH(I.regNm)}</span></div>
+    <div class="ty-facts">
+      <div><em>地區景氣(開局 = 0%)</em><b class="${I.idx>=1?'up':'down'}">${I.idxTxt}</b></div>
+      <div><em>長期成長(年)</em><b>${(R.drift*4*100).toFixed(1)}%</b></div>
+      <div><em>波動(每季)</em><b>${(R.vol*100).toFixed(1)}%</b></div>
+      <div><em>跟全球景氣連動</em><b>${R.beta.toFixed(2)} 倍</b></div>
+      ${R.oil?`<div><em>跟油價連動</em><b>${R.oil.toFixed(2)}</b></div>`:''}
+      <div><em>當地競爭</em><b>${I.st.comp>.5?I.st.comp.toFixed(1):'—'}</b></div>
+    </div>
+    <div class="p-sec">政策<span>風險 ${I.polTxt}</span></div>
+    <div class="ty-facts">
+      <div><em>政策風險(徵收、管制、外匯)</em><b>${I.polTxt}(${(I.pol*100).toFixed(0)})</b></div>
+      <div><em>法定公司稅率</em><b>${taxes.length?(Math.min(...taxes)===Math.max(...taxes)
+          ?(taxes[0]*100).toFixed(1)+'%':`${(Math.min(...taxes)*100).toFixed(1)}–${(Math.max(...taxes)*100).toFixed(1)}%`):'—'}</b></div>
+      <div><em>在地夥伴</em><b>${TY_PARTNERS[I.reg]?(par?'✓ '+escH(TY_PARTNERS[I.reg].nm):'需要 · '+escH(TY_PARTNERS[I.reg].nm)):'不需要'}</b></div>
+      <div><em>你的部隊 / 來襲</em><b>${units.length?units.map(u=>TY_UNITS[u.k].ic).join(''):'—'}${threats.length?` · ⚠ ${threats.length}`:''}</b></div>
+    </div>
+    <div class="p-sec">勢力<span>${I.ownerTxt}</span></div>
+    <div class="ty-board">${I.board.length?I.board.map(x=>`<div class="b-r${x.me?' me':''}">
+        <span class="b-n">${x.ic||'🔵'} ${escH(x.nm)}</span>
+        <span class="b-b"><i style="width:${(x.v/mx*100).toFixed(0)}%;background:rgb(${x.col})"></i></span>
+        <span class="b-v">${x.v.toFixed(0)}</span></div>`).join(''):'<div class="empty">這個地區還沒有人有勢力。</div>'}</div>`;
+  }
+
   return `<div class="p-hd"><button type="button" class="p-back" data-ty="iso" data-k="">← 世界</button>
-      <b>${escH(REGION_NAME[code]||code)}</b>
+      <i class="p-flag">${flag}</i><b>${escH(tyIsoName(code))}</b>
       <span>${mine.length} 個據點 · ${tyM(tot)}(佔淨值 ${tyPctNW(tot).toFixed(1)}%)</span></div>
+    ${info}
+    ${all.length?`<div class="p-sec">城市<span>${all.length} 座</span></div>
     <div class="p-note">依州 / 省 / 行政區分組。灰色的是這個國家你還沒進場的城市 ——
       點進去就看得到在那裡能做什麼。</div>
-    ${body}`;
+    ${body}`:''}`;
 }
 
 const TY_KIND = { ex:'交易所', re:'不動產', hq:'總部', bank:'銀行', vault:'金庫',
@@ -9713,7 +9890,7 @@ function tyModalHTML(){
              : k==='site'  ? (TY_SEL ? tySitePanel(TY_SEL) : (TY_ISO?tyIsoPanel(TY_ISO):tyWorldPanel()))
              : '';
   const nm = k==='site'
-    ? (TY_SEL?tySite(TY_SEL).nm : (TY_ISO?(REGION_NAME[TY_ISO]||TY_ISO):'你的帝國'))
+    ? (TY_SEL?tySite(TY_SEL).nm : (TY_ISO?tyIsoName(TY_ISO):'你的帝國'))
     : (TY_MODAL_NM[k]||'');
   return `<div class="tg-modal" role="dialog" aria-modal="true" aria-label="${escH(nm)}">
       <div class="tg-mt"><b>${escH(nm)}</b>
@@ -9748,13 +9925,18 @@ function tyIntro(){
   </div>`;
 }
 
+/* 桌機上,據點 / 國家 / 部隊 / 對手這幾張面板改成右側的側欄,地圖留著 ——
+   參考的那款遊戲點國家時地圖不會消失,你要一邊看地圖一邊讀那張卡。
+   手機太窄,維持整張蓋上去。 */
+const tySideModal = () => !!TY_MODAL && ['site','troop','rival'].includes(TY_MODAL)
+                          && typeof innerWidth==='number' && innerWidth>=900;
 function tycoonPage(){
   if(!TY) return tyIntro();
   const down = !(GLOBE_OK && GEO_OK);
   /* data-modal:面板蓋上來的時候要**整層**把地球收起來。
      globe.gl 的 HTML 標記自己算 z-index(會算到比面板高),
      光靠面板的背景色壓不住 —— 那就是使用者看到城市名穿透出來的原因。 */
-  return `<div id="tyRoot" class="tycon"${TY_MODAL?` data-modal="${escH(TY_MODAL)}"`:''}>
+  return `<div id="tyRoot" class="tycon"${TY_MODAL?` data-modal="${escH(TY_MODAL)}"`:''}${tySideModal()?' data-side="1"':''}>
     ${tyTopBar()}
     ${tyResBar()}
     <div class="tg-map">
@@ -9826,7 +10008,7 @@ function bindTycoon(root){
   if(!el) return;
   // 地圖是底層,永遠在 —— 只要在這一頁就把地球掛進去
   // 面板蓋上來的時候地球是看不到的(見 .tycon[data-modal]),那就別再燒 60fps。
-  if(TY){ tyGlobeMount(); tyGlobeAwake(!TY_MODAL); } else tyParkGlobe();
+  if(TY){ tyGlobeMount(); tyGlobeAwake(!TY_MODAL || tySideModal()); } else tyParkGlobe();
   // 市場下拉是 <select>,它發的是 change 不是 click
   el.querySelectorAll('select[data-mkt]').forEach(sel=>{
     sel.onchange=()=>{ TY_MKT[sel.dataset.mkt]=sel.value; renderPage(); };

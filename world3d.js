@@ -193,6 +193,25 @@ const texSize = () => {
   return W;
 };
 
+/* 陸地依緯度的色帶(極地偏白、沙漠帶偏黃、赤道偏深綠)。整球底圖與近看的局部地圖
+   共用同一組,兩邊的顏色才接得起來。 */
+const BAND = [[90,'rgba(236,242,244,.95)'],[70,'rgba(190,206,196,.65)'],[62,'rgba(78,118,70,.25)'],
+  [45,'rgba(120,160,80,.2)'],[30,'rgba(176,160,98,.34)'],[22,'rgba(196,172,112,.42)'],
+  [12,'rgba(110,150,70,.2)'],[0,'rgba(60,120,56,.35)'],[-12,'rgba(110,150,70,.2)'],
+  [-25,'rgba(186,160,104,.36)'],[-40,'rgba(110,150,80,.2)'],[-62,'rgba(190,206,196,.65)'],
+  [-90,'rgba(240,244,246,.95)']];
+function bandGrad(c, y0, y1, latTop, latBot){
+  const g = c.createLinearGradient(0, y0, 0, y1);
+  for(const [lat, col] of BAND){
+    const t = (latTop - lat) / (latTop - latBot);
+    if(t >= 0 && t <= 1) g.addColorStop(t, col);
+  }
+  // 範圍外的色帶也要補上端點,不然局部地圖的頂端與底端會變透明
+  const at = lat => { for(let i = 1; i < BAND.length; i++) if(lat >= BAND[i][0]) return BAND[i-1][1]; return BAND[BAND.length-1][1]; };
+  g.addColorStop(0, at(latTop)); g.addColorStop(1, at(latBot));
+  return g;
+}
+
 /* 底圖：海 + 大陸棚 + 綠色陸地 + 森林顆粒 + 海岸線。 */
 function paintBase(feats){
   const W = texSize(), H = W / 2, k = W / 4096;
@@ -224,14 +243,7 @@ function paintBase(feats){
   // 陸地：綠色為主，極地偏白、沙漠帶帶一點黃 —— 但比例壓低，整體還是一張綠色地圖
   c.save(); landPath(c, feats, W, H); c.clip();
   c.fillStyle = '#6e9a4c'; c.fillRect(0, 0, W, H);
-  const band = c.createLinearGradient(0, 0, 0, H);
-  const st = (lat, col) => band.addColorStop((90 - lat) / 180, col);
-  st(90, 'rgba(236,242,244,.95)'); st(70, 'rgba(190,206,196,.65)'); st(62, 'rgba(78,118,70,.25)');
-  st(45, 'rgba(120,160,80,.2)');   st(30, 'rgba(176,160,98,.34)');  st(22, 'rgba(196,172,112,.42)');
-  st(12, 'rgba(110,150,70,.2)');   st(0, 'rgba(60,120,56,.35)');    st(-12, 'rgba(110,150,70,.2)');
-  st(-25, 'rgba(186,160,104,.36)'); st(-40, 'rgba(110,150,80,.2)'); st(-62, 'rgba(190,206,196,.65)');
-  st(-90, 'rgba(240,244,246,.95)');
-  c.fillStyle = band; c.fillRect(0, 0, W, H);
+  c.fillStyle = bandGrad(c, 0, H, 90, -90); c.fillRect(0, 0, W, H);
   for(let i = 0; i < 900; i++){             // 高低起伏的大斑塊
     const x = rnd()*W, y = rnd()*H, r = (0.003 + rnd()*rnd()*0.022) * W;
     const g = c.createRadialGradient(x, y, 0, x, y, r);
@@ -343,11 +355,228 @@ async function loadHiRes(){
       if(feats.length < 100) continue;
       FEATS = feats; W3D.hiFeats = feats;
       paintBase(FEATS); paintTop(true);
+      patchDirty = true; patchSoon();
       return;
     }catch(e){ /* 換下一個來源 */ }
   }
 }
-W3D.repaint = () => paintTop(false);
+
+/* =============================================================================
+   1.5 近看的高解析度局部地圖
+   -----------------------------------------------------------------------------
+   使用者截圖:貼近台灣的時候海岸線是一格一格的像素。一張貼圖包整顆地球,
+   8K 寬也只有每度 23 個像素 —— 貼近到看得見一個縣的時候一定會糊。
+   參考的那款遊戲近看永遠是清楚的線,因為它是**向量**畫的。
+
+   這裡的做法:拉近到一定高度以下,針對「畫面看得到的那一塊」另外畫一張
+   2048 的 canvas(同一套配色、同一份國界),貼在一片貼著球面的曲面上。
+   那一塊的解析度是整張貼圖的十幾倍;鏡頭移出去或拉近太多就重畫一次。
+   邊緣淡出,跟底下的整球貼圖接起來看不到接縫。
+   ============================================================================= */
+let PATCH = null;          // { mesh, cv, tex, la0, la1, lo0, lo1, alt }
+let patchTimer = 0, patchDirty = false;
+/* 高於這個高度就不用局部地圖。
+   ⚠ 不能太高:範圍一大(超過一百度),曲面的每一格弦會切進球面底下,
+     被地球本身擋住,畫面上變成一條橫跨地球的條紋(實際發生過)。 */
+const PATCH_ALT = .62;
+const FAR_ALT = .95;       // 高於這個高度,部隊改用方形兵種圖示
+
+function featBox(f){
+  if(f._box) return f._box;
+  let a = 90, b = -90, c = 180, d = -180;
+  const g = f.geometry;
+  const polys = g.type === 'Polygon' ? [g.coordinates] : g.coordinates;
+  for(const p of polys) for(const [lng, lat] of p[0]){ if(lat < a) a = lat; if(lat > b) b = lat; if(lng < c) c = lng; if(lng > d) d = lng; }
+  return (f._box = [a, b, c, d]);
+}
+/* 在局部地圖上畫一個環。經度先平移到離這一塊中心 ±180° 以內 ——
+   不然跨換日線的那一邊會被畫到畫面另一頭去。 */
+function patchRing(ctx, ring, P, W, H){
+  const mid = (P.lo0 + P.lo1) / 2;
+  const X = lng => { let d = lng - mid; d -= Math.round(d / 360) * 360; return (mid + d - P.lo0) / (P.lo1 - P.lo0) * W; };
+  const Y = lat => (P.la1 - lat) / (P.la1 - P.la0) * H;
+  ring.forEach(([lng, lat], i) => i ? ctx.lineTo(X(lng), Y(lat)) : ctx.moveTo(X(lng), Y(lat)));
+  ctx.closePath();
+}
+function patchFeatPath(ctx, f, P, W, H){
+  const g = f.geometry;
+  const polys = g.type === 'Polygon' ? [g.coordinates] : g.coordinates;
+  for(const poly of polys) for(const r of poly) if(r.length > 2) patchRing(ctx, r, P, W, H);
+}
+/* 花紋要釘在經緯度上(不是釘在這張 canvas 上),不然鏡頭一動、重畫一次,
+   森林就整片跳一下。 */
+function anchoredPattern(c, tile, degPerTile, P, W, H){
+  const pat = c.createPattern(tile, 'repeat');
+  const sx = W / (P.lo1 - P.lo0) * degPerTile / tile.width;
+  const sy = H / (P.la1 - P.la0) * degPerTile / tile.height;
+  const ox = (-180 - P.lo0) / (P.lo1 - P.lo0) * W, oy = (P.la1 - 90) / (P.la1 - P.la0) * H;
+  if(pat.setTransform && typeof DOMMatrix === 'function') pat.setTransform(new DOMMatrix([sx, 0, 0, sy, ox, oy]));
+  return pat;
+}
+let TILE_F = null, TILE_B = null;
+function tiles(){
+  if(TILE_F) return;
+  const rnd = vrand(4242);
+  TILE_F = document.createElement('canvas'); TILE_F.width = TILE_F.height = 512;
+  const a = TILE_F.getContext('2d');
+  /* 貼在邊上的點要在對邊再畫一次,圖塊重複的時候才接得起來 ——
+     不然整片陸地會浮出一格一格的方塊接縫。 */
+  for(let i = 0; i < 1700; i++){
+    a.fillStyle = rnd() < .75 ? 'rgba(34,74,30,.30)' : 'rgba(190,215,140,.18)';
+    const x = rnd()*512, y = rnd()*512, r = 1.2 + rnd()*2.6;
+    for(const dx of [-512, 0, 512]) for(const dy of [-512, 0, 512]){
+      if(x+dx < -r || x+dx > 512+r || y+dy < -r || y+dy > 512+r) continue;
+      a.beginPath(); a.arc(x+dx, y+dy, r, 0, 6.283); a.fill();
+    }
+  }
+  TILE_B = document.createElement('canvas'); TILE_B.width = TILE_B.height = 512;
+  const b = TILE_B.getContext('2d');
+  for(let i = 0; i < 70; i++){
+    const x = rnd()*512, y = rnd()*512, r = 14 + rnd()*60;
+    for(const dx of [-512, 0, 512]) for(const dy of [-512, 0, 512]){   // 讓圖塊可以無縫重複
+      const g = b.createRadialGradient(x+dx, y+dy, 0, x+dx, y+dy, r);
+      g.addColorStop(0, rnd() < .5 ? 'rgba(210,225,160,.16)' : 'rgba(30,60,25,.2)');
+      g.addColorStop(1, 'rgba(0,0,0,0)');
+      b.fillStyle = g; b.fillRect(x+dx-r, y+dy-r, r*2, r*2);
+    }
+  }
+}
+function paintPatch(P){
+  tiles();
+  const cv = P.cv, W = cv.width, H = cv.height, c = cv.getContext('2d');
+  const ppd = W / (P.lo1 - P.lo0);                         // 每度幾個像素
+  const feats = (FEATS || []).filter(f => {
+    const [a, b, cc, d] = featBox(f);
+    if(b < P.la0 || a > P.la1) return false;
+    if(d - cc > 300) return true;                          // 跨換日線的大國:保留,讓 patchRing 處理
+    const mid = (P.lo0 + P.lo1) / 2, half = (P.lo1 - P.lo0) / 2;
+    let dc = ((cc + d) / 2 - mid); dc -= Math.round(dc / 360) * 360;
+    return Math.abs(dc) <= half + (d - cc) / 2;
+  });
+  // 海
+  const sea = c.createLinearGradient(0, 0, 0, H);
+  const seaAt = lat => { const t = Math.abs(lat) / 90; return `rgb(${Math.round(49-12*t)},${Math.round(120-33*t)},${Math.round(168-46*t)})`; };
+  sea.addColorStop(0, seaAt(P.la1)); sea.addColorStop(1, seaAt(P.la0));
+  c.fillStyle = sea; c.fillRect(0, 0, W, H);
+  const land = () => { c.beginPath(); for(const f of feats) patchFeatPath(c, f, P, W, H); };
+  // 淺海
+  land();
+  c.save(); c.fillStyle = '#4a9bc9';
+  c.shadowColor = 'rgba(100,190,230,.75)'; c.shadowBlur = Math.min(60, ppd * .9); c.fill();
+  c.shadowColor = 'rgba(150,215,240,.8)';  c.shadowBlur = Math.min(24, ppd * .25); c.fill();
+  c.restore();
+  // 陸地:底色 + 依緯度的色帶 + 釘在經緯度上的斑塊與森林
+  c.save(); land(); c.clip();
+  c.fillStyle = '#6e9a4c'; c.fillRect(0, 0, W, H);
+  c.fillStyle = bandGrad(c, 0, H, P.la1, P.la0); c.fillRect(0, 0, W, H);
+  c.fillStyle = anchoredPattern(c, TILE_F, 1.2, P, W, H); c.fillRect(0, 0, W, H);
+  c.restore();
+  // 勢力顏色
+  if(typeof tyCountryColor === 'function' && TY){
+    for(const f of feats){
+      let col = ''; try{ col = tyCountryColor(f); }catch(e){}
+      const m = /,\s*([\d.]+)\)$/.exec(col);
+      if(!m || +m[1] < .09) continue;
+      c.beginPath(); patchFeatPath(c, f, P, W, H);
+      c.fillStyle = col.replace(/,\s*([\d.]+)\)$/, (s, a) => `,${Math.min(.72, +a * 1.6).toFixed(3)})`); c.fill();
+      c.lineWidth = 3.5; c.strokeStyle = col.replace(/,\s*([\d.]+)\)$/, ',.95)'); c.stroke();
+    }
+  }
+  // 國界與海岸線:固定像素寬,永遠是清楚的細線
+  land(); c.lineWidth = 1.6; c.strokeStyle = 'rgba(255,255,255,.6)'; c.stroke();
+  // 邊緣淡出,跟整球貼圖接起來
+  c.save(); c.globalCompositeOperation = 'destination-in';
+  const e = Math.round(Math.min(W, H) * .08);
+  const gx = c.createLinearGradient(0, 0, W, 0);
+  gx.addColorStop(0, 'rgba(0,0,0,0)'); gx.addColorStop(e / W, '#000'); gx.addColorStop(1 - e / W, '#000'); gx.addColorStop(1, 'rgba(0,0,0,0)');
+  c.fillStyle = gx; c.fillRect(0, 0, W, H);
+  const gy = c.createLinearGradient(0, 0, 0, H);
+  gy.addColorStop(0, 'rgba(0,0,0,0)'); gy.addColorStop(e / H, '#000'); gy.addColorStop(1 - e / H, '#000'); gy.addColorStop(1, 'rgba(0,0,0,0)');
+  c.fillStyle = gy; c.fillRect(0, 0, W, H);
+  c.restore();
+  P.tex.needsUpdate = true;
+}
+/* 貼著球面的那一片曲面:經緯度網格,每一點用 getCoords 算 —— 跟建築同一個座標系。 */
+function patchGeo(P){
+  // 格子依範圍加密:每格不超過 1 度,弦才不會切進球面
+  const N = clamp(Math.ceil(Math.max(P.la1 - P.la0, P.lo1 - P.lo0) / 1), 24, 140), pos = [], uv = [], nor = [], idx = [];
+  for(let j = 0; j <= N; j++) for(let i = 0; i <= N; i++){
+    const lat = P.la0 + (P.la1 - P.la0) * j / N, lng = P.lo0 + (P.lo1 - P.lo0) * i / N;
+    const q = G.getCoords(lat, lng, .0004);
+    pos.push(q.x, q.y, q.z);
+    const l = Math.hypot(q.x, q.y, q.z) || 1; nor.push(q.x/l, q.y/l, q.z/l);
+    uv.push(i / N, j / N);
+  }
+  for(let j = 0; j < N; j++) for(let i = 0; i < N; i++){
+    const a = j*(N+1)+i, b = a+1, c = a+N+1, d = c+1;
+    idx.push(a, b, d, a, d, c);
+  }
+  const g = new T.BG();
+  g.setAttribute('position', new T.Attr(new Float32Array(pos), 3));
+  g.setAttribute('normal', new T.Attr(new Float32Array(nor), 3));
+  g.setAttribute('uv', new T.Attr(new Float32Array(uv), 2));
+  g.setIndex(idx);
+  g.computeBoundingSphere();
+  return g;
+}
+function patchHost(){
+  let host = null;
+  try{
+    const gm = G.globeMaterial();
+    G.scene().traverse(o => { if(!host && o.isMesh === true && o.material === gm) host = o.parent; });
+  }catch(e){}
+  return host;
+}
+function patchCheck(){
+  patchTimer = 0;
+  if(!W3D.ok || !TEX || !FEATS) return;
+  const alt = W3D.alt;
+  if(alt > PATCH_ALT){ if(PATCH) PATCH.mesh.visible = false; return; }
+  const pov = W3D.pov(); if(!pov) return;
+  const el = G.renderer().domElement, asp = Math.max(.4, (el.clientWidth || 1) / (el.clientHeight || 1));
+  const half = clamp(alt * 26.7 * 1.55, 1.2, 40);          // 看得到的半高(度),多留一截給傾斜與邊緣淡出
+  const lat = clamp(pov.lat, -80, 80);
+  const halfLng = Math.min(170, half * asp / Math.max(.2, Math.cos(lat * Math.PI / 180)));
+  if(PATCH && !patchDirty && PATCH.mesh.visible){
+    const inLat = Math.abs(lat - (PATCH.la0 + PATCH.la1) / 2) < (PATCH.la1 - PATCH.la0) * .22;
+    let dl = pov.lng - (PATCH.lo0 + PATCH.lo1) / 2; dl -= Math.round(dl / 360) * 360;
+    const inLng = Math.abs(dl) < (PATCH.lo1 - PATCH.lo0) * .22;
+    const r = alt / PATCH.alt;
+    if(inLat && inLng && r > .72 && r < 1.35) return;       // 還在這一片裡面,不用重畫
+  }
+  patchDirty = false;
+  const P = PATCH || {};
+  P.la0 = clamp(lat - half, -89, 89); P.la1 = clamp(lat + half * 1.25, -89, 89);   // 北邊多留:傾斜時看得比較遠
+  P.lo0 = pov.lng - halfLng; P.lo1 = pov.lng + halfLng; P.alt = alt;
+  const small = texSize() <= 4096;
+  const M = small ? 1536 : 2048;
+  const rw = (P.lo1 - P.lo0) * Math.cos(lat * Math.PI / 180), rh = P.la1 - P.la0;
+  if(!P.cv){ P.cv = document.createElement('canvas'); }
+  P.cv.width = rw >= rh ? M : Math.max(256, Math.round(M * rw / rh));
+  P.cv.height = rh >= rw ? M : Math.max(256, Math.round(M * rh / rw));
+  if(!P.tex){
+    P.tex = new TEX.constructor(P.cv);
+    P.tex.colorSpace = TEX.colorSpace;
+    try{ P.tex.anisotropy = G.renderer().capabilities.getMaxAnisotropy(); }catch(e){}
+    P.mat = new T.Phong({ map: P.tex, transparent: true, shininess: 4,
+                          polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+    P.mat.depthWrite = false;
+  }
+  paintPatch(P);
+  P.tex.needsUpdate = true;
+  const geo = patchGeo(P);
+  if(!P.mesh){
+    P.mesh = new T.Mesh(geo, P.mat);
+    P.mesh.renderOrder = 1;
+    const host = patchHost(); if(!host){ return; }
+    host.add(P.mesh);
+  }else{ P.mesh.geometry.dispose(); P.mesh.geometry = geo; }
+  P.mesh.visible = true;
+  PATCH = P;
+}
+function patchSoon(){ clearTimeout(patchTimer); patchTimer = setTimeout(patchCheck, 160); }
+
+W3D.repaint = () => { const before = SIG; paintTop(false); if(SIG !== before){ patchDirty = true; patchSoon(); } };
 W3D._topo = topoFeatures;            // 給測試用:國界解碼要驗得到
 
 /* 點在球面上的哪一國。高解析度國界到了就用它（岸邊不會點錯國），不然用 110m。 */
@@ -580,6 +809,7 @@ function buildSite(d){
     root.add(new T.Mesh(buildTroop(d), MAT));
     root.userData.site = d;
     root.userData.troop = true;
+    root.visible = !FAR;
     OBJS.add(root);
     return root;
   }
@@ -809,6 +1039,7 @@ W3D.attach = function(globe){
       if(typeof G.ringAltitude === 'function') G.ringAltitude(d => d._alt || .012);
     }
     installTilt();
+    setupPaths();
     W3D.ok = true;
     const host = document.getElementById('tyGlobeHost');
     if(host) host.dataset.w3d = '1';
@@ -851,6 +1082,9 @@ W3D.sites = function(mine, rivals, troops){
   TROOPS = tr;
   G.customLayerData([...mine, ...rivals, ...tr]);
   tagsOn();
+  buildRoutes(tr);
+  pushPaths();
+  armHover();
   W3D._warm = true;           // 第一批是開局就有的，不要全部從地上長出來
   W3D.rings();
 };
@@ -889,17 +1123,178 @@ function tagStep(){
   try{ cam = G.camera(); const el = G.renderer().domElement; w = el.clientWidth; h = el.clientHeight; V = cam.position.clone(); }
   catch(e){ tagLoop = false; return; }
   const objs = [...OBJS].filter(o => o.parent && o.userData.troop);
+  const placed = [];                     // 已經放好的標籤:同一區的圖示不要疊成一坨,往右錯開
   for(const el of TAGS.children){
     const o = objs.find(x => x.userData.site && x.userData.site._k === el._d._k);
     if(!o){ el.style.opacity = '0'; continue; }
     o.getWorldPosition(V);
     const vis = V.dot(cam.position) > R * R * 1.001;
     V.project(cam);
-    el.style.transform = `translate(${((V.x + 1) / 2 * w).toFixed(1)}px,${((1 - V.y) / 2 * h).toFixed(1)}px) translate(-50%,-150%)`;
+    let sx = (V.x + 1) / 2 * w, sy = (1 - V.y) / 2 * h;
+    const gap = FAR ? 36 : 0;
+    if(gap && vis){
+      // 撞到就左右交替錯開(右一格、左一格、右兩格…),離真正的位置越近越好
+      const x0 = sx;
+      for(let k = 1; k < 7 && placed.some(p => Math.abs(p[0] - sx) < gap && Math.abs(p[1] - sy) < gap); k++)
+        sx = x0 + gap * Math.ceil(k / 2) * (k % 2 ? 1 : -1);
+      placed.push([sx, sy]);
+    }
+    el.style.transform = `translate(${sx.toFixed(1)}px,${sy.toFixed(1)}px) translate(-50%,-150%)`;
     el.style.opacity = vis ? '1' : '0';
     el.style.pointerEvents = vis ? 'auto' : 'none';
   }
   requestAnimationFrame(tagStep);
+}
+
+/* =============================================================================
+   行軍路線 + 滑鼠懸停的國界 / 城市範圍
+   -----------------------------------------------------------------------------
+   兩個都畫在 globe.gl 的 paths 圖層上(貼著地表的線,不是弧線):
+     行軍路線  從部隊現在的位置到目的地的大圓路線,虛線會往目的地流動 ——
+               參考那款遊戲點一支部隊時看到的那條線
+     懸停      滑鼠移到一個國家 → 描出它的國界;移到一座城市 → 畫出它的範圍圈
+   ============================================================================= */
+let ROUTES = [], HOVER = [];
+function gcPts(a, b, n){
+  const out = [];
+  for(let i = 0; i <= n; i++){ const p = tyGeoLerp(a, b, i / n); out.push([p.lng, p.lat]); }
+  return out;
+}
+function pushPaths(){
+  if(!W3D.ok || typeof G.pathsData !== 'function') return;
+  G.pathsData([...ROUTES, ...HOVER]);
+}
+function setupPaths(){
+  if(typeof G.pathsData !== 'function') return;
+  G.pathsData([])
+   .pathPoints('pts').pathPointLat(p => p[1]).pathPointLng(p => p[0])
+   .pathPointAlt(d => d.alt || .0012)
+   .pathColor(d => d.col).pathStroke(d => d.w || null)
+   .pathDashLength(d => d.dash || 1).pathDashGap(d => d.gap || 0)
+   .pathDashAnimateTime(d => d.anim || 0)
+   .pathTransitionDuration(0);
+}
+/* 行軍路線:由 W3D.sites 帶進來的部隊資料算 */
+function buildRoutes(troops){
+  ROUTES = [];
+  for(const d of troops){
+    let to = null, col;
+    if(d._threat){ to = tySite(d._threat.site); col = 'rgba(255,90,70,1)'; }
+    else if(d._mv && d._units && d._units[0].to){ to = tySite(d._units[0].to); col = 'rgba(120,215,255,1)'; }
+    if(!to) continue;
+    const km = typeof tyKm === 'function' ? tyKm(d, to) : 2000;
+    const n = clamp(Math.round(km / 60), 8, 160);
+    // 一條暗色的底線 + 一條會流動的亮色虛線:在綠色陸地和藍色海上都看得清楚
+    const pts = gcPts(d, to, n);
+    ROUTES.push({ pts, col: 'rgba(8,20,31,.6)', w: 2.4 });
+    ROUTES.push({ pts, col, w: 1.4, dash: .04, gap: .02, anim: 2600, alt: .0014 });
+  }
+}
+
+/* ---- 懸停 ---- */
+let hoverCard = null, hoverKey = '', hoverT = 0;
+function ringPts(lat, lng, rDeg){
+  const out = [], k = 1 / Math.max(.2, Math.cos(lat * Math.PI / 180));
+  for(let i = 0; i <= 48; i++){ const a = i / 48 * Math.PI * 2; out.push([lng + Math.cos(a) * rDeg * k, lat + Math.sin(a) * rDeg]); }
+  return out;
+}
+/* 太長的環先抽稀:10m 的中國邊界有上萬個點,懸停不需要那麼細 */
+function thin(ring, max){
+  if(ring.length <= max) return ring;
+  const step = ring.length / max, out = [];
+  for(let i = 0; i < ring.length; i += step) out.push(ring[Math.floor(i)]);
+  out.push(ring[0]);
+  return out;
+}
+function featOutline(f){
+  const g = f.geometry;
+  const polys = g.type === 'Polygon' ? [g.coordinates] : g.coordinates;
+  // 只描大的那幾塊(離島一千個小環描起來只會很亂)
+  const rings = polys.map(p => p[0]).filter(r => r && r.length > 6)
+    .sort((a, b) => b.length - a.length).slice(0, 12);
+  return rings.map(r => ({ pts: thin(r, 900), col: 'rgba(255,236,150,.95)', w: .38, alt: .0016 }));
+}
+function nearSite(x, y){
+  if(typeof TY_SITES === 'undefined') return null;
+  let best = null, bd = 26 * 26;
+  for(const s of TY_SITES){
+    let c; try{ c = G.getScreenCoords(s.lat, s.lng, .001); }catch(e){ return null; }
+    const dx = c.x - x, dy = c.y - y, d = dx*dx + dy*dy;
+    if(d < bd){
+      const q = G.getCoords(s.lat, s.lng, 0), cam = G.camera().position;
+      if(q.x*cam.x + q.y*cam.y + q.z*cam.z > R*R*1.001){ bd = d; best = s; }
+    }
+  }
+  return best;
+}
+function flag(code){
+  if(!code || code.length !== 2 || code === '-9') return '🏳';
+  return String.fromCodePoint(...[...code.toUpperCase()].map(ch => 0x1F1E6 + ch.charCodeAt(0) - 65));
+}
+W3D.flag = flag;
+function hoverAt(x, y){
+  if(!W3D.ok || !TY) return;
+  const host = document.getElementById('tyGlobeHost');
+  const s = nearSite(x, y);
+  let key = '', html = '';
+  if(s){
+    key = 'site:' + s.id;
+    if(key !== hoverKey){
+      const t = tySiteStuff(s.id), R0 = TY_REGIONS[s.reg];
+      HOVER = [{ pts: ringPts(s.lat, s.lng, clamp(W3D.alt * 2.6, .25, 4)), col: 'rgba(255,236,150,.95)', w: .4, alt: .0016,
+                 dash: .06, gap: .03, anim: 4000 }];
+      html = `<b>${flag(s.iso)} ${escH(s.nm)}${t.val > 0 ? ` <em class="lv">${tySiteLv(t.val)}</em>` : ''}</b>`
+        + `<span>${escH(R0.nm)} · 稅率 ${(s.tax*100).toFixed(1)}% · 景氣 ${((tyRegIdx(s.reg)-1)*100).toFixed(1)}%</span>`
+        + (t.val > 0 ? `<span>你在這裡:${tyM(t.val)}</span>` : `<span class="dim">還沒進場 · 點一下看能做什麼</span>`);
+    }
+  }else{
+    let p = null; try{ p = G.toGlobeCoords(x, y); }catch(e){}
+    const f = p ? W3D.featAt(p.lat, p.lng) : null;
+    if(f){
+      const code = iso(f);
+      key = 'iso:' + (code || f.properties.NAME);
+      if(key !== hoverKey){
+        HOVER = featOutline(f);
+        const info = typeof tyIsoInfo === 'function' ? tyIsoInfo(code, f) : null;
+        html = `<b>${flag(code)} ${escH((code && REGION_NAME[code]) || f.properties.NAME || code || '')}</b>`
+          + (info ? `<span>${escH(info.regNm)} · 景氣 ${info.idxTxt} · 政策風險 ${info.polTxt}</span>`
+                  + `<span>${info.ownerTxt}</span>` : '');
+      }
+    }
+  }
+  if(key === hoverKey){ if(hoverCard && key) place(); return; }
+  hoverKey = key;
+  if(!key){ HOVER = []; pushPaths(); if(hoverCard) hoverCard.style.display = 'none'; if(host) host.style.cursor = ''; return; }
+  pushPaths();
+  if(!hoverCard || !hoverCard.isConnected){
+    hoverCard = document.createElement('div'); hoverCard.className = 'w3d-hover';
+    if(host) host.appendChild(hoverCard);
+  }
+  hoverCard.innerHTML = html;
+  hoverCard.style.display = '';
+  if(host) host.style.cursor = 'pointer';
+  place();
+  function place(){
+    const w = host ? host.clientWidth : innerWidth;
+    const left = x + 16 + 240 > w ? x - 16 - 240 : x + 16;
+    hoverCard.style.transform = `translate(${Math.max(4, left)}px,${Math.max(4, y - 10)}px)`;
+  }
+}
+function armHover(){
+  const el = document.getElementById('tyGlobe');
+  if(!el || el.__w3dHover) return;
+  el.__w3dHover = true;
+  // 觸控裝置沒有「懸停」:點一下就直接開面板了,不用再多一層
+  if(window.matchMedia && !matchMedia('(hover: hover)').matches) return;
+  el.addEventListener('pointermove', ev => {
+    if(ev.pointerType !== 'mouse' || ev.buttons) return;          // 拖曳地圖的時候不要一直換
+    const r = el.getBoundingClientRect(), x = ev.clientX - r.left, y = ev.clientY - r.top;
+    const now = performance.now();
+    if(now - hoverT < 60) return;
+    hoverT = now;
+    hoverAt(x, y);
+  });
+  el.addEventListener('pointerleave', () => { hoverKey = 'x'; hoverAt(-999, -999); });
 }
 
 /* 光圈：你的大本營一圈慢慢擴散的金色、目前選的據點一圈青色，
@@ -918,6 +1313,12 @@ W3D.rings = function(){
     const s = tySite(th.site), left = Math.max(0, th.eta - TY.t);
     out.push({ lat: s.lat, lng: s.lng, _rgb: '255,69,58', _a: .95, _r: 3.4, _v: 3, _p: left <= 1 ? 600 : 1200 });
   }
+  // 自己的部隊正在前往的地方:一圈藍色的目標標記
+  if(typeof tyUnits === 'function') for(const u of tyUnits()){
+    if(!u.to) continue;
+    const s = tySite(u.to);
+    out.push({ lat: s.lat, lng: s.lng, _rgb: '90,200,255', _a: .9, _r: 1.4, _v: 1.4, _p: 900 });
+  }
   G.ringsData(out.concat(W3D.extraRings));
 };
 
@@ -925,7 +1326,20 @@ W3D.onZoom = function(pov){
   if(!W3D.ok) return;
   if(!W3D._logical && pov && isFinite(pov.altitude)) W3D.alt = pov.altitude;
   rescaleAll();
+  patchSoon();
+  farMode();
 };
+/* 拉遠:3D 部隊棋子收起來,改成參考畫面那種方形兵種圖示(標籤層切換樣式)。
+   遠看的時候一台 3D 戰車只有幾個像素,看不出是什麼;圖示才讀得出來。 */
+let FAR = null;
+function farMode(){
+  const far = W3D.alt > FAR_ALT;
+  if(far === FAR) return;
+  FAR = far;
+  const host = document.getElementById('tyGlobeHost');
+  if(host) host.dataset.far = far ? '1' : '';
+  for(const o of OBJS) if(o.userData.troop) o.visible = !far;
+}
 
 /* =============================================================================
    4. 季與季之間的過場
