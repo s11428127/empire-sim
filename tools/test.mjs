@@ -1497,6 +1497,37 @@ test('帝國部隊:對手會派兵打你,看得到它走過來,律師團擋得�
   await page.__ctx.close();
 });
 
+test('帝國畫面層:高解析度國界解得開,而且點得到是哪一國', async (browser) => {
+  /* 地圖的國界換成 world-atlas 的 TopoJSON(50m / 10m)。解碼是自己寫的
+     (不想多一個 CDN 依賴),所以要驗:弧線還原、反向弧、ISO 數字碼 → 兩碼,
+     以及「點在台灣上」真的回台灣、點在海上回 null。 */
+  const page = await freshPage(browser, { seed: SEED, hash: '#/tycoon' });
+  const r = await page.evaluate(() => {
+    // 一個正方形「台灣」:兩條弧,第二條用反向(~0)接回來
+    const topo = { type: 'Topology',
+      transform: { scale: [1, 1], translate: [120, 22] },
+      arcs: [ [[0, 0], [2, 0], [0, 3]],            // (120,22)→(122,22)→(122,25)
+              [[0, 0], [0, 3], [2, 0]] ],          // (120,22)→(120,25)→(122,25)
+      objects: { countries: { type: 'GeometryCollection', geometries: [
+        { type: 'Polygon', arcs: [[0, ~1]], id: '158', properties: { name: 'Taiwan' } }] } } };
+    const f = W3D._topo(topo)[0];
+    const ring = f.geometry.coordinates[0][0];
+    return { iso: iso(f), name: f.properties.NAME, ring,
+             closed: JSON.stringify(ring[0]) === JSON.stringify(ring[ring.length - 1]),
+             // featAt 退回 110m(測試環境的假國界只有一塊台灣)
+             hit: (W3D.featAt(23.5, 121) || {}).properties?.ADMIN || null,
+             sea: W3D.featAt(10, 150) };
+  });
+  eq(r.iso, 'TW', 'ISO 數字碼 158 要轉成 TW,不然台灣上不了色');
+  eq(r.name, 'Taiwan', '國名要帶著');
+  eq(r.ring.length, 5, `正方形的環應該是 5 個點(頭尾相同):${JSON.stringify(r.ring)}`);
+  ok(r.closed, '反向弧要把環接回起點');
+  eq(r.hit, 'Taiwan', '點在台灣上要回台灣');
+  eq(r.sea, null, '點在海上要回 null');
+  ok(page.__errors.length === 0, `有 JS 錯誤:\n      ${page.__errors.join('\n      ')}`);
+  await page.__ctx.close();
+});
+
 /* =========================================================================
    跑
    ========================================================================= */

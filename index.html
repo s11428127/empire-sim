@@ -4529,6 +4529,16 @@
   .ty-uchips .uch{font-size:11.5px;padding:3px 8px;border-radius:5px;border:1px solid #6fd0ff;
     background:rgba(29,95,149,.35)}
   .ty-uchips .uch.mv{border-style:dashed}
+
+  /* 3D 部隊棋子上方的標籤(位置由 world3d.js 每一幀投影) */
+  #w3dTags{position:absolute;inset:0;pointer-events:none;z-index:165;overflow:hidden}
+  .w3d-tag{position:absolute;left:0;top:0;font:inherit;font-size:11px;line-height:1;white-space:nowrap;
+    cursor:pointer;color:#fff;padding:2px 5px;border-radius:3px;
+    background:rgba(18,64,106,.92);border:1px solid #6fd0ff;box-shadow:0 1px 4px rgba(0,0,0,.5)}
+  .w3d-tag b{font-weight:700;font-size:10px;color:#cfeaff;font-variant-numeric:tabular-nums}
+  .w3d-tag.mv{border-style:dashed}
+  .w3d-tag.th{background:rgba(90,18,18,.94);border-color:var(--rc,#ff453a)}
+  .w3d-tag.th b{color:#ffb3aa}
 </style>
 </head>
 <body data-route="tycoon">
@@ -8571,8 +8581,10 @@ function tyGlobeData(){
      建築要站在「那個國家被抬起來的高度」上,不然會埋進勢力圖層裡。 */
   const w3=!!(window.W3D && W3D.ok);
   if(w3){
-    for(const d of [...pts, ...rv]) d._base = tyIsoAlt(d.iso) + .0006;
-    W3D.sites(pts, rv);
+    // 國界與勢力已經畫進貼圖(地表是平的),建築直接站在地面上
+    for(const d of [...pts, ...rv]) d._base = W3D.textured ? .0008 : tyIsoAlt(d.iso) + .0006;
+    W3D.sites(pts, rv, tyTroopMarks());
+    W3D.repaint();
   }
   TYG.pointsData(w3 ? rest : [...rest, ...pts, ...rv]);
 
@@ -8606,9 +8618,12 @@ function tyGlobeData(){
        靠得太近的城市各自往下讓一格,像地圖上的地名一樣。
        順序就是優先權:自己的據點先挑道,對手次之,還沒進場的最後。 */
     tyLanes([...pts, ...rv, ...rest]);
-    TYG.htmlElementsData([...rest, ...pts, ...rv, ...troops]);
+    // 3D 啟用時部隊是站在地上的棋子(world3d.js),HTML 徽章只在退回模式用
+    TYG.htmlElementsData([...rest, ...pts, ...rv, ...(w3 ? [] : troops)]);
   }
-  if(countries && countries.length) TYG.polygonsData(countries);
+  /* 有沙盤貼圖的時候國界已經畫在貼圖上,多邊形層整個拿掉(點國家改由
+     onGlobeClick + W3D.featAt 判斷)—— 疊一層半透明多邊形在上面只會糊掉海岸線。 */
+  if(countries && countries.length) TYG.polygonsData(window.W3D && W3D.textured ? [] : countries);
 }
 
 /* 大圓上兩點之間的第 f 段(0~1)。經緯度直接線性內插的話,
@@ -8627,21 +8642,22 @@ function tyTroopMarks(){
   const out=[], at={};
   for(const u of tyUnits()){
     if(!u.to){ (at[u.site]=at[u.site]||[]).push(u); continue; }
-    const a=tySite(u.site), b=tySite(u.to), f=tyUnitProg(u);
+    /* 剛出發的那一季畫在路線的 15% 處,不要跟原地駐紮的部隊疊成一團 */
+    const a=tySite(u.site), b=tySite(u.to), f=Math.max(.15, tyUnitProg(u));
     const p=tyGeoLerp(a, b, f);
-    out.push({ ...p, _units:[u], _mv:Math.max(1,u.eta-TY.t), _alt:.02,
+    out.push({ ...p, _k:'mv:'+u.id, _units:[u], _mv:Math.max(1,u.eta-TY.t), _alt:.02,
       _arc:{ startLat:p.lat, startLng:p.lng, endLat:b.lat, endLng:b.lng,
              _c:['rgba(79,195,247,.35)','rgba(79,195,247,.95)'] } });
   }
   for(const [id,list] of Object.entries(at)){
-    const s=tySite(id); out.push({ lat:s.lat, lng:s.lng, _units:list, _alt:.02 });
+    const s=tySite(id); out.push({ lat:s.lat, lng:s.lng, _k:'at:'+id, _units:list, _alt:.02 });
   }
   for(const th of tyThreats()){
     const r=tyRival(th.rid); if(!r) continue;
     const a=tySite(th.from), b=tySite(th.site);
-    const f=tyClamp((TY.t-th.dep)/Math.max(1,th.eta-th.dep),0,1);
+    const f=tyClamp(Math.max(.15,(TY.t-th.dep)/Math.max(1,th.eta-th.dep)),0,1);
     const p=tyGeoLerp(a, b, f), col=TY_RVCOL[r.id]||'255,69,58';
-    out.push({ ...p, _threat:th, _r:r, _alt:.02,
+    out.push({ ...p, _k:'th:'+th.id, _threat:th, _r:r, _alt:.02,
       _arc:{ startLat:p.lat, startLng:p.lng, endLat:b.lat, endLng:b.lng,
              _c:[`rgba(${col},.4)`, 'rgba(255,69,58,1)'] } });
   }
@@ -8728,6 +8744,7 @@ function tyGlobeMount(){
       .polygonStrokeColor(()=> 'rgba(125,200,245,.34)')
       .polygonAltitude(tyCountryAlt)
       .onPolygonClick(f => tyPickIso(iso(f)))
+      .onGlobeClick(p => { if(window.W3D && W3D.textured && p){ const f=W3D.featAt(p.lat, p.lng); if(f) tyPickIso(iso(f)); } })
       .pointLat('lat').pointLng('lng')
       .pointAltitude('_alt').pointRadius('_rad').pointColor('_col')
       .pointsMerge(false).pointsTransitionDuration(500)
@@ -9881,7 +9898,7 @@ function bindTycoon(root){
       renderPage(); return;
     }
     if(a==='tab'){ TY_MODAL=b.dataset.k; renderPage(); return; }
-    if(a==='layer'){ TY_LAYER=b.dataset.k; if(TYG) TYG.polygonCapColor(tyCountryColor).polygonSideColor(tyCountrySide).polygonAltitude(tyCountryAlt); renderPage(); return; }
+    if(a==='layer'){ TY_LAYER=b.dataset.k; if(TYG) TYG.polygonCapColor(tyCountryColor).polygonSideColor(tyCountrySide).polygonAltitude(tyCountryAlt); renderPage(); if(window.W3D) W3D.repaint(); return; }
     if(a==='zoomin'||a==='zoomout'){ tyZoom(a==='zoomin'?-1:1); return; }
     if(a==='ranktab'){ TY_RANK=b.dataset.k; renderPage(); if(TY_RANK==='real') loadRich(); return; }
     if(a==='rival'){ TY_RIVAL = TY_RIVAL===b.dataset.k ? null : b.dataset.k; TY_DEAL=null; renderPage(); return; }
