@@ -1528,6 +1528,40 @@ test('帝國畫面層:高解析度國界解得開,而且點得到是哪一國', 
   await page.__ctx.close();
 });
 
+test('帝國地圖:點任何一個國家都要看得到經濟、政策、勢力 —— 沒有城市的國家也一樣', async (browser) => {
+  /* 使用者:「點一個國家可以顯示這個國家的所有訊息,經濟、政策等等」。
+     遊戲的經濟模型是以地區為單位的;沒有城市的國家(蒙古)要歸到最近的經濟圈,
+     而且畫面上要直說是推算的,不可以假裝它有自己的數字。 */
+  const page = await freshPage(browser, { seed: SEED, hash: '#/tycoon' });
+  const r = await page.evaluate(() => {
+    tyStart('heir', 77);
+    const us = tyIsoInfo('US'), tw = tyIsoInfo('TW');
+    // 蒙古:測試環境的國界只有台灣,所以要自己給一塊蒙古的形狀
+    const mnFeat = { type: 'Feature', properties: { ISO_A2: 'MN', NAME: 'Mongolia' },
+      geometry: { type: 'Polygon', coordinates: [[[88, 42], [119, 42], [119, 52], [88, 52], [88, 42]]] } };
+    const mn = tyIsoInfo('MN', mnFeat);
+    countries.push(mnFeat);
+    TY_MODAL = 'site'; TY_SEL = null; TY_ISO = 'MN'; renderPage();
+    const mnTxt = document.querySelector('.tg-mb').textContent;
+    TY_ISO = 'US'; renderPage();
+    const usTxt = document.querySelector('.tg-mb').textContent;
+    countries.pop();
+    return { us: us && { reg: us.reg, near: us.near }, tw: tw && tw.reg, mn: mn && { reg: mn.reg, near: mn.near },
+             mnTxt, usTxt, name: tyIsoName('MN') };
+  });
+  eq(r.us, { reg: 'na', near: false }, '美國有城市,直接用北美');
+  eq(r.tw, 'tw', '台灣是自己的一區');
+  ok(r.mn && r.mn.near, '蒙古沒有城市,要標記成「依最近的經濟圈推算」');
+  eq(r.mn.reg, 'cn', `蒙古最近的經濟圈應該是中國大陸,實際 ${r.mn && r.mn.reg}`);
+  for (const must of ['經濟', '政策', '勢力', '推算'])
+    ok(r.mnTxt.includes(must), `蒙古的國家卡少了「${must}」`);
+  for (const must of ['長期成長', '政策風險', '法定公司稅率', '城市'])
+    ok(r.usTxt.includes(must), `美國的國家卡少了「${must}」`);
+  ok(r.name && r.name !== 'MN', `沒有中文名稱表的國家也要有名字:${r.name}`);
+  ok(page.__errors.length === 0, `有 JS 錯誤:\n      ${page.__errors.join('\n      ')}`);
+  await page.__ctx.close();
+});
+
 /* =========================================================================
    跑
    ========================================================================= */
