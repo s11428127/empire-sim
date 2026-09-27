@@ -307,7 +307,8 @@ function paintBase(feats){
 function paintTop(force){
   if(!BASE || !TEX || !FEATS || typeof tyCountryColor !== 'function' || !TY) return;
   const cols = FEATS.map(f => { try{ return tyCountryColor(f); }catch(e){ return ''; } });
-  const sig = (typeof TY_LAYER !== 'undefined' ? TY_LAYER : '') + '|' + cols.join('|');
+  const ccols = cityCols();
+  const sig = (typeof TY_LAYER !== 'undefined' ? TY_LAYER : '') + '|' + cols.join('|') + '|' + ccols.map(x => x[0] + x[1]).join('|');
   if(!force && sig === SIG) return;
   SIG = sig;
   const W = BASE.width, H = BASE.height, k = W / 4096;
@@ -326,7 +327,29 @@ function paintTop(force){
   });
   // 國界：白色細線，跟參考畫面一樣
   c.lineWidth = 1.3*k; c.strokeStyle = 'rgba(255,255,255,.55)'; c.stroke(allP2D(FEATS, W, H));
+  // 勢力圖層:城市的真實範圍塗上「這座城是誰的」(國家之下的第二層)
+  for(const [id, col] of ccols){
+    const p = cityP2D(id, W, H); if(!p) continue;
+    c.fillStyle = col; c.fill(p, 'evenodd');
+    c.lineWidth = 2*k; c.strokeStyle = col.replace(/,\s*([\d.]+)\)$/, ',1)'); c.stroke(p);
+  }
   TEX.needsUpdate = true;
+}
+/* 勢力圖層的城市顏色:[[id, 'rgba(...)'], ...]。cities.json 還沒到就先觸發下載,到了再重畫。 */
+function cityCols(){
+  if(typeof TY_LAYER === 'undefined' || TY_LAYER !== 'power' || typeof tyCityColor !== 'function') return [];
+  const B = cityBounds(); if(!B) return [];
+  const out = [];
+  for(const id in B){ let col = ''; try{ col = tyCityColor(id); }catch(e){} if(col) out.push([id, col]); }
+  return out;
+}
+const CITY_P2D = Object.create(null);
+function cityP2D(id, W, H){
+  const key = id + ':' + W;
+  if(CITY_P2D[key]) return CITY_P2D[key];
+  const B = CITY_B && CITY_B[id]; if(!B || !B.length) return null;
+  const p = new Path2D(); for(const r of B) if(r.length > 2) ringPath(p, r, W, H);
+  return (CITY_P2D[key] = p);
 }
 
 /* 把 canvas 直接當貼圖。先用一張 2×1 的小圖讓 globe.gl 建好 Texture，
@@ -533,6 +556,13 @@ function paintPatch(P){
       c.fillStyle = col.replace(/,\s*([\d.]+)\)$/, (s, a) => `,${Math.min(.72, +a * 1.6).toFixed(3)})`); c.fill('evenodd');
       c.lineWidth = 3.5; c.strokeStyle = col.replace(/,\s*([\d.]+)\)$/, ',.95)'); c.stroke();
     }
+  }
+  // 勢力圖層:城市的真實範圍
+  for(const [id, col] of cityCols()){
+    const B = CITY_B && CITY_B[id]; if(!B) continue;
+    c.beginPath(); for(const r of B) if(r.length > 2) patchRing(c, r, P, W, H);
+    c.fillStyle = col; c.fill('evenodd');
+    c.lineWidth = 2.5; c.strokeStyle = col.replace(/,\s*([\d.]+)\)$/, ',1)'); c.stroke();
   }
   // 國界與海岸線:固定像素寬,永遠是清楚的細線
   land(); c.lineWidth = 1.6; c.strokeStyle = 'rgba(255,255,255,.6)'; c.stroke();
@@ -759,14 +789,15 @@ function drawBuilding(g, b, x, y, z){
       }
       break;
     case 'biz': {                                   // 事業：塔樓 + 退縮 + 天線
-      const h = .3 + f*.26;
+      // b.h:跟對手大本營同一把尺的高度(0~1,見 index 的 tyHeightScale);沒有就退回樓層
+      const h = b.h != null ? .3 + b.h * 2.2 : .3 + f*.26;
       const t = box(g, x, y, z, .26, .26, h, S('biz'), Tp('biz'));
       const t2 = box(g, x, y, t, .17, .17, h*.22, S('biz', .95), Tp('biz'));
       box(g, x, y, t2, .025, .025, .18, lin('#e8e8f0'), lin('#ffffff'));
       if(b.st === 'pub') box(g, x, y, t2 + .18, .06, .06, .06, lin('#2997ff', 1.2), lin('#9fd2ff', 1.3));
       break; }
     case 'paper': {                                 // 金融資產：玻璃大樓
-      const h = .25 + f*.24;
+      const h = b.h != null ? .25 + b.h * 2.1 : .25 + f*.24;
       const t = box(g, x, y, z, .22, .22, h, S('paper'), Tp('glass'));
       box(g, x, y, t, .12, .12, .05, S('glass'), Tp('glass'));
       break; }
@@ -886,16 +917,18 @@ function drawUnit(g, k, x, y, z, tint){
 }
 function troopKey(d){
   if(d._threat) return `th:${d._r.id}:${d._sea ? 1 : 0}`;
+  if(d._rvf) return `rf:${d._r.id}:${d._units.map(u => u.k).join(',')}`;
   return `tr:${d._sea ? 'ship' : d._units.slice(0, 3).map(u => u.k).join(',')}`;
 }
 function buildTroop(d){
-  const col = d._threat ? `rgb(${(typeof TY_RVCOL !== 'undefined' && TY_RVCOL[d._r.id]) || '255,69,58'})` : TEAM;
+  const enemy = d._threat || d._rvf;
+  const col = enemy ? `rgb(${(typeof TY_RVCOL !== 'undefined' && TY_RVCOL[d._r.id]) || '255,69,58'})` : TEAM;
   const kinds = d._threat ? [d._sea ? 'ship' : 'raid'] : d._sea ? ['ship'] : d._units.slice(0, 3).map(u => u.k);
   const key = troopKey(d);
   return geoFor(key, g => {
     const n = kinds.length, r = .22 + n * .13;
     const z = prism(g, 0, 0, 0, r, .05, 6, lin(col, .55), lin(col, .95), Math.PI/6);
-    prism(g, 0, 0, z, r * .84, .01, 6, lin('#1a2a36'), lin(d._threat ? '#3a1414' : '#1f3a52'), Math.PI/6);
+    prism(g, 0, 0, z, r * .84, .01, 6, lin('#1a2a36'), lin(enemy ? '#3a1414' : '#1f3a52'), Math.PI/6);
     kinds.forEach((k, i) => drawUnit(g, k, (i - (n - 1) / 2) * .36, 0, z + .01, col));
   });
 }
@@ -1104,7 +1137,8 @@ function buildSite(d){
   let key, fill;
   if(d._rival){
     const col = `rgb(${(typeof TY_RVCOL !== 'undefined' && TY_RVCOL[d._rival.id]) || '160,160,170'})`;
-    const h = .45 + (d._rvk || 0) * .9;
+    // 跟你的建築同一把尺:對手的身家 vs 你在一座城的規模(見 index 的 tyHeightScale)
+    const h = d._hk != null ? .3 + d._hk * 2.2 : .45 + (d._rvk || 0) * .9;
     key = `rv:${d._rival.id}:${h.toFixed(2)}`;
     fill = g => {
       const z = prism(g, 0, 0, 0, TILE_R*.8, .07, 6, lin(col, .45), lin(col, .75), Math.PI/6);
@@ -1114,9 +1148,9 @@ function buildSite(d){
       box(g, .2, -.14, z, .14, .14, h*.3, lin(col, .55), lin(col, .9));
     };
   }else{
-    const blds = (d._blds || []).slice().sort((a,b) => (b.f||1) - (a.f||1));
+    const blds = (d._blds || []).slice().sort((a,b) => ((b.h != null ? b.h*9 : b.f||1) - (a.h != null ? a.h*9 : a.f||1)));
     const catCol = (d._col && d._col[0] === '#') ? d._col : '#4fc3f7';
-    key = `me:${d._cat}:${blds.map(b => b.c + b.f + (b.st||'')).join(',')}`;
+    key = `me:${d._cat}:${blds.map(b => b.c + b.f + (b.st||'') + (b.h != null ? '@' + b.h : '')).join(',')}`;
     fill = g => {
       const z = prism(g, 0, 0, 0, TILE_R, .07, 6, lin(catCol, .35), lin(catCol, .6), Math.PI/6);
       prism(g, 0, 0, z, TILE_R*.86, .012, 6, lin('#0d1d2a'), lin('#16303f'), Math.PI/6);
@@ -1161,7 +1195,7 @@ function placeSite(obj, d){
   obj.quaternion.setFromRotationMatrix(M);
   /* 駐在城市裡的部隊站在城市的東南邊一點,不要跟建築疊在一起。
      偏移量是「幾塊地磚寬」,所以要跟著縮放走(見 applyScale)。 */
-  obj.userData.at = { x: c.x, y: c.y, z: c.z, e: [ex, ey, ez], q: [qx, qy, qz], off: d._off || null };
+  obj.userData.at = { x: c.x, y: c.y, z: c.z, e: [ex, ey, ez], q: [qx, qy, qz], slot: d._slot || null, base: a };
   applyScale(obj, performance.now());
 }
 function applyScale(obj, now){
@@ -1178,9 +1212,17 @@ function applyScale(obj, now){
   }
   obj.scale.set(s * 1.6, s * 1.6, s * k);        // 底座放寬:遠看才認得出是一座城,不是一根針
   const at = obj.userData.at;
-  if(at && at.off){
-    const w = s * 1.6, dx = at.off[0] * w, dy = at.off[1] * w;
-    obj.position.set(at.x + at.e[0]*dx + at.q[0]*dy, at.y + at.e[1]*dx + at.q[1]*dy, at.z + at.e[2]*dx + at.q[2]*dy);
+  if(at && at.slot){
+    /* 城市旁邊的位子:用「度」算、而且在**當下這個距離**檢查是不是陸地。
+       第一版的偏移是「幾塊地磚寬」、陸地只在固定的 0.3~0.5 度檢查過 —— 拉遠一點,
+       地磚變大、偏移跟著變大,實際站的地方早就不是檢查過的那一點,於是部隊站到海上、
+       離城市一大截(使用者:「部隊和建築的定位沒有很精準」)。 */
+    const S = at.slot, D = 1.6 * bScale();
+    const L = slotDirs(S.id, S.lat, S.lng, D);
+    const [ang, f] = L[S.n % L.length], ring = Math.floor(S.n / L.length);
+    const r = D * f * (1 + ring * .8), k = 1 / Math.max(.2, Math.cos(S.lat * Math.PI / 180));
+    const c = G.getCoords(S.lat + Math.sin(ang) * r, S.lng + Math.cos(ang) * r * k, at.base);
+    obj.position.set(c.x, c.y, c.z);
   }
 }
 let rafOn = false;
@@ -1317,7 +1359,8 @@ W3D.attach = function(globe){
       G.onCustomLayerClick(d => {
         if(!d) return;
         if(W3D.aiming()) return;
-        if(d._units){ let c = null; try{ c = G.getScreenCoords(d.lat, d.lng, .002); }catch(e){}
+        if(d._rvf){ TY_RIVAL = d._r.id; TY_DEAL = null; TY_MODAL = 'rival'; renderPage(); }
+        else if(d._units){ let c = null; try{ c = G.getScreenCoords(d.lat, d.lng, .002); }catch(e){}
                       unitPop(d, c ? c.x : 100, c ? c.y : 100); }
         else if(d._threat){ TY_MODAL = 'troop'; renderPage(); }
         else if(d._rival){ TY_RIVAL = d._rival.id; TY_DEAL = null; TY_MODAL = 'rival'; renderPage(); }
@@ -1343,41 +1386,36 @@ W3D.attach = function(globe){
 };
 
 /* 每次 tyGlobeData() 算完標記之後呼叫：把我的據點與對手大本營蓋成 3D。 */
-/* 駐紮的部隊站在城市的哪一邊。使用者要的是「站在陸地上」—— 台北的東南邊是海,
-   所以從東南開始試八個方向,挑第一個落在陸地上的。每座城市只算一次。 */
-const DIRS = [-40, -140, 40, 140, -90, 90, 0, 180].map(a => a * Math.PI / 180);
-const LAND_DIR = Object.create(null);
-function landDir(d){
-  const key = d._k || (d.lat + ',' + d.lng);
-  if(!LAND_DIR[key] || LAND_DIR[key].hi !== !!W3D.hiFeats){
-    let best = DIRS[0];
+/* 城市旁邊的空位。使用者截圖:「怎麼建築在海上」、「如果之後對手也在台灣設點會很擠」——
+   同一座城市旁邊可能同時有你的小城、對手的大本營、地標、好幾群部隊。
+   城市正中央給一個,其餘依序拿「旁邊的位子」;位子是哪個方向,要看**那個距離**上是不是陸地:
+     ① 在 D 與 0.6D 都是陸地的方向(東南、西南、東北、西北、南、北、東、西的順序)
+     ② 只有近一點(0.55D)才是陸地的方向 —— 站近一點,寧可跟中央有點擠也不要下海
+     ③ 剩下的(真的全是海,例如香港、新加坡拉很遠的時候)縮到 0.4D
+   D 跟著鏡頭高度走,所以依 D 分桶快取(每一桶差 26%),同一桶只算一次。 */
+const DIRS = [-40, -140, 40, 140, -90, 90, 0, 180, -65, -115, -20, -160, 20, 160, 65, 115].map(a => a * Math.PI / 180);
+const SLOT_C = Object.create(null);
+const angGap = (a, b) => { let d = Math.abs(a - b) % (Math.PI * 2); return d > Math.PI ? Math.PI * 2 - d : d; };
+function slotDirs(id, lat, lng, D){
+  const b = Math.round(Math.log2(Math.max(.01, D)) * 3);
+  const key = id + ':' + b + (W3D.hiFeats ? 'h' : '');
+  if(SLOT_C[key]) return SLOT_C[key];
+  const Dq = Math.pow(2, b / 3), k = 1 / Math.max(.2, Math.cos(lat * Math.PI / 180));
+  const on = (a, r) => !!W3D.featAt(lat + Math.sin(a) * r, lng + Math.cos(a) * r * k);
+  /* 由遠到近試 16 個方向:整段(0.6~1 倍)都是陸地才算。已經選走的方向附近(40° 內、距離差不多)
+     不再選,不然兩個會疊在一起。台灣、日本這種細長的島,主要靠中間那幾個斜方向找到陸地。 */
+  const out = [];
+  for(const f of [1, .75, .55, .4, .28])
     for(const a of DIRS){
-      const lat = d.lat + Math.sin(a) * .45, lng = d.lng + Math.cos(a) * .45 / Math.max(.2, Math.cos(d.lat * Math.PI / 180));
-      if(W3D.featAt(lat, lng)){ best = a; break; }
+      if(!on(a, Dq * f) || !on(a, Dq * f * .6)) continue;
+      if(out.some(o => angGap(o[0], a) < .7 && Math.abs(o[1] - f) < .3)) continue;
+      out.push([a, f]);
     }
-    LAND_DIR[key] = { a: best, hi: !!W3D.hiFeats };
-  }
-  const a = LAND_DIR[key].a;
-  return [Math.cos(a) * 1.2, Math.sin(a) * 1.2];
+  // 真的全是海(新加坡、香港拉很遠的時候):縮到 0.28 倍,至少不要離城市太遠
+  for(const a of DIRS.slice(0, 8)) if(!out.some(o => angGap(o[0], a) < .7)) out.push([a, .28]);
+  return (SLOT_C[key] = out);
 }
-
-/* 一座城市周圍有哪幾個方向是陸地(依偏好排好:東南、西南、東北、西北、南、北、東、西)。
-   使用者截圖:「怎麼建築在海上」、「如果之後對手也在台灣設點會很擠」——
-   同一座城市旁邊可能同時有你的小城、對手的大本營、地標、兩群部隊。
-   所以先把「陸地上的空位」列出來,再一個一個分出去,不要全部擠在同一點、也不要站到海上。 */
-const SLOTS_C = Object.create(null);
-function citySlots(id, lat, lng){
-  const key = id + (W3D.hiFeats ? ':h' : '');
-  if(SLOTS_C[key]) return SLOTS_C[key];
-  const land = [], sea = [];
-  for(const a of DIRS){
-    const k = 1 / Math.max(.2, Math.cos(lat * Math.PI / 180));
-    const on = r => W3D.featAt(lat + Math.sin(a) * r, lng + Math.cos(a) * r * k);
-    (on(.28) && on(.5) ? land : on(.28) ? land : sea).push(a);
-  }
-  return (SLOTS_C[key] = land.concat(sea));
-}
-const slotOff = (a, r) => [Math.cos(a) * (r || 1.3), Math.sin(a) * (r || 1.3)];
+W3D._slot = (id, lat, lng, D) => slotDirs(id, lat, lng, D);   // 給測試用
 
 W3D.sites = function(mine, rivals, troops){
   if(!W3D.ok) return;
@@ -1386,23 +1424,19 @@ W3D.sites = function(mine, rivals, troops){
   rivals.forEach(r => { r._rvk = Math.sqrt((r._v || 0) / rvMax); });
   /* 分位子:城市正中央給你的小城(沒有的話給對手大本營),其餘的依序拿陸地上的空位 */
   const used = Object.create(null);
-  const take = (id, lat, lng, r) => {
-    const sl = citySlots(id, lat, lng), n = used[id] = (used[id] || 0);
-    used[id]++;
-    return slotOff(sl[n % sl.length], r || (1.3 + Math.floor(n / sl.length) * .9));
-  };
+  const take = (id, lat, lng) => ({ id, lat, lng, n: (used[id] = (used[id] || 0) + 1) - 1 });
   const center = new Set(mine.map(d => d.id));
   for(const d of rivals){
-    if(center.has(d.id)) d._off = take(d.id, d.lat, d.lng);
-    else { d._off = null; center.add(d.id); }
+    if(center.has(d.id)) d._slot = take(d.id, d.lat, d.lng);
+    else { d._slot = null; center.add(d.id); }
   }
   const siteOf = d => (typeof TY_SITES !== 'undefined' ? TY_SITES : []).find(st => Math.abs(st.lat - d.lat) < 1e-6 && Math.abs(st.lng - d.lng) < 1e-6);
   const tr = (troops || []).map(d => {
     const o = { ...d, _base: .0008 };
     delete o._arc;
-    if(d._threat){ o._off = null; o._sea = !W3D.featAt(d.lat, d.lng); return o; }
+    if(d._threat){ o._slot = null; o._sea = !W3D.featAt(d.lat, d.lng); return o; }
     const st = siteOf(d);
-    if(st){ o._off = take(st.id, st.lat, st.lng); o._sea = false; }   // 駐紮 / 下季到位:城市旁邊的陸地上
+    if(st){ o._slot = take(st.id, st.lat, st.lng); o._sea = false; }   // 駐紮 / 下季到位:城市旁邊的陸地上
     else o._sea = !W3D.featAt(d.lat, d.lng);
     return o;
   });
@@ -1410,7 +1444,7 @@ W3D.sites = function(mine, rivals, troops){
   /* 地標:每一座城市都有。正中央空著就站中央,不然也去拿一個陸地上的空位。 */
   const lms = (typeof TY_SITES !== 'undefined' ? TY_SITES : []).map(st => ({
     id: st.id, lat: st.lat, lng: st.lng, iso: st.iso, _lm: true, _k: 'lm:' + st.id, _base: .0008,
-    _off: center.has(st.id) ? take(st.id, st.lat, st.lng) : null }));
+    _slot: center.has(st.id) ? take(st.id, st.lat, st.lng) : null }));
   G.customLayerData([...mine, ...rivals, ...tr, ...lms]);
   tagsOn();
   buildRoutes(tr);
@@ -1432,8 +1466,13 @@ function tagsOn(){
   for(const d of TROOPS){
     const el = document.createElement('button');
     el.type = 'button';
-    el.className = 'w3d-tag' + (d._threat ? ' th' : '') + (d._mv ? ' mv' : '');
-    if(d._threat){
+    el.className = 'w3d-tag' + (d._threat || d._rvf ? ' th' : '') + (d._rvf ? ' rf' : '') + (d._mv ? ' mv' : '');
+    if(d._rvf){
+      // 對手的駐軍:他的顏色、他的頭像 + 兵種;點下去開那位對手的卡
+      el.style.setProperty('--rc', `rgb(${(typeof TY_RVCOL !== 'undefined' && TY_RVCOL[d._r.id]) || '255,69,58'})`);
+      el.innerHTML = `${d._r.ic || '⚔'}${d._units.map(u => TY_UNITS[u.k].ic).join('')}`;
+      el.title = `${d._r.nm}在${TY_REGIONS[d._rvf.reg].nm}的駐軍(勢力 ${d._rvf.v.toFixed(0)})`;
+    }else if(d._threat){
       el.style.setProperty('--rc', `rgb(${(typeof TY_RVCOL !== 'undefined' && TY_RVCOL[d._r.id]) || '255,69,58'})`);
       el.innerHTML = `${d._r.ic || '⚔'} <b>${Math.max(0, d._threat.eta - TY.t)}季</b>`;
       el.title = `${d._r.nm}的併購小組 → ${tySite(d._threat.site).nm}`;
@@ -1442,7 +1481,8 @@ function tagsOn(){
       el.innerHTML = `${ics}${d._mv ? ` <b>下季到位</b>` : d._units.length > 1 ? ` <b>×${d._units.length}</b>` : ''}`;
       el.title = d._units.map(u => TY_UNITS[u.k].nm + (u.to ? ` → ${tySite(u.to).nm}` : '')).join('、');
     }
-    if(d._threat) el.onclick = () => { TY_MODAL = 'troop'; renderPage(); };
+    if(d._rvf) el.onclick = () => { TY_MODAL = 'rival'; TY_RIVAL = d._r.id; renderPage(); };
+    else if(d._threat) el.onclick = () => { TY_MODAL = 'troop'; renderPage(); };
     else armTagDrag(el, d);
     el._d = d;
     TAGS.appendChild(el);
@@ -1497,6 +1537,7 @@ function cityBounds(){
   fetch('cities.json').then(r => r.ok ? r.json() : null).then(j => {
     CITY_B = j || {};
     hoverKey = ''; W3D.rings();                               // 抓到了:重畫選中城市的邊界
+    if(typeof TY_LAYER !== 'undefined' && TY_LAYER === 'power') W3D.repaint();   // 勢力圖層要把城市塗上去
   }).catch(() => { CITY_B = {}; });
   return null;
 }
@@ -1818,16 +1859,49 @@ function legPts(a, b, mode, out){
     out.push({ lat: p.lat, lng: p.lng, mode });
   }
 }
+/* 兩點之間的直線會不會經過海。使用者:「陸軍要跨海要先搭船」——
+   第一版只看距離(1200 公里內開車),於是台北開卡車直接橫越台灣海峽到上海。
+   現在沿線取樣,頭尾各留一點(城市本身可能就在海岸線上)。 */
+function crossesSea(a, b){
+  const n = clamp(Math.round(kmLL(a, b) / 40), 8, 60);
+  for(let i = 1; i < n; i++){
+    const f = i / n; if(f < .04 || f > .96) continue;
+    const p = tyGeoLerp({ lat: a[0], lng: a[1] }, { lat: b[0], lng: b[1] }, f);
+    if(!W3D.featAt(p.lat, p.lng)) return true;
+  }
+  return false;
+}
+/* 從城市往某個航點走,第一個落在海上的點就是港口(海岸線)。
+   找不到(城市本身就在海上的小島)就用城市自己。 */
+function coastToward(city, node){
+  const n = clamp(Math.round(kmLL(city, node) / 15), 6, 80);
+  let last = city;
+  for(let i = 1; i <= n; i++){
+    const p = tyGeoLerp({ lat: city[0], lng: city[1] }, { lat: node[0], lng: node[1] }, i / n);
+    if(!W3D.featAt(p.lat, p.lng)) return [p.lat, p.lng];
+    last = [p.lat, p.lng];
+  }
+  return last;
+}
+/* 一條路線 = 很多小段,每段有它的交通工具。
+   陸路的部隊:沒有跨海就一路開過去;要跨海就「開到海岸 → ⚓ 靠港登船 → 航行 → ⚓ 靠岸 → 上岸開到目的地」。
+   靠港那兩下是 mode:'dock' 的停頓段(見 fly 的權重):船停在碼頭一會兒,地圖上跳「登船」「上岸」。 */
 function routeFor(kind, A, B){
   const a = [A.lat, A.lng], b = [B.lat, B.lng], pts = [];
   if(kind === 'plane' || kind === 'missile' || kind === 'jet'){ legPts(a, b, kind, pts); return pts; }
-  if(kmLL(a, b) < 1200){ legPts(a, b, 'truck', pts); return pts; }
+  if(kmLL(a, b) < 2500 && !crossesSea(a, b)){ legPts(a, b, 'truck', pts); return pts; }
   const sea = seaPath(a, b);
-  legPts(a, sea[0], 'truck', pts);                          // 開到港口
+  const pa = coastToward(a, sea[0]), pb = coastToward(b, sea[sea.length-1]);
+  legPts(a, pa, 'truck', pts);                               // 開到港口
+  pts.push({ lat: pa[0], lng: pa[1], mode: 'dock', dock: 'load' }, { lat: pa[0], lng: pa[1], mode: 'ship' });
+  legPts(pa, sea[0], 'ship', pts);
   for(let i = 1; i < sea.length; i++) legPts(sea[i-1], sea[i], 'ship', pts);
-  legPts(sea[sea.length-1], b, 'truck', pts);                // 上岸
+  legPts(sea[sea.length-1], pb, 'ship', pts);
+  pts.push({ lat: pb[0], lng: pb[1], mode: 'dock', dock: 'unload' }, { lat: pb[0], lng: pb[1], mode: 'truck' });
+  legPts(pb, b, 'truck', pts);                               // 上岸
   return pts;
 }
+W3D._route = (A, B) => routeFor('ground', A, B).map(p => p.mode);   // 給測試用
 
 /* 播一趟:沿著路線走,依載具換模型;飛機 / 飛彈 / 戰機有高度曲線。 */
 let ANIMS = [], animOn = false, VMAT = null;
@@ -1862,16 +1936,21 @@ function fly(opt){
   const pts = opt.pts || routeFor(opt.kind, opt.from, opt.to);
   if(pts.length < 2) return;
   /* 每一小段的「權重」:卡車段 ×3 —— 開到港口那一小段在地圖上很短,不放慢的話一閃就過了 */
-  const cum = [0];
+  /* 靠港(mode:'dock')是一段零長度的停頓:船停在碼頭、部隊上下船。長度取總路程的 9%,
+     不然一閃就過,看不出「先開到港口、再上船」。 */
+  const w = [0];
   for(let i = 1; i < pts.length; i++){
     const km = kmLL([pts[i-1].lat, pts[i-1].lng], [pts[i].lat, pts[i].lng]);
-    cum.push(cum[i-1] + km * (pts[i-1].mode === 'truck' ? 3 : 1));
+    w.push(km * (pts[i-1].mode === 'truck' ? 3 : 1));
   }
+  const raw = w.reduce((x, y) => x + y, 0) || 1;
+  const cum = [0];
+  for(let i = 1; i < pts.length; i++) cum.push(cum[i-1] + (pts[i-1].mode === 'dock' ? raw * .09 : w[i]));
   const tot = cum[cum.length-1] || 1;
   ANIMS.push({ pts, cum, tot, t0: performance.now() + (opt.delay || 0), dur: opt.dur || 5000,
                arc: opt.arc || 0, off: opt.off || 0, kind: opt.kind, mesh: null, mk: '',
                done: opt.done, onPass: opt.onPass, passed: false,
-               trail: opt.trail || null, tr: opt.trail ? [] : null });
+               trail: opt.trail || null, tr: opt.trail ? [] : null, tag: opt.tag || '' });
   tyWake();
   if(!animOn){ animOn = true; requestAnimationFrame(animStep); }
 }
@@ -1882,6 +1961,7 @@ function posAt(a, u){
   let lat = p0.lat + (p1.lat - p0.lat) * f, lng = p0.lng + (((p1.lng - p0.lng + 540) % 360) - 180) * f;
   // 編隊:起飛後散開,之後一路保持間距(第一版在後段會收回同一點,三架疊成一架)
   if(a.off) lat += a.off * smooth(clamp(u / .2, 0, 1));
+  if(p0.mode === 'dock') return { lat, lng, alt: .0006, mode: 'ship', dock: p0.dock, di: i };
   let alt = p0.mode === 'ship' ? .0006 : .0012;
   if(a.kind === 'bomb') return { lat, lng, alt: .0012 + (a.fall || .03) * (1 - u*u), mode: 'bomb' };
   if(a.arc){
@@ -1915,6 +1995,15 @@ function animStep(now){
     if(a.tr){                                              // 尾跡:凝結尾 / 航跡 / 飛彈的煙
       if(mk !== 'truck'){ a.tr.push([P.lng, P.lat, P.alt]); if(a.trail.max && a.tr.length > a.trail.max) a.tr.shift(); }
       TRAILS.set(a, { pts: a.tr, col: a.trail.col, w: a.trail.w });
+    }
+    if(P.dock && a.docked !== P.di){                       // 靠港:跳一個「登船 / 上岸」,碼頭冒一圈水花
+      a.docked = P.di;
+      const fx = fxLayer();
+      if(fx && W3D._tfix == null){
+        floatAt(fx, P.lat, P.lng, P.dock === 'load' ? '⚓ 開到港口 · 登船' : '⚓ 靠岸 · 部隊上岸', 'dock' + (a.tag ? ' rv' : ''), 0);
+        W3D.extraRings = W3D.extraRings.concat([{ lat: P.lat, lng: P.lng, _rgb: '120,200,255', _a: .9, _r: 1.6, _v: 1.6, _p: 700 }]);
+        W3D.rings();
+      }
     }
     if(a.onPass && !a.passed && u >= (a.passAt || .5)){ a.passed = true; a.onPass(P); }
     if(u < 1 || W3D._tfix != null) keep.push(a);
@@ -2011,7 +2100,7 @@ W3D.animMove = function(m){
     if(m.k === 'raid'){
       const pts = routeFor('ground', A, B);
       const sea = pts.filter(p => p.mode === 'ship').length;
-      fly({ kind: 'ground', pts, dur: clamp((sea ? 7000 : 4500) + km * .55, 5000, 16000),
+      fly({ kind: 'ground', pts, dur: sea ? clamp(9000 + km * .55, 9000, 18000) : clamp(4500 + km * .55, 5000, 12000),
             trail: sea ? { col: ['rgba(255,255,255,0)', 'rgba(220,240,255,.8)'], w: 1.6, max: 90 } : null, done: land });
     }else{
       fly({ kind: 'plane', from: A, to: B, arc: clamp(km / 9000 * .1, .018, .09), dur: clamp(4000 + km * .5, 5000, 10000),
@@ -2376,20 +2465,76 @@ W3D.play = function(snap){
     rings.push({ lat: s.lat, lng: s.lng, _rgb: up ? '255,69,58' : '48,209,88', _a: .95, _r: 3.2, _v: 3, _p: 900 });
   }
 
-  /* ④ 對手擴張：勢力明顯變大的地區，從他的大本營拉一條他顏色的弧線過去 */
+  /* ④ 對手這一季做了什麼(index 的 TY_RV_EV)—— 使用者:「我想看到對手做了什麼」。
+     擴張 = 他的客機飛過去插旗;出兵 = 車隊 / 船真的開過來;併購 = 被吃掉的那一家爆炸;
+     上市 = 大本營冒一圈光;斷頭 = 大本營冒煙;放話 = 你的大本營上跳一則。
+     有人出兵打你的時候鏡頭會轉過去 —— 那是這一季最重要的事。 */
   const arcs = [];
-  for(const r of tyRivalsA()){
-    const was = snap.rv[r.id]; if(!was) continue;
-    const col = (typeof TY_RVCOL !== 'undefined' && TY_RVCOL[r.id]) || '200,200,210';
-    for(const [reg2, v] of Object.entries(r.turf || {})){
-      if(v - (was.turf[reg2] || 0) < 1.5) continue;
-      const home = tySite(r.home);
-      const to = TY_SITES.find(s => s.reg === reg2 && s.id !== r.home);
-      if(!to) continue;
-      arcs.push({ startLat: home.lat, startLng: home.lng, endLat: to.lat, endLng: to.lng,
-                  _c: [`rgba(${col},.2)`, `rgba(${col},.95)`] });
-      rings.push({ lat: to.lat, lng: to.lng, _rgb: col, _a: .9, _r: 2.6, _v: 2, _p: 1000 });
-      if(arcs.length <= 3) floatAt(fx, to.lat, to.lng, `${r.ic || ''} ${escH(r.nm)} 擴張`, 'rv', 700 + arcs.length * 200);
+  const EV = (typeof TY_RV_EV !== 'undefined' && TY_RV_EV) || [];
+  const rcol = id => (typeof TY_RVCOL !== 'undefined' && TY_RVCOL[id]) || '200,200,210';
+  const tag = (r, txt) => `<span style="color:rgb(${rcol(r.id)})">${r.ic || ''} ${escH(r.nm)}</span> ${txt}`;
+  const regSite = (r, reg) => {
+    const f = (typeof tyRivalForces === 'function' ? tyRivalForces() : []).find(x => x.r.id === r.id && x.reg === reg);
+    return f ? tySite(f.site) : TY_SITES.find(s => s.reg === reg && s.id !== r.home);
+  };
+  const order = { march: 0, eat: 1, expand: 2, crash: 3, ipo: 4, leak: 5, smear: 5 };
+  const evs = EV.slice().sort((a, b) => (order[a.k] ?? 9) - (order[b.k] ?? 9)).slice(0, 6);
+  const march = evs.find(e => e.k === 'march');
+  const go = () => evs.forEach((e, j) => {
+    const r = TY.rivals.find(x => x.id === e.rid); if(!r) return;
+    const home = tySite(r.home), col = rcol(r.id), delay = 700 + j * 1100;
+    setTimeout(() => {
+      if(e.k === 'expand'){
+        const to = regSite(r, e.reg); if(!to || to.id === home.id) return;
+        const km = kmLL([home.lat, home.lng], [to.lat, to.lng]);
+        fly({ kind: 'plane', from: home, to, arc: clamp(km / 9000 * .1, .018, .09), dur: clamp(3500 + km * .4, 4500, 8000), tag: r.id,
+              trail: { col: [`rgba(${col},0)`, `rgba(${col},.9)`], w: 1.2, max: 60 },
+              done: () => {
+                floatAt(fxLayer(), to.lat, to.lng, tag(r, e.mine ? '打進你的地盤' : `擴張到${escH(TY_REGIONS[e.reg].nm)}`), e.mine ? 'enemy' : 'rv', 0);
+                W3D.extraRings = W3D.extraRings.concat([{ lat: to.lat, lng: to.lng, _rgb: col, _a: .95, _r: 3, _v: 2.4, _p: 800 }]); W3D.rings();
+              } });
+      }else if(e.k === 'march'){
+        const to = tySite(e.to), km = kmLL([home.lat, home.lng], [to.lat, to.lng]);
+        const pts = routeFor('ground', home, to), sea = pts.some(p => p.mode === 'ship');
+        floatAt(fxLayer(), home.lat, home.lng, tag(r, `出兵 → ${escH(to.nm)}`), 'enemy', 0);
+        fly({ kind: 'ground', pts, tag: r.id, dur: clamp((sea ? 8000 : 5000) + km * .5, 6000, 15000),
+              trail: { col: [`rgba(${col},0)`, `rgba(${col},.9)`], w: 1.6, max: 90 },
+              done: () => floatAt(fxLayer(), to.lat, to.lng, tag(r, '的併購小組逼近'), 'enemy', 0) });
+      }else if(e.k === 'eat'){
+        const at = tySite(e.at || r.home), prey = TY.rivals.find(x => x.id === e.prey);
+        boom(at.lat, at.lng, false);
+        floatAt(fxLayer(), at.lat, at.lng, tag(r, `吞併了${escH(prey ? prey.nm : '對手')}`), 'enemy', 300);
+      }else if(e.k === 'ipo'){
+        floatAt(fxLayer(), home.lat, home.lng, tag(r, '📈 旗下事業上市'), 'rv', 0);
+        W3D.extraRings = W3D.extraRings.concat([{ lat: home.lat, lng: home.lng, _rgb: col, _a: 1, _r: 4, _v: 3, _p: 600 }]); W3D.rings();
+      }else if(e.k === 'crash'){
+        boom(home.lat, home.lng, false);
+        floatAt(fxLayer(), home.lat, home.lng, tag(r, '💥 槓桿斷頭,身家腰斬'), 'enemy', 300);
+      }else if(e.k === 'leak' || e.k === 'smear'){
+        const me = tySite(TY.home);
+        floatAt(fxLayer(), me.lat, me.lng, tag(r, e.k === 'leak' ? '📰 把你的架構送去檢舉' : '📰 在媒體上點名你'), 'enemy', 0);
+      }
+    }, delay);
+  });
+  if(evs.length){
+    if(march){
+      const A = tySite(march.from), B = tySite(march.to);
+      setTimeout(() => focusOn(A, B, go), 900);
+    }else go();
+  }else{
+    // 沒有事件紀錄(例如讀舊存檔的第一季):退回「勢力變大就拉一條弧線」
+    for(const r of tyRivalsA()){
+      const was = snap.rv[r.id]; if(!was) continue;
+      const col = rcol(r.id);
+      for(const [reg2, v] of Object.entries(r.turf || {})){
+        if(v - (was.turf[reg2] || 0) < 1.5) continue;
+        const home = tySite(r.home);
+        const to = TY_SITES.find(s => s.reg === reg2 && s.id !== r.home);
+        if(!to) continue;
+        arcs.push({ startLat: home.lat, startLng: home.lng, endLat: to.lat, endLng: to.lng,
+                    _c: [`rgba(${col},.2)`, `rgba(${col},.95)`] });
+        rings.push({ lat: to.lat, lng: to.lng, _rgb: col, _a: .9, _r: 2.6, _v: 2, _p: 1000 });
+      }
     }
   }
 
