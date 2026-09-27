@@ -1323,9 +1323,9 @@ function featOutline(f){
     .sort((a, b) => b.length - a.length).slice(0, 12);
   return rings.map(r => ({ pts: thin(r, 900), col: 'rgba(255,236,150,.95)', w: .7, alt: .0016 }));
 }
-function nearSite(x, y){
+function nearSite(x, y, rad){
   if(typeof TY_SITES === 'undefined') return null;
-  let best = null, bd = 26 * 26;
+  let best = null, bd = (rad || 26) * (rad || 26);
   for(const s of TY_SITES){
     let c; try{ c = G.getScreenCoords(s.lat, s.lng, .001); }catch(e){ return null; }
     const dx = c.x - x, dy = c.y - y, d = dx*dx + dy*dy;
@@ -1803,7 +1803,7 @@ function drawAim(){
     if(!hoverCard || !hoverCard.isConnected){ hoverCard = document.createElement('div'); hoverCard.className = 'w3d-hover'; host.appendChild(hoverCard); }
     const s = tySite(AIM.site), h = AIM.hint ? AIM.hint(AIM.site) : '';
     hoverCard.innerHTML = `<b>${flag(s.iso)} ${escH(s.nm)}</b>${h ? `<span>${escH(h)}</span>` : ''}`
-      + `<span class="${ok ? 'ok' : 'dim'}">${ok ? '✓ 點一下確定' : '✕ 這裡不行'}</span>`;
+      + `<span class="${ok ? 'ok' : 'dim'}">${ok ? (AIM.drag ? '✓ 放開就出牌' : '✓ 點一下確定') : '✕ 這裡不行'}</span>`;
     hoverCard.style.display = '';
     hoverCard.style.transform = `translate(${AIM.x + 16}px,${Math.max(4, AIM.y - 10)}px)`;
   }else if(hoverCard) hoverCard.style.display = 'none';
@@ -1817,6 +1817,30 @@ function aimPick(x, y){
   pick(s.id);
   return true;
 }
+/* 從外面驅動拉線(卡牌拖曳):座標是 client 座標 */
+function hostRel(cx, cy){
+  const host = document.getElementById('tyGlobeHost'); if(!host) return null;
+  const r = host.getBoundingClientRect();
+  if(cx < r.left || cx > r.right || cy < r.top || cy > r.bottom) return null;
+  return [cx - r.left, cy - r.top];
+}
+W3D.aimAt = function(cx, cy){
+  if(!AIM) return;
+  const p = hostRel(cx, cy); if(!p) return;
+  AIM.x = p[0]; AIM.y = p[1]; AIM.drag = true;
+  const s = nearSite(p[0], p[1], 40); AIM.site = s ? s.id : null;
+  drawAim();
+};
+/* 放開:在城市上 → 出牌(回傳 true);放在地圖上但不是可以出的城市 → 留在拉線模式讓你再點一次
+   (也回傳 true);放在地圖外面(拖回手牌)→ 回傳 false,由呼叫的人取消 */
+W3D.aimDrop = function(cx, cy){
+  if(!AIM) return false;
+  const p = hostRel(cx, cy); if(!p) return false;
+  const s = nearSite(p[0], p[1], 40);
+  if(s && AIM.valid(s.id)){ const pick = AIM.pick; W3D.aimCancel(); pick(s.id); return true; }
+  AIM.x = p[0]; AIM.y = p[1]; AIM.site = s ? s.id : null; AIM.drag = false; drawAim();
+  return true;
+};
 let aimArmed = false, aimT = 0;
 function armAim(){
   if(aimArmed) return;

@@ -600,7 +600,8 @@ PX.url = function(key, sp, tint){
 /* <img> 標籤:用 CSS 放大、image-rendering: pixelated */
 PX.img = function(key, sp, opt){
   opt = opt || {};
-  const z = opt.z || 3;
+  // fit:[寬, 高] → 取「放得下的最大整數倍」,像素才會是整齊的方塊
+  const z = opt.fit ? Math.max(1, Math.min(Math.floor(opt.fit[0] / sp.w), Math.floor(opt.fit[1] / sp.h))) : (opt.z || 3);
   return `<img class="px${opt.cls ? ' ' + opt.cls : ''}" src="${PX.url(key, sp, opt.tint)}" width="${sp.w * z}" height="${sp.h * z}" alt="${opt.alt || ''}" draggable="false">`;
 };
 
