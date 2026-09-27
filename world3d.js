@@ -47,15 +47,6 @@ let T = null;         // 撿回來的 THREE 建構子
 const OBJS = new Set();            // 目前在場上的建築群（縮放時要一個一個調）
 const SEEN = Object.create(null);  // 每個據點上一次長什麼樣（決定要不要播「長出來」）
 
-/* 畫面用的亂數。**絕對不可以用 tyRnd()** —— 那顆是遊戲的種子亂數，
-   畫面拿走一個數字，整局接下來的事件就全部錯位了。 */
-function vrand(seed){
-  let a = seed >>> 0;
-  return () => { a |= 0; a = a + 0x6D2B79F5 | 0;
-    let t = Math.imul(a ^ a >>> 15, 1 | a);
-    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
-    return ((t ^ t >>> 14) >>> 0) / 4294967296; };
-}
 const clamp = (v,a,b) => Math.max(a, Math.min(b, v));
 const smooth = x => { x = clamp(x,0,1); return x*x*(3-2*x); };
 const reduced = () => { try{ return matchMedia('(prefers-reduced-motion: reduce)').matches; }catch(e){ return false; } };
@@ -218,85 +209,15 @@ const texSize = () => {
   return W;
 };
 
-/* 陸地依緯度的色帶(極地偏白、沙漠帶偏黃、赤道偏深綠)。整球底圖與近看的局部地圖
-   共用同一組,兩邊的顏色才接得起來。 */
-const BAND = [[90,'rgba(236,242,244,.95)'],[70,'rgba(190,206,196,.65)'],[62,'rgba(78,118,70,.25)'],
-  [45,'rgba(120,160,80,.2)'],[30,'rgba(176,160,98,.34)'],[22,'rgba(196,172,112,.42)'],
-  [12,'rgba(110,150,70,.2)'],[0,'rgba(60,120,56,.35)'],[-12,'rgba(110,150,70,.2)'],
-  [-25,'rgba(186,160,104,.36)'],[-40,'rgba(110,150,80,.2)'],[-62,'rgba(190,206,196,.65)'],
-  [-90,'rgba(240,244,246,.95)']];
-function bandGrad(c, y0, y1, latTop, latBot){
-  const g = c.createLinearGradient(0, y0, 0, y1);
-  for(const [lat, col] of BAND){
-    const t = (latTop - lat) / (latTop - latBot);
-    if(t >= 0 && t <= 1) g.addColorStop(t, col);
-  }
-  // 範圍外的色帶也要補上端點,不然局部地圖的頂端與底端會變透明
-  const at = lat => { for(let i = 1; i < BAND.length; i++) if(lat >= BAND[i][0]) return BAND[i-1][1]; return BAND[BAND.length-1][1]; };
-  g.addColorStop(0, at(latTop)); g.addColorStop(1, at(latBot));
-  return g;
-}
-
-/* 底圖：海 + 大陸棚 + 綠色陸地 + 森林顆粒 + 海岸線。 */
+/* 底圖:像素地形(海、大陸棚、依緯度與沙漠區的地貌、山脈、湖泊、河流,見 terrain.js)。
+   使用者:「地圖也改成像素的」。整球貼圖固定 2048×1024(一個像素約 0.18 度),放大時用最近鄰取樣 ——
+   方塊就是方塊,不會糊成一片。 */
 function paintBase(feats){
-  const W = texSize(), H = W / 2, k = W / 4096;
+  const W = Math.min(2048, texSize()), H = W / 2;
   const cv = BASE || document.createElement('canvas');
   cv.width = W; cv.height = H;
   const c = cv.getContext('2d');
-  const rnd = vrand(20260926);
-
-  // 海：參考畫面那種偏亮的藍，兩極稍暗
-  const sea = c.createLinearGradient(0, 0, 0, H);
-  sea.addColorStop(0, '#24557a'); sea.addColorStop(.28, '#2c6c99');
-  sea.addColorStop(.5, '#3178a8'); sea.addColorStop(.72, '#2c6c99'); sea.addColorStop(1, '#24557a');
-  c.fillStyle = sea; c.fillRect(0, 0, W, H);
-  for(let i = 0; i < 700; i++){            // 深淺斑，讓海不是一片死的顏色
-    const x = rnd()*W, y = rnd()*H, r = (0.006 + rnd()*0.03) * W;
-    const g = c.createRadialGradient(x, y, 0, x, y, r);
-    g.addColorStop(0, rnd() < .5 ? 'rgba(90,170,215,.10)' : 'rgba(10,40,70,.12)');
-    g.addColorStop(1, 'rgba(0,0,0,0)');
-    c.fillStyle = g; c.fillRect(x-r, y-r, r*2, r*2);
-  }
-  // 大陸棚：陸地外圍一圈淺藍（淺海），寬窄兩層
-  /* ⚠ 不用 shadowBlur:模糊是整張畫布逐像素算的,4K 上一次就要好幾百毫秒。
-     改成沿著海岸描三層由寬到窄、由淡到濃的線 —— 看起來一樣是一圈淺海,快幾十倍。 */
-  landPath(c, feats, W, H);
-  c.lineJoin = 'round';
-  for(const [w, a] of [[18, .16], [10, .22], [5, .32]]){ c.lineWidth = w*k; c.strokeStyle = `rgba(110,195,232,${a})`; c.stroke(); }
-
-  // 陸地：綠色為主，極地偏白、沙漠帶帶一點黃 —— 但比例壓低，整體還是一張綠色地圖
-  c.save(); landPath(c, feats, W, H); c.clip();
-  c.fillStyle = '#6e9a4c'; c.fillRect(0, 0, W, H);
-  c.fillStyle = bandGrad(c, 0, H, 90, -90); c.fillRect(0, 0, W, H);
-  for(let i = 0; i < 900; i++){             // 高低起伏的大斑塊
-    const x = rnd()*W, y = rnd()*H, r = (0.003 + rnd()*rnd()*0.022) * W;
-    const g = c.createRadialGradient(x, y, 0, x, y, r);
-    g.addColorStop(0, rnd() < .5 ? 'rgba(210,225,160,.16)' : 'rgba(30,60,25,.2)');
-    g.addColorStop(1, 'rgba(0,0,0,0)');
-    c.fillStyle = g; c.fillRect(x-r, y-r, r*2, r*2);
-  }
-  /* 森林顆粒:參考畫面陸地上那層「樹」的質感。
-     ⚠ 不要在大圖上一顆一顆畫 —— 第一版畫了九萬個小圓,畫布是 GPU 加速的,
-       九萬個指令直接觸發 GPU 看門狗,**整顆地球的 WebGL context 掉了**。
-       現在只在一張 512 的小圖塊上畫,再用 pattern 鋪滿:指令數少兩百倍。 */
-  const tile = document.createElement('canvas'); tile.width = tile.height = 512;
-  const tc = tile.getContext('2d');
-  for(let i = 0; i < 1400; i++){
-    tc.fillStyle = rnd() < .75 ? 'rgba(34,74,30,.30)' : 'rgba(190,215,140,.18)';
-    const r = 1 + rnd()*2.2;
-    tc.beginPath(); tc.arc(rnd()*512, rnd()*512, r, 0, 6.283); tc.fill();
-  }
-  const pat = c.createPattern(tile, 'repeat');
-  c.save();
-  c.scale(k, k);                        // 小點在 4K 與 8K 的貼圖上看起來一樣大
-  c.fillStyle = pat;
-  const top = H * (24/180) / k, bot = H * (156/180) / k;   // 極圈以內才有樹
-  c.fillRect(0, top, W / k, bot - top);
-  c.restore();
-  c.restore();
-  // 海岸線：一道淺色細邊
-  landPath(c, feats, W, H);
-  c.lineWidth = 1.6*k; c.strokeStyle = 'rgba(225,245,235,.75)'; c.stroke();
+  TERRAIN.paint(c, { lo0: -180, lo1: 180, la0: -90, la1: 90, global: true }, W, H, ctx => landPath(ctx, feats, W, H));
   BASE = cv;
 }
 
@@ -320,11 +241,11 @@ function paintTop(force){
     c.fillStyle = cols[i].replace(/,\s*([\d.]+)\)$/, (s, a) => `,${Math.min(.72, +a * 1.6).toFixed(3)})`);
     c.fill(p, 'evenodd');
     // 有主的國家描一圈同色的粗邊 —— 參考畫面裡「這塊是誰的」主要是靠邊框看出來的
-    c.lineWidth = 3.2*k; c.strokeStyle = cols[i].replace(/,\s*([\d.]+)\)$/, ',.95)');
+    c.lineWidth = Math.max(2, 3.2*k); c.strokeStyle = cols[i].replace(/,\s*([\d.]+)\)$/, ',.95)');
     c.stroke(p);
   });
   // 國界：白色細線，跟參考畫面一樣
-  c.lineWidth = 1.3*k; c.strokeStyle = 'rgba(255,255,255,.55)'; c.stroke(allP2D(FEATS, W, H));
+  c.lineWidth = 1; c.strokeStyle = 'rgba(255,255,255,.7)'; c.stroke(allP2D(FEATS, W, H));
   // 勢力圖層:城市的真實範圍塗上「這座城是誰的」(國家之下的第二層)
   for(const [id, col] of ccols){
     const p = cityP2D(id, W, H); if(!p) continue;
@@ -361,6 +282,7 @@ function mountTex(){
   TOP = document.createElement('canvas');
   const t = new Tex(TOP);
   t.colorSpace = m.map.colorSpace;
+  t.magFilter = 1003;                      // 最近鄰:像素地圖放大還是方塊
   try{ t.anisotropy = Math.min(4, G.renderer().capabilities.getMaxAnisotropy()); }catch(e){}
   m.map = t; m.needsUpdate = true;
   TEX = t;
@@ -379,8 +301,6 @@ function paintSkin(){
     if(mountTex()){
       FEATS = countries; paintBase(FEATS); paintTop(true);
       W3D.textured = true; painting = false;
-      // 像素看板要等貼圖掛好才建得出來:之前那一批是空的,現在重蓋一次
-      if(NEED_REBUILD && LAST_SITES){ const a = LAST_SITES; G.customLayerData([]); W3D.sites(...a); }
       W3D.material();
       if(typeof tyPaintGlobe === 'function') tyPaintGlobe();
       loadHiRes();
@@ -478,48 +398,8 @@ function patchFeatPath(ctx, f, P, W, H){
   const polys = g.type === 'Polygon' ? [g.coordinates] : g.coordinates;
   for(const poly of polys) for(const r of poly) if(r.length > 2) patchRing(ctx, r, P, W, H);
 }
-/* 花紋要釘在經緯度上(不是釘在這張 canvas 上),不然鏡頭一動、重畫一次,
-   森林就整片跳一下。 */
-function anchoredPattern(c, tile, degPerTile, P, W, H){
-  const pat = c.createPattern(tile, 'repeat');
-  const sx = W / (P.lo1 - P.lo0) * degPerTile / tile.width;
-  const sy = H / (P.la1 - P.la0) * degPerTile / tile.height;
-  const ox = (-180 - P.lo0) / (P.lo1 - P.lo0) * W, oy = (P.la1 - 90) / (P.la1 - P.la0) * H;
-  if(pat.setTransform && typeof DOMMatrix === 'function') pat.setTransform(new DOMMatrix([sx, 0, 0, sy, ox, oy]));
-  return pat;
-}
-let TILE_F = null, TILE_B = null;
-function tiles(){
-  if(TILE_F) return;
-  const rnd = vrand(4242);
-  TILE_F = document.createElement('canvas'); TILE_F.width = TILE_F.height = 512;
-  const a = TILE_F.getContext('2d');
-  /* 貼在邊上的點要在對邊再畫一次,圖塊重複的時候才接得起來 ——
-     不然整片陸地會浮出一格一格的方塊接縫。 */
-  for(let i = 0; i < 1700; i++){
-    a.fillStyle = rnd() < .75 ? 'rgba(34,74,30,.30)' : 'rgba(190,215,140,.18)';
-    const x = rnd()*512, y = rnd()*512, r = 1.2 + rnd()*2.6;
-    for(const dx of [-512, 0, 512]) for(const dy of [-512, 0, 512]){
-      if(x+dx < -r || x+dx > 512+r || y+dy < -r || y+dy > 512+r) continue;
-      a.beginPath(); a.arc(x+dx, y+dy, r, 0, 6.283); a.fill();
-    }
-  }
-  TILE_B = document.createElement('canvas'); TILE_B.width = TILE_B.height = 512;
-  const b = TILE_B.getContext('2d');
-  for(let i = 0; i < 70; i++){
-    const x = rnd()*512, y = rnd()*512, r = 14 + rnd()*60;
-    for(const dx of [-512, 0, 512]) for(const dy of [-512, 0, 512]){   // 讓圖塊可以無縫重複
-      const g = b.createRadialGradient(x+dx, y+dy, 0, x+dx, y+dy, r);
-      g.addColorStop(0, rnd() < .5 ? 'rgba(210,225,160,.16)' : 'rgba(30,60,25,.2)');
-      g.addColorStop(1, 'rgba(0,0,0,0)');
-      b.fillStyle = g; b.fillRect(x+dx-r, y+dy-r, r*2, r*2);
-    }
-  }
-}
 function paintPatch(P){
-  tiles();
   const cv = P.cv, W = cv.width, H = cv.height, c = cv.getContext('2d');
-  const ppd = W / (P.lo1 - P.lo0);                         // 每度幾個像素
   const feats = (PFEATS || FEATS || []).filter(f => {
     const [a, b, cc, d] = featBox(f);
     if(b < P.la0 || a > P.la1) return false;
@@ -528,24 +408,9 @@ function paintPatch(P){
     let dc = ((cc + d) / 2 - mid); dc -= Math.round(dc / 360) * 360;
     return Math.abs(dc) <= half + (d - cc) / 2;
   });
-  // 海
-  const sea = c.createLinearGradient(0, 0, 0, H);
-  const seaAt = lat => { const t = Math.abs(lat) / 90; return `rgb(${Math.round(49-12*t)},${Math.round(120-33*t)},${Math.round(168-46*t)})`; };
-  sea.addColorStop(0, seaAt(P.la1)); sea.addColorStop(1, seaAt(P.la0));
-  c.fillStyle = sea; c.fillRect(0, 0, W, H);
   const land = () => { c.beginPath(); for(const f of feats) patchFeatPath(c, f, P, W, H); };
-  // 淺海
-  land();
-  c.lineJoin = 'round';
-  for(const [w, a] of [[Math.min(40, ppd*.7), .16], [Math.min(22, ppd*.35), .22], [Math.min(10, ppd*.15), .32]]){
-    c.lineWidth = w; c.strokeStyle = `rgba(110,195,232,${a})`; c.stroke();
-  }
-  // 陸地:底色 + 依緯度的色帶 + 釘在經緯度上的斑塊與森林
-  c.save(); land(); c.clip('evenodd');
-  c.fillStyle = '#6e9a4c'; c.fillRect(0, 0, W, H);
-  c.fillStyle = bandGrad(c, 0, H, P.la1, P.la0); c.fillRect(0, 0, W, H);
-  c.fillStyle = anchoredPattern(c, TILE_F, 1.2, P, W, H); c.fillRect(0, 0, W, H);
-  c.restore();
+  // 像素地形(跟整球貼圖同一套畫法,顏色才接得起來)
+  TERRAIN.paint(c, P, W, H, ctx => { ctx.beginPath(); for(const f of feats) patchFeatPath(ctx, f, P, W, H); });
   // 勢力顏色
   if(typeof tyCountryColor === 'function' && TY){
     for(const f of feats){
@@ -630,7 +495,7 @@ function patchCheck(){
   const P = PATCH || {};
   P.la0 = clamp(lat - half, -89, 89); P.la1 = clamp(lat + half * 1.25, -89, 89);   // 北邊多留:傾斜時看得比較遠
   P.lo0 = pov.lng - halfLng; P.lo1 = pov.lng + halfLng; P.alt = alt;
-  const M = texSize() <= 2048 ? 1024 : 1536;
+  const M = 640;                            // 像素地圖:局部也刻意低解析,放大後每一格是清楚的方塊
   const rw = (P.lo1 - P.lo0) * Math.cos(lat * Math.PI / 180), rh = P.la1 - P.la0;
   if(!P.cv){ P.cv = document.createElement('canvas'); }
   const nw = rw >= rh ? M : Math.max(256, Math.round(M * rw / rh));
@@ -643,6 +508,7 @@ function patchCheck(){
   if(!P.tex){
     P.tex = new TEX.constructor(P.cv);
     P.tex.colorSpace = TEX.colorSpace;
+    P.tex.magFilter = 1003; P.tex.minFilter = 1003; P.tex.generateMipmaps = false;
     try{ P.tex.anisotropy = Math.min(4, G.renderer().capabilities.getMaxAnisotropy()); }catch(e){}
     P.mat = new T.Phong({ map: P.tex, transparent: true, shininess: 4,
                           polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
@@ -750,83 +616,150 @@ W3D.landmarkName = id => (LANDMARK[id] || [])[1] || '';
    ⚠ Texture 的建構子要等地球貼圖掛好(mountTex)才撿得到;在那之前先回傳空物件,
      掛好之後 W3D.sites 用上一次的資料重蓋一次。
    ============================================================================= */
-const PXU = .065;                 // 看板:一個像素 = 幾個地磚單位
-const VPX = .025;                 // 載具:一個像素 = 幾個單位(之後還會乘上 animStep 的倍率)
-const TEXC = new Map(), QGEO = new Map();
-const hasPX = () => typeof PX !== 'undefined' && PX && PX.canvas;
-function pxMat(key, make){
-  if(TEXC.has(key)) return TEXC.get(key);
-  if(!TEX || !hasPX()) return null;
-  const cv = make();
-  const t = new TEX.constructor(cv);
-  t.magFilter = 1003; t.minFilter = 1003; t.generateMipmaps = false;   // NearestFilter
-  t.colorSpace = TEX.colorSpace; t.needsUpdate = true;
-  const m = new T.Phong({ map: t, emissiveMap: t, alphaTest: .5, side: 2, shininess: 0 });
-  m.color && m.color.set('#000000'); m.emissive && m.emissive.set('#ffffff'); m.specular && m.specular.set('#000000');
-  const r = { mat: m, w: cv.width, h: cv.height };
-  TEXC.set(key, r);
-  return r;
+const PXU = .12;                  // 體素:一格 = 幾個地磚單位
+const VPX = .05;                  // 載具的體素:一格 = 幾個單位(之後還會乘上 animStep 的倍率)
+const hasPX = () => typeof PX !== 'undefined' && PX && PX.S;
+/* =============================================================================
+   體素(3D 像素)—— 使用者:「地圖上的東西也要 3D 立體像素風格」
+   -----------------------------------------------------------------------------
+   把 pixel.js 的每一張像素圖「擠出」成一塊一塊的方塊:
+     正面 / 背面  每個像素一片,就是原本那張圖
+     側面 / 頂面  只在邊緣長出來,沿著厚度一整條(不是每一格一片,三角形數量才壓得住)
+   顏色的小規矩:側面遇到黑色描邊('k')改用往內一格的顏色,頂面遇到描邊用深灰 —— 不然整棟樓的
+   側面與屋頂全是黑的。側面暗一點、頂面亮一點,有光照的立體感。
+   站著的(建築、部隊、地標):寬 = 圖的寬、高 = 圖的高、厚度自己給,正面朝南(鏡頭從南邊斜看)。
+   平躺的(載具):圖就是俯視圖,往上長出厚度。
+   ⚠ 頂點顏色是線性空間:sRGB 要先轉(^2.2),不然整張圖偏亮偏灰。
+   ============================================================================= */
+const VGEO = new Map();
+let VMAT = null;
+function vmat(){
+  if(!VMAT){ VMAT = new T.Phong({ vertexColors: true, shininess: 6, side: 2 }); VMAT.emissive && VMAT.emissive.set('#2a3440'); }
+  return VMAT;
 }
-/* 四邊形:站著的(看板,底邊中點是原點、往 +z 長)或平躺的(載具,中心是原點、機頭 +x) */
-function quadGeo(w, h, flat){
-  const key = w.toFixed(4) + 'x' + h.toFixed(4) + (flat ? 'f' : 's');
-  if(QGEO.has(key)) return QGEO.get(key);
-  const P = flat ? [-w/2,-h/2,0, w/2,-h/2,0, w/2,h/2,0, -w/2,h/2,0] : [-w/2,0,0, w/2,0,0, w/2,0,h, -w/2,0,h];
-  const pos = [], uv = [], nor = [];
-  const U = [0,0, 1,0, 1,1, 0,1];
-  for(const i of [0,1,2, 0,2,3]){ pos.push(P[i*3], P[i*3+1], P[i*3+2]); uv.push(U[i*2], U[i*2+1]); nor.push(0, flat ? 0 : -1, flat ? 1 : 0); }
+const toLin = v => Math.pow(v / 255, 2.2);
+function colOf(ch, tint){
+  let hex;
+  if(ch === 'T' || ch === 't'){
+    const rgb = hexRGB(tint || TEAM);          // ⚠ '#2f8fe0' 不能用抓數字的正規式(會抓成 2,8,0 → 黑色)
+    return ch === 't' ? rgb.map(v => v * .6) : rgb;
+  }
+  hex = PX.PAL[ch] || '#ff00ff';
+  return [parseInt(hex.slice(1,3),16), parseInt(hex.slice(3,5),16), parseInt(hex.slice(5,7),16)];
+}
+/* 一個累積頂點的緩衝:四邊形 → 兩個三角形 */
+function VB(){ return { p: [], n: [], c: [] }; }
+function vquad(B, a, b, c, d, nrm, rgb, k){
+  const col = rgb.map(v => toLin(Math.min(255, v * k)));
+  for(const v of [a, b, c, a, c, d]){ B.p.push(v[0], v[1], v[2]); B.n.push(nrm[0], nrm[1], nrm[2]); B.c.push(col[0], col[1], col[2]); }
+}
+/* 把一張圖擠出到緩衝裡。o = 原點(左下前角,體素單位),dep = 厚度
+   站著:x = 圖的 x、z = 由下往上、y = 厚度(正面在 y = o.y)
+   平躺:x = 圖的 x(機頭 +x)、y = 圖的列(第 0 列在 +y)、z = 厚度 */
+function voxAdd(B, sp, tint, o, dep, flat){
+  const w = sp.w, h = sp.h, R = sp.rows;
+  const at = (i, j) => (i < 0 || j < 0 || i >= w || j >= h) ? '.' : R[j][i];
+  const full = (i, j) => at(i, j) !== '.';
+  const side = (i, j, di) => { const c = at(i, j); if(c !== 'k') return colOf(c, tint); const n = at(i + di, j); return n !== '.' && n !== 'k' ? colOf(n, tint) : colOf('K'); };
+  // 屋頂:描邊改用這張圖的「主色」(出現最多次的非描邊顏色)—— 鏡頭幾乎從正上方看,屋頂就是你看到的那一面
+  const main = sp._main || (sp._main = (() => { const n = {}; for(const r of R) for(const ch of r) if(ch !== '.' && ch !== 'k' && ch !== 'K') n[ch] = (n[ch] || 0) + 1;
+    let b = 'K', bv = -1; for(const ch in n) if(n[ch] > bv){ bv = n[ch]; b = ch; } return b; })());
+  const topc = (i, j) => { const c = at(i, j); return c === 'k' || c === 'K' ? colOf(main, tint) : colOf(c, tint); };
+  // 座標轉換:圖的 (i, j) + 厚度 t → 3D
+  const P = flat
+    ? (x, r, t) => [o.x + x, o.y + (h - r), o.z + t]            // r = 圖的列(可以是小數邊界)
+    : (x, r, t) => [o.x + x, o.y + t, o.z + (h - r)];
+  // 法線:正面 / 背面 / 左 / 右 / 上 / 下
+  const NF = flat ? [0,0,1] : [0,-1,0], NB = flat ? [0,0,-1] : [0,1,0];
+  const NU = flat ? [0,1,0] : [0,0,1], ND = flat ? [0,-1,0] : [0,0,-1];
+  for(let j = 0; j < h; j++) for(let i = 0; i < w; i++){
+    if(!full(i, j)) continue;
+    const c = colOf(at(i, j), tint);
+    // 正面(站著:朝南;平躺:朝天)與背面
+    vquad(B, P(i, j + 1, flat ? dep : 0), P(i + 1, j + 1, flat ? dep : 0), P(i + 1, j, flat ? dep : 0), P(i, j, flat ? dep : 0), NF, c, 1);
+    if(!flat) vquad(B, P(i + 1, j + 1, dep), P(i, j + 1, dep), P(i, j, dep), P(i + 1, j, dep), NB, c, .7);
+    // 左右兩側:沿著厚度一整條
+    if(!full(i - 1, j)) vquad(B, P(i, j + 1, dep), P(i, j + 1, 0), P(i, j, 0), P(i, j, dep), [-1,0,0], side(i, j, 1), .72);
+    if(!full(i + 1, j)) vquad(B, P(i + 1, j + 1, 0), P(i + 1, j + 1, dep), P(i + 1, j, dep), P(i + 1, j, 0), [1,0,0], side(i, j, -1), .82);
+    // 上面(站著:屋頂;平躺:圖的上緣那一側)
+    if(!full(i, j - 1)) vquad(B, P(i, j, 0), P(i + 1, j, 0), P(i + 1, j, dep), P(i, j, dep), NU, topc(i, j), 1.18);
+    if(!full(i, j + 1) && (flat || j < h - 1)) vquad(B, P(i + 1, j + 1, 0), P(i, j + 1, 0), P(i, j + 1, dep), P(i + 1, j + 1, dep), ND, c, .55);
+  }
+}
+function vgeo(B){
   const g = new T.BG();
-  g.setAttribute('position', new T.Attr(new Float32Array(pos), 3));
-  g.setAttribute('normal', new T.Attr(new Float32Array(nor), 3));
-  g.setAttribute('uv', new T.Attr(new Float32Array(uv), 2));
-  QGEO.set(key, g);
+  g.setAttribute('position', new T.Attr(new Float32Array(B.p), 3));
+  g.setAttribute('normal', new T.Attr(new Float32Array(B.n), 3));
+  g.setAttribute('color', new T.Attr(new Float32Array(B.c), 3));
   return g;
 }
-function bbRoot(d, key, make, flags){
-  const M = pxMat(key, make);
+/* 一組體素 → 一個幾何(同一個樣子只算一次)。parts: [{ sp, tint, x, y, z, dep }] */
+function voxGeo(key, make){
+  if(VGEO.has(key)) return VGEO.get(key);
+  const B = VB();
+  make(B);
+  const g = vgeo(B);
+  if(VGEO.size > 220) VGEO.clear();
+  VGEO.set(key, g);
+  return g;
+}
+/* 一塊地基:厚一格的方塊(上面站建築) */
+function voxSlab(B, x0, y0, w, d, rgb, z0){
+  const z = z0 || 0, x1 = x0 + w, y1 = y0 + d, zt = z + 1;
+  vquad(B, [x0,y0,zt], [x1,y0,zt], [x1,y1,zt], [x0,y1,zt], [0,0,1], rgb, 1.05);
+  vquad(B, [x0,y0,z], [x1,y0,z], [x1,y0,zt], [x0,y0,zt], [0,-1,0], rgb, .7);
+  vquad(B, [x1,y0,z], [x1,y1,z], [x1,y1,zt], [x1,y0,zt], [1,0,0], rgb, .8);
+  vquad(B, [x0,y1,z], [x0,y0,z], [x0,y0,zt], [x0,y1,zt], [-1,0,0], rgb, .75);
+  vquad(B, [x1,y1,z], [x0,y1,z], [x0,y1,zt], [x1,y1,zt], [0,1,0], rgb, .7);
+}
+const hexRGB = h => { if(!h) return [79,195,247]; const m = /(\d+)\D+(\d+)\D+(\d+)/.exec(h); if(m && h[0] !== '#') return [+m[1], +m[2], +m[3]];
+  return [parseInt(h.slice(1,3),16), parseInt(h.slice(3,5),16), parseInt(h.slice(5,7),16)]; };
+/* 一座小城:建築排成前後兩排(最高的在前排中間,鏡頭從南邊看得到),底下一塊地基 */
+function voxCity(B, parts, ground){
+  const list = parts.slice().sort((a, b) => b.sp.h - a.sp.h);
+  const rows = [[], []];
+  list.forEach((p, i) => { const r = i < 3 ? 0 : 1; if(i % 2) rows[r].push(p); else rows[r].unshift(p); });
+  const gap = 1;
+  const rowW = r => r.reduce((s, p) => s + p.sp.w, 0) + gap * Math.max(0, r.length - 1);
+  const W = Math.max(rowW(rows[0]), rowW(rows[1])) + 2;
+  const depOf = p => p.dep || Math.max(4, Math.min(p.sp.w, 12));
+  const D0 = Math.max(0, ...rows[0].map(depOf)), D1 = Math.max(0, ...rows[1].map(depOf));
+  const D = D0 + (rows[1].length ? D1 + gap : 0) + 2;
+  voxSlab(B, -W/2, -D/2, W, D, hexRGB(ground), 0);
+  // 前排貼著南邊(y 小 = 南 = 鏡頭那一側),後排在它北邊
+  const place = (r, y0, dRow) => {
+    let x = -rowW(r) / 2;
+    for(const p of r){ const dep = depOf(p); voxAdd(B, p.sp, p.tint, { x, y: y0 + (dRow - dep) / 2, z: 1 }, dep, false); x += p.sp.w + gap; }
+  };
+  place(rows[0], -D/2 + 1, D0);
+  if(rows[1].length) place(rows[1], -D/2 + 1 + D0 + gap, D1);
+}
+function voxRoot(d, key, make, flags){
   const root = new T.O3();
   root.userData.site = d;
   Object.assign(root.userData, flags || {});
-  if(!M){ NEED_REBUILD = true; return root; }
-  const mesh = new T.Mesh(quadGeo(M.w * PXU, M.h * PXU, false), M.mat);
-  mesh.renderOrder = 2;
-  /* 在「真的要畫」的那一刻才轉向:鏡頭的傾斜(installTilt)是在控制器更新時才套上的,
-     自己另開一個 rAF 去轉,轉的會是還沒傾斜的鏡頭 —— 看板會斜斜的像平行四邊形。
-     three 在呼叫 onBeforeRender 之前已經算好 matrixWorld,所以轉完要自己補算一次。 */
-  mesh.onBeforeRender = (r, sc, cam) => {
-    faceCam(root, cam);
-    mesh.updateMatrix();
-    mesh.matrixWorld.multiplyMatrices(root.matrixWorld, mesh.matrix);
-  };
+  if(!hasPX()) return root;
+  const mesh = new T.Mesh(voxGeo(key, make), vmat());
+  mesh.scale.setScalar(PXU);
   root.add(mesh);
-  root.userData.bb = mesh;
+  root.userData.vox = mesh;
   root.userData.key = key;
   OBJS.add(root);
   return root;
 }
-let NEED_REBUILD = false, LAST_SITES = null;
-/* 讓看板面向鏡頭:在據點自己的座標系(x 東、y 北、z 天)裡,把四邊形的法線轉向鏡頭,
-   上緣盡量朝天。鏡頭在正上方的時候(法線跟天頂同方向)改用正北當「上」。 */
-/* 「上」用鏡頭自己的上方(螢幕的上),不用地表法線 —— 鏡頭幾乎正對地面的時候,
-   法線投影到畫面上只剩一個點,方向亂跳,看板會斜斜地躺著(第一版就是這樣)。 */
-let bbV = null, bbU = null;
-function faceCam(root, camObj){
-  const mesh = root.userData.bb; if(!mesh) return;
-  const cam = camObj.position;
-  if(!bbV){ bbV = cam.clone(); bbU = cam.clone(); }
-  bbV.copy(cam); root.worldToLocal(bbV);
-  bbU.set(0, 1, 0).applyQuaternion(camObj.quaternion).add(cam); root.worldToLocal(bbU); bbU.sub(bbV);
-  const l = Math.hypot(bbV.x, bbV.y, bbV.z) || 1;
-  const fx = bbV.x/l, fy = bbV.y/l, fz = bbV.z/l;
-  const d = bbU.x*fx + bbU.y*fy + bbU.z*fz;
-  let ux = bbU.x - d*fx, uy = bbU.y - d*fy, uz = bbU.z - d*fz;
-  const ul = Math.hypot(ux, uy, uz) || 1;
-  ux /= ul; uy /= ul; uz /= ul;
-  // X = (−f) × U,欄位 (X, −f, U):從鏡頭看過去 +x 在右邊,像素圖不會左右顛倒
-  const xx = -(fy*uz - fz*uy), xy = -(fz*ux - fx*uz), xz = -(fx*uy - fy*ux);
-  mesh.matrix.set(xx, -fx, ux, 0,  xy, -fy, uy, 0,  xz, -fz, uz, 0,  0, 0, 0, 1);
-  mesh.quaternion.setFromRotationMatrix(mesh.matrix);
-}
+let LAST_SITES = null;
+/* 待機動畫:部隊一格一格地上下彈(兩個畫格,交錯),地圖不是一張死的圖。
+   只動子物件的高度(一個體素),每 380ms 一次 —— 便宜,而且是像素遊戲那種「一跳一跳」的節奏。 */
+let bobT = 0;
+setInterval(() => {
+  if(!W3D.ok || document.hidden) return;
+  bobT ^= 1;
+  let i = 0;
+  for(const o of OBJS){
+    if(!o.userData.troop || !o.userData.vox || !o.visible) continue;
+    o.userData.vox.position.z = ((bobT + i++) & 1) ? PXU * .9 : 0;
+  }
+}, 380);
 /* 一座城的像素圖:每一棟照它的種類挑圖,事業塔樓的樓層數 = 同一把尺的高度 */
 function bldSprite(b){
   const S = PX.SPR;
@@ -839,22 +772,20 @@ function bldSprite(b){
     default:       return S.shell;
   }
 }
-const BADGE_OF = { earn: 'up', burn: 'down', pub: 'pub' };
 const rvRGB = id => (typeof TY_RVCOL !== 'undefined' && TY_RVCOL[id]) || '160,160,170';
 
 function buildLandmark(d){
   const L = LANDMARK[d.id]; if(!L) return null;
-  const k = L[0];
-  return bbRoot(d, 'lm:' + k, () => PX.paint(PX.city([{ sp: PX.LMS[k] || PX.LMS.skyline }], '#9aa5b8')),
-                { lm: true, visibleFar: false });
+  const k = L[0], sp = (PX.LMS[k] || PX.LMS.skyline);
+  return voxRoot(d, 'lm:' + k, B => voxCity(B, [{ sp, dep: Math.max(4, Math.min(sp.w, 10)) }], '#9aa5b8'), { lm: true });
 }
 function buildTroop(d){
   const enemy = d._threat || d._rvf;
   const tint = enemy ? `rgb(${rvRGB(d._r.id)})` : TEAM;
   const kinds = d._threat ? [d._sea ? 'ship' : 'raid'] : d._sea ? ['ship'] : d._units.slice(0, 3).map(u => u.k);
   const key = 'tr:' + tint + ':' + kinds.join(',');
-  return bbRoot(d, key, () => PX.paint(PX.city([...kinds.map(k => ({ sp: PX.SPR[k] || PX.SPR.raid, tint })),
-                                                  { sp: PX.SPR.flag, tint }], tint)), { troop: true });
+  return voxRoot(d, key, B => voxCity(B, [...kinds.map(k => ({ sp: PX.SPR[k] || PX.SPR.raid, tint, dep: 7 })),
+                                          { sp: PX.SPR.flag, tint, dep: 1 }], tint), { troop: true });
 }
 
 /* 一個據點（或一個對手大本營）的整座小城 */
@@ -866,18 +797,21 @@ function buildSite(d){
     const col = `rgb(${rvRGB(d._rival.id)})`;
     const h = d._hk != null ? d._hk : (d._rvk || 0);
     key = `rv:${d._rival.id}:${h.toFixed(2)}`;
-    make = () => PX.paint(PX.city([{ sp: PX.rivalTower(h), tint: col }], col));
+    make = B => voxCity(B, [{ sp: PX.rivalTower(h), tint: col }], col);
   }else{
     const blds = (d._blds || []);
     const ground = (d._col && d._col[0] === '#') ? d._col : '#4fc3f7';
     key = `me:${ground}:${blds.map(b => b.c + (b.k || '') + b.f + (b.st || '') + (b.h != null ? '@' + b.h : '')).join(',')}`;
-    make = () => PX.paint(PX.city(blds.map(b => ({ sp: bldSprite(b), badge: BADGE_OF[b.st] })), ground));
+    make = B => voxCity(B, blds.map(b => ({ sp: bldSprite(b) })), ground);
   }
-  const root = bbRoot(d, key, make);
+  const root = voxRoot(d, key, make);
   /* 這個據點的樣子跟上一次不一樣（新蓋的、長高的）→ 播一次「從地上長出來」 */
   const id = d._rival ? 'rv:' + d._rival.id : d.id;
-  if(root.userData.bb && SEEN[id] !== key){
-    if(SEEN[id] !== undefined || W3D._warm) root.userData.grow = performance.now();
+  if(root.userData.vox && SEEN[id] !== key){
+    if(SEEN[id] !== undefined || W3D._warm){
+      root.userData.grow = performance.now();
+      fxAt(d.lat, d.lng, 'dust', { z: 4, dur: .9, life: 1100, alt: .001 });     // 蓋起來的那一刻揚起一陣塵土
+    }
     SEEN[id] = key;
   }
   if(root.userData.grow) kick();
@@ -901,7 +835,14 @@ function placeSite(obj, d){
   const el = Math.hypot(ex, ez) || 1; ex /= el; ez /= el;
   const qx = ny*ez - nz*ey, qy = nz*ex - nx*ez, qz = nx*ey - ny*ex;   // n × e = 北
   const M = obj.matrix;
-  M.set(ex, qx, nx, 0,  ey, qy, ny, 0,  ez, qz, nz, 0,  0, 0, 0, 1);
+  /* 體素模型往鏡頭那一側(南)傾斜一點:鏡頭幾乎從正上方看(使用者要的),不傾斜的話只看得到屋頂,
+     看不到正面的窗戶、招牌與兵種 —— 像很多 2.5D 地圖遊戲那樣,把模型「立」起來給你看。 */
+  /* ⚠ 往**北**仰(頂端離開鏡頭):正面(朝南)才會轉向天空、朝著上方的鏡頭。
+     第一版往南傾,正面反而轉去對著地面,從上面看只剩屋頂。 */
+  const LEAN = obj.userData.vox ? .8 : 0, cl = Math.cos(LEAN), sl = Math.sin(LEAN);
+  const ux = nx*cl + qx*sl, uy = ny*cl + qy*sl, uz = nz*cl + qz*sl;     // 新的上 = 往北仰
+  const vx = qx*cl - nx*sl, vy = qy*cl - ny*sl, vz = qz*cl - nz*sl;     // 新的北
+  M.set(ex, vx, ux, 0,  ey, vy, uy, 0,  ez, vz, uz, 0,  0, 0, 0, 1);
   obj.quaternion.setFromRotationMatrix(M);
   /* 駐在城市裡的部隊站在城市的東南邊一點,不要跟建築疊在一起。
      偏移量是「幾塊地磚寬」,所以要跟著縮放走(見 applyScale)。 */
@@ -920,12 +861,14 @@ function applyScale(obj, now){
     k = Math.max(.02, k);
     if(p >= 1) obj.userData.grow = 0;
   }
-  if(obj.userData.bb){
-    // 看板:外層等比例縮放(不等比的話子物件轉向鏡頭時會被拉歪),「長出來」只拉高度
-    const b = s * (obj.userData.troop ? .75 : obj.userData.lm ? .85 : 1);   // 看板比舊的 3D 模型佔地大,部隊與地標縮一點
-    obj.scale.set(b, b, b);
-    obj.userData.bb.scale.set(1, 1, k);
-  }else obj.scale.set(s * 1.6, s * 1.6, s * k);   // 底座放寬:遠看才認得出是一座城,不是一根針
+  if(obj.userData.vox){
+    // 體素:「長出來」一格一格地長(階梯式),像素遊戲的手感
+    const kk = k >= 1 ? 1 : Math.max(.05, Math.round(k * 10) / 10);
+    // 拉遠時縮小一點:近看要看得到窗戶與兵種,遠看不能一棟樓蓋掉半個國家
+    const far = clamp(1.25 - W3D.alt * .35, .45, 1);
+    const b = s * far * (obj.userData.troop ? .8 : obj.userData.lm ? .9 : 1);
+    obj.scale.set(b, b, b * kk);
+  }else obj.scale.set(s * 1.6, s * 1.6, s * k);
   const at = obj.userData.at;
   if(at && at.slot){
     /* 城市旁邊的位子:用「度」算、而且在**當下這個距離**檢查是不是陸地。
@@ -1134,7 +1077,6 @@ W3D._slot = (id, lat, lng, D) => slotDirs(id, lat, lng, D);   // 給測試用
 W3D.sites = function(mine, rivals, troops){
   if(!W3D.ok) return;
   LAST_SITES = [mine, rivals, troops];
-  NEED_REBUILD = false;
   paintSkin();
   const rvMax = Math.max(1, ...rivals.map(r => r._v || 0));
   rivals.forEach(r => { r._rvk = Math.sqrt((r._v || 0) / rvMax); });
@@ -1193,8 +1135,10 @@ function tagsOn(){
       el.innerHTML = `${d._r.ic || '⚔'} <b>${Math.max(0, d._threat.eta - TY.t)}季</b>`;
       el.title = `${d._r.nm}的併購小組 → ${tySite(d._threat.site).nm}`;
     }else{
-      const ics = d._units.map(u => TY_UNITS[u.k].ic).join('');
-      el.innerHTML = `${ics}${d._mv ? ` <b>下季到位</b>` : d._units.length > 1 ? ` <b>×${d._units.length}</b>` : ''}`;
+      // 同一種兵只畫一個圖示,後面標總數;下一季才到的標「+N」
+      const ics = [...new Set(d._units.map(u => TY_UNITS[u.k].ic))].slice(0, 3).join('');
+      const n = d._units.length, inc = d._in || 0;
+      el.innerHTML = `${ics}${n > 1 ? ` <b>×${n}</b>` : ''}${inc ? ` <i class="inc">+${inc}</i>` : ''}`;
       el.title = d._units.map(u => TY_UNITS[u.k].nm + (u.to ? ` → ${tySite(u.to).nm}` : '')).join('、');
     }
     if(d._rvf) el.onclick = () => { TY_MODAL = 'rival'; TY_RIVAL = d._r.id; renderPage(); };
@@ -1205,29 +1149,50 @@ function tagsOn(){
   }
   if(TROOPS.length && !tagLoop){ tagLoop = true; requestAnimationFrame(tagStep); }
 }
+/* 城市名牌的位置(globe.gl 的 HTML 圖層)。量版面很貴,所以 250ms 才量一次 */
+let OBST = [], obstT = 0;
+function obstacles(){
+  const now = performance.now();
+  if(now - obstT < 250) return OBST;
+  obstT = now;
+  const host = document.getElementById('tyGlobeHost'); if(!host){ OBST = []; return OBST; }
+  const hr = host.getBoundingClientRect();
+  OBST = [];
+  for(const e of host.querySelectorAll('.tyk')){
+    const r = e.getBoundingClientRect();
+    if(r.width > 0 && r.height > 0 && r.bottom > hr.top && r.top < hr.bottom) OBST.push([r.left - hr.left, r.top - hr.top, r.width, r.height]);
+  }
+  return OBST;
+}
 function tagStep(){
   if(!TAGS || !TAGS.isConnected || !TROOPS.length){ tagLoop = false; return; }
   let cam, V, w, h;
   try{ cam = G.camera(); const el = G.renderer().domElement; w = el.clientWidth; h = el.clientHeight; V = cam.position.clone(); }
   catch(e){ tagLoop = false; return; }
   const objs = [...OBJS].filter(o => o.parent && o.userData.troop);
-  const placed = [];                     // 已經放好的標籤:同一區的圖示不要疊成一坨,往右錯開
+  /* 標籤避讓(使用者截圖:香港、深圳一帶的字和東西全部卡在一起)。
+     每一個標籤先放在棋子正下方;撞到已經放好的標籤、或城市名牌(.tyk,每 250ms 量一次)就依序試
+     下、上、右、左、右下、左下… 挑第一個不撞的位置。遠看時標籤是方形兵種圖示,規則一樣。 */
+  const obs = obstacles();
+  const placed = [];
+  const hit = (x, y, bw, bh) => placed.some(p => x < p[0] + p[2] && x + bw > p[0] && y < p[1] + p[3] && y + bh > p[1])
+                            || obs.some(p => x < p[0] + p[2] && x + bw > p[0] && y < p[1] + p[3] && y + bh > p[1]);
   for(const el of TAGS.children){
     const o = objs.find(x => x.userData.site && x.userData.site._k === el._d._k);
     if(!o){ el.style.opacity = '0'; continue; }
     o.getWorldPosition(V);
     const vis = V.dot(cam.position) > R * R * 1.001;
     V.project(cam);
-    let sx = (V.x + 1) / 2 * w, sy = (1 - V.y) / 2 * h;
-    const gap = FAR ? 36 : 0;
-    if(gap && vis){
-      // 撞到就左右交替錯開(右一格、左一格、右兩格…),離真正的位置越近越好
-      const x0 = sx;
-      for(let k = 1; k < 7 && placed.some(p => Math.abs(p[0] - sx) < gap && Math.abs(p[1] - sy) < gap); k++)
-        sx = x0 + gap * Math.ceil(k / 2) * (k % 2 ? 1 : -1);
-      placed.push([sx, sy]);
+    const sx = (V.x + 1) / 2 * w, sy = (1 - V.y) / 2 * h;
+    if(!el._w || el._wt !== el.innerHTML){ el._w = el.offsetWidth || 40; el._h = el.offsetHeight || 18; el._wt = el.innerHTML; }
+    const bw = el._w, bh = el._h;
+    let x = sx - bw / 2, y = sy + 4;
+    if(vis){
+      const tries = [[0,0],[0,bh+2],[0,-(bh+2)*2],[bw+4,0],[-(bw+4),0],[bw+4,bh+2],[-(bw+4),bh+2],[0,(bh+2)*2],[bw+4,-(bh+2)],[-(bw+4),-(bh+2)]];
+      for(const [dx, dy] of tries){ if(!hit(sx - bw/2 + dx, sy + 4 + dy, bw, bh)){ x = sx - bw/2 + dx; y = sy + 4 + dy; break; } }
+      placed.push([x, y, bw, bh]);
     }
-    el.style.transform = `translate(${sx.toFixed(1)}px,${sy.toFixed(1)}px) translate(-50%,-150%)`;
+    el.style.transform = `translate(${x.toFixed(1)}px,${y.toFixed(1)}px)`;
     el.style.opacity = vis ? '1' : '0';
     el.style.pointerEvents = vis ? 'auto' : 'none';
   }
@@ -1336,9 +1301,10 @@ function nearSite(x, y, rad){
   }
   return best;
 }
+/* 國旗:像素色帶(pixel.js 的 PX.flagHTML)—— 系統的國旗表情符號跟像素風不搭,而且 Windows 根本不畫國旗 */
 function flag(code){
-  if(!code || code.length !== 2 || code === '-9') return '🏳';
-  return String.fromCodePoint(...[...code.toUpperCase()].map(ch => 0x1F1E6 + ch.charCodeAt(0) - 65));
+  if(typeof PX !== 'undefined' && PX.flagHTML) return PX.flagHTML(code && code.length === 2 ? code.toUpperCase() : '');
+  return '';
 }
 W3D.flag = flag;
 function hoverAt(x, y){
@@ -1510,10 +1476,11 @@ let ANIMS = [], animOn = false;
 function spawnVeh(k, tint){
   const h = patchHost(); if(!h || !hasPX()) return null;
   const sp = PX.SPR[k] || PX.SPR.truck;
-  const M = pxMat('veh:' + k + ':' + (tint || ''), () => PX.canvas(sp, 1, tint || null));
-  if(!M) return null;
-  const m = new T.Mesh(quadGeo(M.w * VPX * 2, M.h * VPX * 2, true), M.mat);
+  const dep = k === 'ship' ? 4 : k === 'plane' ? 3 : 2;
+  const g = voxGeo('veh:' + k + ':' + (tint || ''), B => voxAdd(B, sp, tint || null, { x: -sp.w / 2, y: -sp.h / 2, z: -dep / 2 }, dep, true));
+  const m = new T.Mesh(g, vmat());
   m.renderOrder = 3;
+  m.userData.vpx = VPX;
   h.add(m); return m;
 }
 function orient(obj, p, q){
@@ -1590,7 +1557,7 @@ function animStep(now){
       orient(a.mesh, p, q); a._p = p;
       // 載具要比建築顯眼 —— 它們是這一刻畫面上的主角(第一版跟地標一樣大,遠看根本找不到)
       const s = bScale() * (mk === 'missile' ? 3.6 : mk === 'ship' ? 3.2 : mk === 'plane' ? 3.2 : mk === 'jet' ? 3 : mk === 'bomb' ? 2.6 : 2.4);
-      a.mesh.scale.set(s, s, s);
+      a.mesh.scale.setScalar(s * VPX);         // 幾何是體素單位,一格 = VPX
     }
     if(a.tr){                                              // 尾跡:凝結尾 / 航跡 / 飛彈的煙
       if(mk !== 'truck'){ a.tr.push([P.lng, P.lat, P.alt]); if(a.trail.max && a.tr.length > a.trail.max) a.tr.shift(); }
@@ -1634,7 +1601,7 @@ function anchorFx(el, lat, lng, alt, life){
 function fxStep(now){
   let cam; try{ cam = G.camera().position; }catch(e){ fxLoop = false; return; }
   for(const f of FXS){
-    if(now > f.t1 || !f.el.isConnected){ f.el.remove(); FXS.delete(f); continue; }
+    if((now > f.t1 && !W3D._fxHold) || !f.el.isConnected){ f.el.remove(); FXS.delete(f); continue; }   // _fxHold:截圖驗證用
     let c = null; try{ c = G.getScreenCoords(f.lat, f.lng, f.alt); }catch(e){}
     const q = G.getCoords(f.lat, f.lng, 0), vis = (q.x*cam.x + q.y*cam.y + q.z*cam.z) > R*R*1.001;
     if(c){ f.el.style.left = c.x.toFixed(1) + 'px'; f.el.style.top = c.y.toFixed(1) + 'px'; }
@@ -1650,29 +1617,69 @@ function shake(big){
 }
 function boom(lat, lng, big){
   shake(big);
-  const mk = (cls, css) => { const e = document.createElement('div'); e.className = cls; if(css) e.style.cssText = css; return e; };
-  anchorFx(mk('w3d-flash' + (big ? ' big' : '')), lat, lng, .002, 700);
-  anchorFx(mk('w3d-boom' + (big ? ' big' : '')), lat, lng, .002, 1300);
-  anchorFx(mk('w3d-shock' + (big ? ' big' : '')), lat, lng, .001, 1200);
+  if(!hasPX() || !PX.fxEl){ return; }
+  const add = (el, alt, life) => { if(el) anchorFx(el, lat, lng, alt, life); };
+  /* 全部是像素特效(使用者:「爆炸特效也改成像素」):
+     閃光(3 格)→ 爆炸本體(9 格,白 → 黃 → 橘 → 紅 → 黑煙散掉)→ 壓扁的衝擊波圈
+     → 方塊火花往外噴、落下 → 燒一陣子的像素火苗 → 往上飄的像素煙 */
+  add(PX.fxEl('flash', { z: big ? 5 : 3, dur: .24 }), .002, 400);
+  add(PX.fxEl(big ? 'boomBig' : 'boom', { z: big ? 4 : 3, dur: big ? 1.05 : .8 }), .002, 1300);
+  add(PX.fxEl('ring', { z: big ? 5 : 3, dur: .6, delay: 60 }), .001, 900);
   const rnd = Math.random;                                  // 純畫面效果,不碰遊戲的種子亂數
-  for(let i = 0, n = big ? 26 : 14; i < n; i++){            // 火花
-    const a = rnd() * Math.PI * 2, d = (big ? 60 : 36) + rnd() * (big ? 90 : 50);
-    anchorFx(mk('w3d-spark', `--dx:${(Math.cos(a)*d).toFixed(0)}px;--dy:${(Math.sin(a)*d - 20).toFixed(0)}px;animation-delay:${(rnd()*120).toFixed(0)}ms`), lat, lng, .002, 1300);
+  const cols = ['#ffe9a8', '#ffd84a', '#f59f3a', '#e5484d', '#eef2f7'];
+  for(let i = 0, n = big ? 22 : 12; i < n; i++){             // 方塊火花
+    const a = rnd() * Math.PI * 2, d = (big ? 60 : 34) + rnd() * (big ? 90 : 46);
+    const e = document.createElement('div'); e.className = 'pxspark';
+    e.style.cssText = `--dx:${(Math.cos(a)*d).toFixed(0)}px;--dy:${(Math.sin(a)*d - 24).toFixed(0)}px;--dl:${(rnd()*120).toFixed(0)}ms;`
+      + `--c:${cols[i % cols.length]};--s:${big && i % 3 === 0 ? 6 : 4}px`;
+    add(e, .002, 1200);
   }
-  for(let i = 0, n = big ? 5 : 3; i < n; i++){              // 燒一陣子的火
-    const dx = (rnd() - .5) * (big ? 46 : 26), dy = (rnd() - .5) * (big ? 22 : 12);
-    anchorFx(mk('w3d-fire', `--dx:${dx.toFixed(0)}px;--dy:${dy.toFixed(0)}px;animation-delay:${(rnd()*300).toFixed(0)}ms`), lat, lng, .0015, big ? 4200 : 3000);
+  for(let i = 0, n = big ? 4 : 2; i < n; i++){              // 燒一陣子的火
+    const e = PX.fxEl('fire', { z: 3, cls: 'burn', css: `--dx:${((rnd() - .5) * (big ? 50 : 26)).toFixed(0)}px;--dy:${((rnd() - .5) * 14).toFixed(0)}px;--life:${big ? 4 : 3}s;` });
+    add(e, .0015, big ? 4200 : 3100);
   }
-  for(let i = 0, n = big ? 6 : 3; i < n; i++){              // 煙
-    anchorFx(mk('w3d-smoke', `--dx:${((rnd()-.5)*50).toFixed(0)}px;animation-delay:${(300 + i*260).toFixed(0)}ms`), lat, lng, .002, big ? 4600 : 3400);
+  for(let i = 0, n = big ? 5 : 3; i < n; i++){              // 煙
+    add(PX.fxEl('smoke', { z: 3, dur: 2.2, delay: 300 + i * 240, cls: 'rise', css: `--dx:${((rnd() - .5) * 40).toFixed(0)}px;` }), .002, 3200);
   }
-  W3D.extraRings = W3D.extraRings.concat([
-    { lat, lng, _rgb: '255,150,50', _a: 1, _r: big ? 5 : 2.6, _v: big ? 7 : 4, _p: 450 },
-    { lat, lng, _rgb: '255,60,30', _a: .9, _r: big ? 3.2 : 1.8, _v: 3, _p: 600 }]);
-  W3D.rings();
-  clearTimeout(boom._t);
-  boom._t = setTimeout(() => { W3D.extraRings = []; W3D.rings(); }, 2600);
 }
+/* 小一號的像素特效:蓋房子的塵土、出牌落地的星星與金幣(出牌回饋用) */
+function fxAt(lat, lng, kind, opt){
+  if(!hasPX() || !PX.fxEl) return;
+  const e = PX.fxEl(kind, opt); if(e) anchorFx(e, lat, lng, (opt && opt.alt) || .002, (opt && opt.life) || 1600);
+}
+W3D.fxAt = fxAt;
+/* 一座城市在螢幕上的位置(client 座標);在球的背面回傳 null */
+W3D.screenOf = function(id){
+  if(!W3D.ok || typeof tySite !== 'function') return null;
+  const s = tySite(id), host = document.getElementById('tyGlobeHost'); if(!s || !host) return null;
+  try{
+    const c = G.getScreenCoords(s.lat, s.lng, .002), cam = G.camera().position, q = G.getCoords(s.lat, s.lng, 0);
+    if(q.x*cam.x + q.y*cam.y + q.z*cam.z <= R*R*1.001) return null;
+    const r = host.getBoundingClientRect();
+    return { x: r.left + c.x, y: r.top + c.y };
+  }catch(e){ return null; }
+};
+/* 出牌落地:星星爆開 + 小閃光 + 衝擊圈 + 輕震;再依牌的種類加一點料 */
+W3D.cardHit = function(id, k, label){
+  if(!W3D.ok || typeof tySite !== 'function') return;
+  const s = tySite(id); if(!s) return;
+  const { lat, lng } = s;
+  fxAt(lat, lng, 'flash', { z: 2, dur: .22, life: 400 });
+  fxAt(lat, lng, 'ring', { z: 3, dur: .5, life: 800 });
+  const rnd = Math.random;
+  for(let i = 0; i < 6; i++){
+    const a = i / 6 * Math.PI * 2 + rnd() * .5, d = 26 + rnd() * 20;
+    fxAt(lat, lng, 'star', { z: 3, dur: .5, delay: i * 40, cls: 'fly', life: 900,
+      css: `--dx:${(Math.cos(a)*d).toFixed(0)}px;--dy:${(Math.sin(a)*d).toFixed(0)}px;--dur:.6s;` });
+  }
+  if(k === 'build' || k === 'upgrade' || k === 'shell') fxAt(lat, lng, 'dust', { z: 4, dur: .8, life: 1000, alt: .001 });
+  if(k === 'invest' || k === 'sell' || k === 'deal'){
+    for(let i = 0; i < 6; i++) fxAt(lat, lng, 'coin', { z: 3, cls: 'fly', delay: i * 70, life: 1400,
+      css: `--dx:${((rnd() - .5) * 60).toFixed(0)}px;--dy:${(-40 - rnd() * 40).toFixed(0)}px;--dur:1s;` });
+  }
+  shake(false);
+  if(label){ const fx = fxLayer(); if(fx) floatAt(fx, lat, lng, label, 'card', 120); }
+};
 /* 開演之前鏡頭先飛過去:起點與終點都要在畫面裡 */
 function focusOn(A, B, cb){
   const km = kmLL([A.lat, A.lng], [B.lat, B.lng]);
@@ -1875,7 +1882,8 @@ function unitPop(d, x, y){
   const host = document.getElementById('tyGlobeHost'); if(!host) return;
   if(!UPOP || !UPOP.isConnected){ UPOP = document.createElement('div'); UPOP.id = 'w3dUnitPop'; host.appendChild(UPOP); }
   const units = d._units.slice();
-  const where = units[0].to ? `→ ${tySite(units[0].to).nm}(下季到位)` : `駐 ${tySite(units[0].site).nm}`;
+  const here = units[0].to || units[0].site, inc = units.filter(u => u.to).length;
+  const where = `${tySite(here).nm} · ${units.length - inc} 支駐紮${inc ? ` · ${inc} 支下季到位` : ''}`;
   UPOP.innerHTML = `<div class="up-h"><b>${units.length} 支部隊</b><em>${escH(where)}</em><button type="button" class="x">✕</button></div>`
     + units.map(u => `<label><input type="checkbox" checked data-u="${u.id}"> ${TY_UNITS[u.k].ic} ${escH(TY_UNITS[u.k].nm)}</label>`).join('')
     + `<div class="up-b"><button type="button" class="go">🎯 拉線派遣</button><button type="button" class="pn">部隊面板</button></div>`

@@ -11,6 +11,7 @@
 <script src="https://unpkg.com/globe.gl"></script>
 <!-- 畫面層(3D 建築、傾斜鏡頭、季間過場)。只讀 TY、不碰規則,見檔頭註解 -->
 <script src="pixel.js"></script>
+<script src="terrain.js"></script>
 <script src="world3d.js"></script>
 
 <style>
@@ -4776,6 +4777,22 @@
     opacity:0;animation:w3dSmoke 3s ease-out forwards}
   @keyframes w3dSmoke{0%{opacity:0;transform:translate(-50%,-50%) scale(.6)}20%{opacity:.9}
     100%{opacity:0;transform:translate(calc(-50% + var(--dx)),calc(-50% - 70px)) scale(3)}}
+  /* 像素特效(pixel.js 的 PX.fxEl):精靈表 + steps() 一格一格跳 */
+  .pxfx{ position:absolute; pointer-events:none; image-rendering:pixelated; background-repeat:no-repeat;
+    width:calc(var(--fw) * var(--z) * 1px); height:calc(var(--fh) * var(--z) * 1px);
+    background-size:calc(var(--fw) * var(--n) * var(--z) * 1px) calc(var(--fh) * var(--z) * 1px);
+    transform:translate(-50%,-50%); animation:pxfx var(--dur) steps(var(--n)) var(--dl) both }
+  @keyframes pxfx{ from{ background-position:0 0 } to{ background-position:calc(var(--fw) * var(--n) * var(--z) * -1px) 0 } }
+  .pxfx.rise{ animation:pxfx var(--dur) steps(var(--n)) var(--dl) both, pxRise var(--dur) steps(8) var(--dl) both }
+  @keyframes pxRise{ from{ translate:0 0 } to{ translate:var(--dx,0px) -60px } }
+  .pxfx.burn{ animation:pxfx .4s steps(4) infinite, pxOut var(--life,3s) steps(6) forwards; transform:translate(calc(-50% + var(--dx,0px)), calc(-90% + var(--dy,0px))) }
+  @keyframes pxOut{ 0%,75%{ opacity:1 } 100%{ opacity:0 } }
+  .pxfx.fly{ animation:pxfx .35s steps(4) infinite, pxFly var(--dur) steps(10) var(--dl) both }
+  @keyframes pxFly{ 0%{ translate:0 0; opacity:1 } 60%{ opacity:1 } 100%{ translate:var(--dx,0px) var(--dy,-50px); opacity:0 } }
+  .pxspark{ position:absolute; pointer-events:none; width:var(--s,4px); height:var(--s,4px); background:var(--c,#ffd84a);
+    box-shadow:0 0 0 1px #141821; animation:pxSpark .9s steps(9) var(--dl,0ms) both }
+  @keyframes pxSpark{ 0%{ transform:translate(-50%,-50%); opacity:1 } 80%{ opacity:1 }
+    100%{ transform:translate(calc(-50% + var(--dx)), calc(-50% + var(--dy) + 36px)); opacity:0 } }
   /* 震動:整個地圖抖一下(炸彈小抖、飛彈大抖) */
   .w3d-shake{animation:w3dShake .4s linear}
   .w3d-shake2{animation:w3dShake2 .6s linear}
@@ -4802,6 +4819,19 @@
 
   .tycon .tg-go.pulse{ animation:goPulse 1s steps(2) infinite }
   @keyframes goPulse{ 50%{ box-shadow:0 3px 0 rgba(0,0,0,.55), 0 0 0 4px #ffd84a } }
+  /* 像素圖示(取代表情符號)與像素國旗 */
+  img.pxi{ height:1.15em; width:auto; vertical-align:-.2em; margin:0 .06em; image-rendering:pixelated; image-rendering:crisp-edges }
+  .pxflag{ display:inline-block; width:1.35em; height:.95em; border:2px solid #0b0f15; vertical-align:-.12em; box-sizing:border-box }
+  /* 按鈕:像素邊框 —— 外圈黑線、左上亮邊、右下暗邊,按下去往下沉兩格 */
+  .tycon .ty-b, .tycon .tg-c, .tycon .ty-chip, .tycon .tg-ml, .tycon .tg-x, .tycon .p-back, .tycon .rv-dh, .tycon .tg-go, .tycon .tg-nwp{
+    border:2px solid #0b0f15 !important;
+    box-shadow:inset 2px 2px 0 rgba(255,255,255,.18), inset -2px -2px 0 rgba(0,0,0,.35), 0 3px 0 #000 !important }
+  .tycon .ty-b:active, .tycon .tg-c:active, .tycon .ty-chip:active, .tycon .tg-ml:active, .tycon .tg-go:active{
+    transform:translateY(2px); box-shadow:inset 2px 2px 0 rgba(0,0,0,.3), 0 1px 0 #000 !important }
+  .tycon .ty-b.no, .tycon .ty-b:disabled{ box-shadow:inset 2px 2px 0 rgba(255,255,255,.06), 0 3px 0 #000 !important }
+  .tycon .tg-sb{ filter:drop-shadow(0 3px 0 #000) }
+  .tycon .tg-res .r, .tycon .tg-top{ image-rendering:pixelated }
+  .tycon input, .tycon select{ border:2px solid #0b0f15 !important; box-shadow:inset 2px 2px 0 rgba(0,0,0,.35) }
   /* ---- 手牌(取代原本的底部功能列)---- */
   .tg-hand{ display:flex; align-items:stretch; gap:8px; padding:6px 8px calc(8px + env(safe-area-inset-bottom,0px));
     background:#0e1a25; border-top:3px solid #0b0f15; box-shadow:inset 0 2px 0 #2b4a66 }
@@ -4845,6 +4875,18 @@
   .pc-ghost img{ image-rendering:pixelated }
   .pc-ghost b{ font-weight:400; font-size:13px }
 
+  /* ---- 出牌回饋、發牌、行動點 ---- */
+  .pc-fly{ position:fixed; z-index:10001; pointer-events:none; font-family:'EmpirePixel',var(--sans) }
+  .pc-fly .pc{ transform:none !important }
+  .hd-cards.deal .pc{ animation:pcDeal .5s steps(6) both; animation-delay:calc(var(--i) * 45ms) }
+  @keyframes pcDeal{ from{ transform:translateY(130%) rotate(-8deg); opacity:0 } to{ transform:none; opacity:1 } }
+  .hd-ap .pips i.burn{ animation:pipBurn .5s steps(5) both }
+  @keyframes pipBurn{ 0%{ background:#fff; transform:scale(1.6) } 60%{ background:#e5484d } 100%{ background:#1a2a38; transform:none } }
+  .hd-ap .pips i.fill{ animation:pipFill .45s steps(5) both; animation-delay:calc(var(--i,0) * 40ms) }
+  @keyframes pipFill{ 0%{ transform:scale(0) } 70%{ transform:scale(1.5) } 100%{ transform:none } }
+  .tg-res .r.hit{ animation:resHit .7s steps(7) }
+  @keyframes resHit{ 0%,40%{ background:#ffd84a; color:#141821 } 100%{ background:transparent } }
+  .w3d-float.card{ color:#ffd84a; font-size:14px; border-width:2px; padding:3px 8px; background:#141821 }
   /* ---- 出牌的選項 ---- */
   .pk-h{ display:flex; gap:12px; align-items:flex-start; margin-bottom:10px }
   .pk-h .pc{ flex:0 0 78px; cursor:default } .pk-h .pc:hover{ transform:none }
@@ -9448,18 +9490,14 @@ function tyRivalForces(){
 }
 function tyTroopMarks(){
   if(!TY) return [];
+  /* 同一座城的部隊合併成**一個**標記:駐在那裡的 + 下一季要到那裡的。
+     使用者截圖:香港、深圳那一帶五六個「下季到位」的標籤疊在一起,字和東西全部卡住看不出來。
+     自己的部隊下一季就到位(出發動畫已經把它送到目的地了),所以一律畫在目的地。 */
   const out=[], at={};
-  for(const u of tyUnits()){
-    if(!u.to){ (at[u.site]=at[u.site]||[]).push(u); continue; }
-    /* 自己的部隊下一季就到位,出發動畫已經把它送到目的地了 —— 所以畫在目的地,
-       標籤寫「下季到位」。 */
-    const b=tySite(u.to), p={ lat:b.lat, lng:b.lng };
-    out.push({ ...p, _k:'mv:'+u.id, _units:[u], _mv:Math.max(1,u.eta-TY.t), _alt:.02,
-      _arc:{ startLat:p.lat, startLng:p.lng, endLat:b.lat, endLng:b.lng,
-             _c:['rgba(79,195,247,.35)','rgba(79,195,247,.95)'] } });
-  }
+  for(const u of tyUnits()) (at[u.to||u.site]=at[u.to||u.site]||[]).push(u);
   for(const [id,list] of Object.entries(at)){
-    const s=tySite(id); out.push({ lat:s.lat, lng:s.lng, _k:'at:'+id, _units:list, _alt:.02 });
+    const s=tySite(id), inc=list.filter(u=>u.to).length;
+    out.push({ lat:s.lat, lng:s.lng, _k:'at:'+id, _units:list, _in:inc, _mv:inc===list.length?1:0, _alt:.02 });
   }
   for(const f of tyRivalForces()){
     const s=tySite(f.site);
@@ -10957,7 +10995,7 @@ function tyCardHTML(c, opt){
   const hint = lock ? `🔒 ${c.why}` : cd ? `冷卻 ${cd} 季` : poor ? '行動點不夠'
              : c.tgt==='city' ? '拖到城市' : '點一下';
   return `<button type="button" class="pc${lock?' lock':''}${cd||poor?' dis':''}${opt.big?' big':''}"
-      data-card="${c.k}" style="--cc:${c.col}" title="${escH(c.dsc)}">
+      data-card="${c.k}" style="--cc:${c.col};--i:${opt.i||0}" title="${escH(c.dsc)}">
       <i class="pc-ap">${c.ap}</i>
       <span class="pc-art">${tyCardArt(c, opt.big?4:2)}</span>
       <b class="pc-nm">${escH(c.nm)}</b>
@@ -10965,18 +11003,23 @@ function tyCardHTML(c, opt){
     </button>`;
 }
 /* 底部:總覽 + 行動點 + 一手牌(鎖著的排最後,讓你知道還有什麼牌可以拿) */
+let TY_AP_SHOWN=null, TY_HAND_T=null;   // 上一次畫出來的行動點 / 季別(用來決定要不要播「燒掉」「發牌」)
 function tyHand(){
   tyCardsSync();
   const ap=tyApNow(), mx=tyApMax();
+  const prev=TY_AP_SHOWN==null ? ap : TY_AP_SHOWN;
+  const deal=TY_HAND_T!==TY.t && TY_HAND_T!=null;     // 新的一季:牌重新發一次
+  TY_AP_SHOWN=ap; TY_HAND_T=TY.t;
+  const pip=i=> i<ap ? (i>=prev ? 'on fill' : 'on') : (i<prev ? 'burn' : '');
   const cards=[...TY_CARDS.filter(c=>tyHasCard(c.k)), ...TY_CARDS.filter(c=>!tyHasCard(c.k))];
   return `<div class="tg-nav tg-hand">
       <button type="button" class="hd-ov${TY_MODAL==='more'?' on':''}" data-ty="modal:more"><i>☰</i><span>總覽</span>
         ${tyThreats().length?`<u class="dot">${tyThreats().length}</u>`:''}</button>
       <div class="hd-mid">
         <div class="hd-ap" title="每一季補滿 ${mx} 點(人脈每 25 點多 1 點,最多 9 點)">
-          <b>行動點</b><span class="pips">${Array.from({length:mx},(_,i)=>`<i class="${i<ap?'on':''}"></i>`).join('')}</span>
+          <b>行動點</b><span class="pips">${Array.from({length:mx},(_,i)=>`<i class="${pip(i)}"></i>`).join('')}</span>
           <em>${ap} / ${mx}</em></div>
-        <div class="hd-cards">${cards.map(c=>tyCardHTML(c)).join('')}</div>
+        <div class="hd-cards${deal?' deal':''}">${cards.map((c,i)=>tyCardHTML(c,{ i })).join('')}</div>
       </div>
     </div>`;
 }
@@ -10988,6 +11031,51 @@ function tyNewCardHTML(){
       <div class="nc-in"><em>🎉 新牌解鎖</em>${tyCardHTML(c,{big:true})}
         <p>${escH(c.dsc)}</p><button type="button" class="ty-b" data-ty="newcard-ok">收進手牌</button></div>
     </div>`;
+}
+
+/* ---- 出牌的回饋 ----
+   使用者:「卡牌丟出去要有回饋感,像是顯示有什麼效果」。
+   做成之後:手上那張牌翻滾著飛到目標城市(一格一格的 steps,像素遊戲的手感)→ 落地爆出星星、
+   閃光、衝擊圈、輕震 → 依牌的種類加料(蓋房子揚起塵土、投資與變現噴金幣)→ 浮出「+飯店與賭場」。
+   沒有目標的牌(遊說、媒體、慈善)飛到上面那一格數字(人脈 / 名氣 / 關注),那一格閃一下。 */
+function tyCardLabel(k, b){
+  const d=b&&b.dataset||{};
+  if(k==='build' || k==='shell') return d.k && TY_BIZ[d.k] ? `${TY_BIZ[d.k].ic} +${TY_BIZ[d.k].nm}` : (k==='shell'?'📄 控股':'');
+  if(k==='invest') return d.k && tyAsset(d.k) ? `📈 +${tyAsset(d.k).nm}` : '';
+  if(k==='sell') return '💰 變現';
+  if(k==='upgrade') return '⬆ 升級';
+  if(k==='troop') return d.k && TY_UNITS[d.k] ? `${TY_UNITS[d.k].ic} +${TY_UNITS[d.k].nm}` : '';
+  if(k==='deal') return '🤝 談判';
+  if(k==='move') return '🏠 遷入';
+  if(k==='partner') return '🤝 夥伴';
+  return '';
+}
+const TY_CARD_RES = { lobby:5, media:4, charity:6 };      // 資源列的第幾格(人脈、名氣、關注)
+function tyCardFly(k, site, label){
+  const c=tyCard(k); if(!c || k==='missile' || k==='air') return;       // 武器有自己的飛彈 / 戰機動畫
+  const src=document.querySelector(`.hd-cards [data-card="${k}"]`);
+  const r0=src ? src.getBoundingClientRect() : null;
+  let to=site && window.W3D ? W3D.screenOf(site) : null, res=null;
+  if(!site && TY_CARD_RES[k]!=null){
+    res=document.querySelectorAll('.tg-res .r')[TY_CARD_RES[k]];
+    if(res){ const r=res.getBoundingClientRect(); to={ x:r.left+r.width/2, y:r.top+r.height/2 }; }
+  }
+  const land=()=>{
+    if(site && window.W3D) W3D.cardHit(site, k, label);
+    if(res){ res.classList.remove('hit'); void res.offsetWidth; res.classList.add('hit'); }
+  };
+  if(!r0 || !to || !src.animate || matchMedia('(prefers-reduced-motion: reduce)').matches){ land(); return; }
+  const el=document.createElement('div'); el.className='pc-fly';
+  el.innerHTML=tyCardHTML(c);
+  el.style.left=r0.left+'px'; el.style.top=r0.top+'px';
+  document.body.appendChild(el);
+  const dx=to.x-(r0.left+r0.width/2), dy=to.y-(r0.top+r0.height/2);
+  const a=el.animate([
+    { transform:'translate(0,0) rotate(0deg) scale(1)' },
+    { transform:`translate(${dx*.45}px,${dy*.45-90}px) rotate(200deg) scale(.85)`, offset:.5 },
+    { transform:`translate(${dx}px,${dy}px) rotate(360deg) scale(.22)` }],
+    { duration:560, easing:'steps(14, end)', fill:'forwards' });
+  a.onfinish=()=>{ el.remove(); land(); };
 }
 
 /* ---- 出牌 ---- */
@@ -11339,10 +11427,13 @@ function bindTycoon(root){
     if(!fn) return;
     TY_LAST_MOVE=null; TY_LAST_STRIKE=null;
     const s0=TY_SAVES;
+    const play = TY_MODAL==='pick' && TY_PICK ? { k:TY_PICK.k, site:TY_PICK.site, label:tyCardLabel(TY_PICK.k, b) } : null;
     TY_MSG = tyDo(a, ()=>fn(b)) || '';
     /* 出牌的選項面板:做成了就收起來,讓你看到地圖上多出來的那一棟(或飛出去的那一架) */
-    if(TY_MODAL==='pick' && TY_SAVES>s0) TY_MODAL=null;
+    const done = TY_SAVES>s0;
+    if(TY_MODAL==='pick' && done) TY_MODAL=null;
     renderPage();
+    if(play && done) tyCardFly(play.k, play.site, play.label);
     tyPlayLast();
   });
 }

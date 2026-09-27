@@ -657,3 +657,267 @@ PX.assetSprite = function(k, g){
   return SPR.stock;
 };
 })();
+
+/* =============================================================================
+   像素圖示:取代文字裡的表情符號
+   -----------------------------------------------------------------------------
+   使用者:「所有風格都改成像素,包含按鈕,還有文字裡的表情符號」。
+   表情符號是作業系統畫的(蘋果、Google、微軟各長各的),跟像素風完全不搭 ——
+   這裡每一個用到的符號都有一張 9×9 的像素圖。畫面上任何地方出現這些字元
+   (面板、地圖上的標籤、浮字、名牌),PX.observe 會自動把它換成 <img>。
+   標題列提示(title="…")是瀏覽器畫的,換不了,保留原字。
+   ============================================================================= */
+(function(){
+const S = PX.S;
+const I = PX.ICON = {};
+const def = (chars, rows) => { const sp = S(rows); for(const ch of chars) I[ch] = sp; };
+def('⚠', ['....k....','...kyk...','...kyk...','..kykyk..','..kykyk..','.kyyyyyk.','.kyykyyk.','kyyyyyyyk','kkkkkkkkk']);
+def('⚔', ['g.......g','.g.....g.','..g...g..','...g.g...','....g....','...g.g...','.mm...mm.','.m.....m.','m.......m']);
+def('🚀', ['......kr.','.....kwrk','....kwwk.','...kwbwk.','..kwwwk..','.kkwwk...','.kok.k...','kyok.....','.k.......']);
+def('🎯', ['..kkkkk..','.kwwwwwk.','kwrrrrrwk','kwrwwwrwk','kwrwrwrwk','kwrwwwrwk','kwrrrrrwk','.kwwwwwk.','..kkkkk..']);
+def('🛢', ['.kkkkkkk.','.kBBBBBk.','.kbbbbbk.','.kBBBBBk.','.kbbbbbk.','.kBBBBBk.','.kbbbbbk.','.kBBBBBk.','.kkkkkkk.']);
+def('🏛', ['....k....','..kkekk..','.keeeeek.','kkkkkkkkk','.e.e.e.e.','.e.e.e.e.','.e.e.e.e.','kkkkkkkkk','keeeeeeek']);
+def('🏦', ['....k....','..kkykk..','.kyyyyyk.','kkkkkkkkk','.e.e.e.e.','.e.e.e.e.','.e.e.e.e.','kkkkkkkkk','keeeeeeek']);
+def('🔵', ['..kkkkk..','.kbbbbbk.','kbbcbbbbk','kbcbbbbbk','kbbbbbbbk','kbbbbbbbk','kbbbbbbbk','.kbbbbbk.','..kkkkk..']);
+def('📰📋', ['kkkkkkkk.','kwwwwwwkk','kwkkkwwkw','kwkkkwwkw','kwwwwwwkw','kwkkkkkkw','kwwwwwwkw','kwkkkkkkw','kkkkkkkkk']);
+def('👑', ['.........','y...y...y','yy.yyy.yy','yyyyyyyyy','yyryyyryy','yyyyyyyyy','YYYYYYYYY']);
+def('📊', ['kkkkkkkkk','kwwwwwwwk','kwwwwwnwk','kwwwnwnwk','kwnwnwnwk','kwnwnwnwk','kwnwnwnwk','kwwwwwwwk','kkkkkkkkk']);
+def('📈', ['kkkkkkkkk','kwwwwwwwk','kwwwwwnwk','kwwwwnwwk','kwnwnwwwk','kwwnwwwwk','kwwwwwwwk','kkkkkkkkk']);
+def('📉', ['kkkkkkkkk','kwwwwwwwk','kwrwwwwwk','kwwrwrwwk','kwwwrwrwk','kwwwwwwrk','kwwwwwwwk','kkkkkkkkk']);
+def('🤝', ['.........','.ss...ss.','sssk.ksss','ssskkksss','.sssssss.','..sssss..','...sss...']);
+def('👤', ['...kkk...','..kgggk..','..kgggk..','..kgggk..','...kgk...','.kkgggkk.','kgggggggk','kgggggggk','kkkkkkkkk']);
+def('⚓', ['...kbk...','...b.b...','....b....','..bbbbb..','....b....','b...b...b','bb..b..bb','.bb.b.bb.','..bbbbb..']);
+def('🔬', ['...kk....','...kgk...','....kgk..','....kgk..','...kgggk.','..k.kgk..','.k...k...','kkkkkkkk.']);
+def('🪙₿', ['..kkkkk..','.kyyyyyk.','kyYyyyYyk','kyyYYYyyk','kyyYyyyyk','kyyYYYyyk','kyYyyyYyk','.kyyyyyk.','..kkkkk..']);
+def('📄📜', ['kkkkkk...','kwwwwkk..','kwwwwkwk.','kwkkwkkkk','kwwwwwwwk','kwkkkkkwk','kwwwwwwwk','kwkkkkkwk','kkkkkkkkk']);
+def('🏙🌆', ['.....kk..','.kk..kck.','.kck.kck.','.kckkkck.','kkckcckck','kcckcckck','kcckcckck','kcckcckck','kkkkkkkkk']);
+def('🏭', ['.k.......','.kk......','.kGk.....','.kGkk.kk.','kGGGkkGGk','kGGGGGGGk','kGyGyGyGk','kGGGGGGGk','kkkkkkkkk']);
+def('⛏', ['.kkkkkk..','kgggggggk','.kk.mk.kk','....mk...','....mk...','....mk...','....mk...','....mk...']);
+def('⚖', ['....y....','.yyyyyyy.','.y..y..y.','yyy.y.yyy','yyy.y.yyy','....y....','....y....','..yyyyy..']);
+def('👔', ['.kk...kk.','kwwk.kwwk','kwwwkwwwk','.kwwbwwk.','..kbbbk..','...bbb...','..kbbbk..','..kbbbk..','...kbk...']);
+def('✈', ['....k....','....k....','...kgk...','kkkkgkkkk','kgggggggk','kkkkgkkkk','....g....','...kgk...','..kkkkk..']);
+def('🔒🔐', ['..kkkkk..','.kk...kk.','.k.....k.','kkkkkkkkk','kyyyyyyyk','kyyykyyyk','kyyykyyyk','kyyyyyyyk','kkkkkkkkk']);
+def('💰', ['...kkk...','....k....','..kkkkk..','.kYYYYYk.','kYYyyyYYk','kYYyYYYYk','kYYYyyYYk','kYYyyyYYk','.kkkkkkk.']);
+def('💻', ['.kkkkkkk.','.kccccck.','.kccccck.','.kccccck.','.kkkkkkk.','kgggggggk','kkkkkkkkk']);
+def('⛽', ['.kkkkk...','.kwwwk...','.kkkkkk..','.krrrk.k.','.krrrk.k.','.krrrkk..','.krrrk...','kkkkkkk..']);
+def('🏠🏘', ['....k....','...krk...','..krrrk..','.krrrrrk.','kkkkkkkkk','.kwwwwwk.','.kwbwMwk.','.kwwwMwk.','.kkkkkkk.']);
+def('🏚', ['....k....','...kGk...','..kGGGk..','.kGG.GGk.','kkkk.kkkk','.kggggGk.','.kg.gMgk.','.kgggMgk.','.kkkkkkk.']);
+def('🏗', ['kyyyyyyyk','..y....k.','..y....k.','..y....G.','..y......','..y......','.kyk.....','.kyk.....','kkkkk....']);
+def('🎰', ['.kkkkkkk.','.krrrrrk.','.kwkwkwk.','.kykrkyk.','.kwkwkwk.','.krrrrrk.','.kkkkkkk.']);
+def('🚧', ['kkkkkkkkk','koowwoowk','kwoowwook','kkkkkkkkk','.k.....k.','.k.....k.','kkk...kkk']);
+def('🏢', ['.kkkkkkk.','.kgcgcgk.','.kgggggk.','.kgcgcgk.','.kgggggk.','.kgcgcgk.','.kgggggk.','.kggMggk.','.kkkkkkk.']);
+def('💵💸💱', ['kkkkkkkkk','knnnnnnnk','knNnyynnk','knnnnnnNk','kkkkkkkkk']);
+def('✎', ['.......kk','......kyk','.....kyk.','....kyk..','...kyk...','..kyk....','.kmk.....','kkk......']);
+def('🛒', ['k........','kkkkkkkkk','.kgggggk.','.kgggggk.','..kgggk..','..kkkkkk.','...k...k.']);
+def('💊', ['...kkk...','..krrrk..','..krrrk..','..kkkkk..','..kwwwk..','..kwwwk..','...kkk...']);
+def('🖼', ['kkkkkkkkk','kYYYYYYYk','kYcccccYk','kYccnccYk','kYcnnncYk','kYYYYYYYk','kkkkkkkkk']);
+def('📺🎬', ['..k...k..','...k.k...','kkkkkkkkk','kccccccck','kccccccck','kccccccck','kkkkkkkkk','.k.....k.']);
+def('📥', ['....n....','....n....','..nnnnn..','...nnn...','....n....','k.......k','kkkkkkkkk']);
+def('📤', ['....b....','...bbb...','..bbbbb..','....b....','....b....','k.......k','kkkkkkkkk']);
+def('🧰', ['...kkk...','..k...k..','kkkkkkkkk','krrrrrrrk','kkkkykkkk','krrrrrrrk','kkkkkkkkk']);
+def('🌫', ['.........','.ggggg...','.........','...gggggg','.........','gggggg...']);
+def('⬆', ['....k....','...kyk...','..kyyyk..','.kyyyyyk.','kkkyyykkk','..kyyyk..','..kyyyk..','..kkkkk..']);
+def('🔔', ['....k....','...kyk...','..kyyyk..','..kyyyk..','.kyyyyyk.','kyyyyyyyk','kkkkkkkkk','...kyk...']);
+def('📍', ['..kkkkk..','.krrrrrk.','.krwrrrk.','.krrrrrk.','..krrrk..','...krk...','....k....']);
+def('🧊', ['.kkkkkkk.','kwccccck.','kcccccck.','kcccccck.','kcccccck.','kcccccck.','.kkkkkkk.']);
+def('🌏🌐', ['..kkkkk..','.kbbnnbk.','kbnnnbbbk','kbbnnbbbk','kbbbbnnbk','kbbbnnnbk','.kbbbnbk.','..kkkkk..']);
+def('🔁', ['.kkkkkk..','k......k.','k.....kkk','.........','kkk.....k','.k......k','..kkkkkk.']);
+def('👁', ['.........','..kkkkk..','.kwwwwwk.','kwwbkbwwk','kwwbbbwwk','.kwwwwwk.','..kkkkk..']);
+def('🎓', ['....k....','..kkkkk..','kkkkkkkkk','..kkkkk.y','..kkkkk.y','...kkk..y']);
+def('🎖', ['.rr...rr.','..rr.rr..','...rrr...','..kyyyk..','.kyyyyyk.','.kyYYyyk.','.kyyyyyk.','..kyyyk..']);
+def('🎉', ['......y.r','..r..y...','.....k.y.','....kyk..','...kyryk.','..kyryk..','.kyryk...','kyyyk....','kkkk.....']);
+def('🏳', ['kk.......','kwwwwwk..','kwwwwwwk.','kwwwwwk..','kwwwwwwk.','kk.......','k........','k........','kk.......']);
+def('💥', ['y...o...y','.y.ooo.y.','..ooyoo..','.ooyyyoo.','ooyywyyoo','.ooyyyoo.','..ooyoo..','.y.ooo.y.','y...o...y']);
+def('✓', ['.......nn','......nn.','.....nn..','nn..nn...','.nnnn....','..nn.....']);
+def('✕✗', ['rr...rr','.rr.rr.','..rrr..','.rr.rr.','rr...rr']);
+def('✦', ['...y...','...y...','..yyy..','yyywyyy','..yyy..','...y...','...y...']);
+def('🌍🌎', ['..kkkkk..','.kbnnbbk.','kbnnnbbbk','kbbnnbbbk','kbbbnnbbk','kbbbnnbbk','.kbbbnbk.','..kkkkk..']);
+
+/* 國旗:只有 44 座城市所在的國家(加上幾個常見的)各給三條色帶;其餘用灰色。
+   不是每一面國旗都畫得出來 —— 像素旗求的是「一眼認得出是哪一國的顏色」。 */
+const FLAG = {
+  US:['h','#b22234','#ffffff','#3c3b6e'], CA:['v','#d52b1e','#ffffff','#d52b1e'], GB:['h','#012169','#c8102e','#012169'],
+  CH:['v','#d52b1e','#ffffff','#d52b1e'], DE:['h','#000000','#dd0000','#ffce00'], FR:['v','#0055a4','#ffffff','#ef4135'],
+  IE:['v','#169b62','#ffffff','#ff883e'], LU:['h','#ed2939','#ffffff','#00a1de'], MC:['h','#ce1126','#ffffff','#ffffff'],
+  HK:['h','#de2910','#ffffff','#de2910'], CN:['h','#de2910','#ffde00','#de2910'], TW:['v','#000095','#fe0000','#fe0000'],
+  JP:['h','#ffffff','#bc002d','#ffffff'], KR:['h','#ffffff','#cd2e3a','#0047a0'], SG:['h','#ef3340','#ffffff','#ffffff'],
+  TH:['h','#a51931','#2d2a4a','#a51931'], ID:['h','#ce1126','#ffffff','#ffffff'], VN:['h','#da251d','#ffff00','#da251d'],
+  AU:['h','#012169','#012169','#ffffff'], AE:['h','#00732f','#ffffff','#000000'], SA:['h','#006c35','#ffffff','#006c35'],
+  QA:['v','#ffffff','#8a1538','#8a1538'], IL:['h','#ffffff','#0038b8','#ffffff'], IN:['h','#ff9933','#ffffff','#138808'],
+  BR:['h','#009c3b','#ffdf00','#009c3b'], MX:['v','#006847','#ffffff','#ce1126'], CL:['h','#ffffff','#ffffff','#d52b1e'],
+  ZA:['h','#e03c31','#007749','#001489'], NG:['v','#008751','#ffffff','#008751'], KE:['h','#000000','#bb0000','#006600'],
+  KY:['h','#012169','#c8102e','#012169'], VG:['h','#012169','#c8102e','#012169'], BM:['h','#c8102e','#012169','#c8102e'],
+  RU:['h','#ffffff','#0039a6','#d52b1e'], IT:['v','#009246','#ffffff','#ce2b37'], ES:['h','#aa151b','#f1bf00','#aa151b'],
+  NL:['h','#ae1c28','#ffffff','#21468b'], PH:['h','#0038a8','#ffffff','#ce1126'], MY:['h','#cc0001','#ffffff','#010066'],
+};
+PX.flagHTML = code => {
+  const f = FLAG[code];
+  const bg = f ? `linear-gradient(${f[0] === 'h' ? '180deg' : '90deg'},${f[1]} 0 34%,${f[2]} 34% 67%,${f[3]} 67%)` : '#8a93a3';
+  return `<i class="pxflag" style="background:${bg}" title="${code || ''}"></i>`;
+};
+
+/* 文字裡的表情符號 → <img>。只動文字節點,屬性(title、alt)不動 */
+const KEYS = Object.keys(I).sort((a, b) => b.length - a.length);
+const esc = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const RE = new RegExp('(' + KEYS.map(esc).join('|') + ')\\uFE0F?', 'gu');
+const TEST = new RegExp('(' + KEYS.map(esc).join('|') + ')', 'u');
+PX.iconURL = ch => PX.url('ic:' + ch, I[ch]);
+function swapText(node){
+  const t = node.nodeValue;
+  if(!t || !TEST.test(t)) return;
+  const p = node.parentNode;
+  if(!p || /^(SCRIPT|STYLE|TEXTAREA|SELECT|TITLE)$/.test(p.nodeName)) return;
+  // 下拉選單的選項裡放不了圖片:直接拿掉符號,只留文字
+  if(p.nodeName === 'OPTION'){ node.nodeValue = t.replace(RE, '').replace(/^\s+/, ''); return; }
+  const frag = document.createDocumentFragment();
+  let last = 0;
+  t.replace(RE, (m, ch, off) => {
+    if(off > last) frag.appendChild(document.createTextNode(t.slice(last, off)));
+    const img = document.createElement('img');
+    img.className = 'pxi'; img.src = PX.iconURL(ch); img.alt = ch; img.draggable = false;
+    frag.appendChild(img);
+    last = off + m.length;
+    return m;
+  });
+  if(last < t.length) frag.appendChild(document.createTextNode(t.slice(last)));
+  p.replaceChild(frag, node);
+}
+PX.emojify = function(root){
+  if(!root) return;
+  if(root.nodeType === 3){ swapText(root); return; }
+  if(root.nodeType !== 1) return;
+  const w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  const list = []; let n;
+  while((n = w.nextNode())) if(TEST.test(n.nodeValue)) list.push(n);
+  list.forEach(swapText);
+};
+/* 盯著整頁:任何新長出來的節點(重畫的面板、地圖標籤、浮字)都換一次 */
+PX.observe = function(){
+  if(PX._obs || typeof MutationObserver === 'undefined') return;
+  PX._obs = new MutationObserver(ms => {
+    for(const m of ms){
+      if(m.type === 'characterData') swapText(m.target);
+      else for(const a of m.addedNodes) PX.emojify(a);
+    }
+  });
+  PX._obs.observe(document.body, { childList: true, subtree: true, characterData: true });
+  PX.emojify(document.body);
+};
+if(document.body) PX.observe(); else addEventListener('DOMContentLoaded', () => PX.observe());
+})();
+
+/* =============================================================================
+   像素特效的序列幀:爆炸、衝擊波、火、煙、閃光、塵土、金幣、星星
+   -----------------------------------------------------------------------------
+   使用者:「爆炸特效也改成像素」。每一種特效是一條橫向的精靈表(N 格),
+   CSS 用 steps(N) 一格一格跳 —— 像素遊戲的動畫就是這樣播的,沒有漸變、沒有模糊。
+   形狀用座標雜湊打散(不是 Math.random),每次載入都長一樣。
+   ============================================================================= */
+(function(){
+const P = PX.PAL;
+const hsh = (x, y, f) => { let h = (x * 374761393 + y * 668265263 + f * 982451653) | 0; h = (h ^ (h >>> 13)) * 1274126177 | 0; return ((h ^ (h >>> 16)) >>> 0) / 4294967295; };
+function sheet(fw, fh, n, draw){
+  const c = document.createElement('canvas'); c.width = fw * n; c.height = fh;
+  const x = c.getContext('2d');
+  for(let f = 0; f < n; f++){
+    const put = (px, py, col) => { if(px < 0 || py < 0 || px >= fw || py >= fh || !col) return; x.fillStyle = col; x.fillRect(f * fw + px, py, 1, 1); };
+    draw(put, f, n);
+  }
+  return { url: c.toDataURL(), fw, fh, n };
+}
+const FX = {};
+const make = {
+  // 爆炸:白心 → 黃 → 橘 → 紅 → 黑煙,後半段開始破洞散掉
+  boom: (S) => sheet(S, S, 9, (put, f, n) => {
+    const t = f / (n - 1), R = S / 2 - 1, r = R * Math.min(1, .3 + t * 1.4), cx = S / 2, cy = S / 2;
+    for(let y = 0; y < S; y++) for(let x = 0; x < S; x++){
+      const d = Math.hypot(x + .5 - cx, (y + .5 - cy) * 1.1) + (hsh(x, y, 7) - .5) * 2.2;
+      if(d > r) continue;
+      const q = d / Math.max(1, r);
+      if(t > .45 && hsh(x, y, f) < (t - .45) * 1.9) continue;          // 散開:越後面洞越多
+      let col;
+      if(t < .2) col = q < .6 ? P.w : P.l;
+      else if(t < .45) col = q < .35 ? P.w : q < .6 ? P.y : q < .85 ? P.o : P.r;
+      else if(t < .65) col = q < .3 ? P.y : q < .6 ? P.o : q < .85 ? P.r : P.K;
+      else col = q < .4 ? P.R : hsh(x, y, 3) < .5 ? P.K : P.G;
+      put(x, y, col);
+    }
+  }),
+  // 衝擊波:壓扁的像素橢圓一圈一圈往外
+  ring: () => sheet(44, 24, 7, (put, f, n) => {
+    const t = (f + 1) / n, rx = 3 + t * 18, ry = rx * .5, cx = 22, cy = 12;
+    for(let a = 0; a < 360; a += 2){
+      const x = Math.round(cx + Math.cos(a * Math.PI / 180) * rx), y = Math.round(cy + Math.sin(a * Math.PI / 180) * ry);
+      if(t > .5 && hsh(x, y, f) < (t - .5)) continue;
+      put(x, y, t < .4 ? P.w : t < .7 ? P.l : P.y);
+    }
+  }),
+  // 閃光:十字星芒
+  flash: () => sheet(25, 25, 3, (put, f) => {
+    const L = [12, 9, 5][f], c = 12;
+    for(let i = -L; i <= L; i++){ put(c + i, c, P.w); put(c, c + i, P.w); if(Math.abs(i) < L * .55){ put(c + i, c + i, P.l); put(c + i, c - i, P.l); } }
+    for(let y = -3; y <= 3; y++) for(let x = -3; x <= 3; x++) if(x * x + y * y <= 9 - f * 3) put(c + x, c + y, P.w);
+  }),
+  // 火:四格閃爍的火苗
+  fire: () => sheet(10, 14, 4, (put, f) => {
+    for(let y = 0; y < 14; y++) for(let x = 0; x < 10; x++){
+      const w = (y / 13) * 4.6 + .4 + (hsh(x, y, f) - .5) * 1.4;
+      if(Math.abs(x + .5 - 5) > w) continue;
+      if(y < 3 && hsh(x, y, f + 9) < .45) continue;
+      const q = Math.abs(x + .5 - 5) / Math.max(.5, w);
+      put(x, y, y > 9 && q < .5 ? P.l : q < .45 ? P.y : q < .8 ? P.o : P.r);
+    }
+  }),
+  // 煙:一團灰色、往外散
+  smoke: () => sheet(14, 14, 6, (put, f, n) => {
+    const t = f / (n - 1), r = 3 + t * 4;
+    for(let y = 0; y < 14; y++) for(let x = 0; x < 14; x++){
+      const d = Math.hypot(x + .5 - 7, y + .5 - 7) + (hsh(x, y, 5) - .5) * 2;
+      if(d > r || hsh(x, y, f) < t * .8) continue;
+      put(x, y, d < r * .5 ? P.g : P.G);
+    }
+  }),
+  // 塵土:蓋房子的時候從地基揚起來
+  dust: () => sheet(24, 10, 6, (put, f, n) => {
+    const t = f / (n - 1);
+    for(let y = 0; y < 10; y++) for(let x = 0; x < 24; x++){
+      const d = Math.hypot((x + .5 - 12) / 2.4, y + .5 - 9) + (hsh(x, y, 4) - .5) * 1.5;
+      if(d > 2 + t * 6 || hsh(x, y, f) < t * .9) continue;
+      put(x, y, hsh(x, y, 2) < .5 ? P.s : P.m);
+    }
+  }),
+  // 金幣:四格旋轉
+  coin: () => sheet(8, 8, 4, (put, f) => {
+    const w = [3.5, 2.5, 1, 2.5][f];
+    for(let y = 0; y < 8; y++) for(let x = 0; x < 8; x++){
+      const q = ((x + .5 - 4) / w) ** 2 + ((y + .5 - 4) / 3.5) ** 2;
+      if(q > 1) continue;
+      put(x, y, q > .6 ? P.Y : (x < 4 && f !== 2) ? P.l : P.y);
+    }
+  }),
+  // 星星:出牌落地的閃光
+  star: () => sheet(9, 9, 4, (put, f) => {
+    const L = [4, 3, 2, 1][f];
+    for(let i = -L; i <= L; i++){ put(4 + i, 4, P.l); put(4, 4 + i, P.l); }
+    put(4, 4, P.w);
+  }),
+};
+PX.fx = function(kind){
+  if(FX[kind]) return FX[kind];
+  try{
+    FX[kind] = kind === 'boom' ? make.boom(32) : kind === 'boomBig' ? make.boom(48) : make[kind]();
+  }catch(e){ FX[kind] = null; }
+  return FX[kind];
+};
+/* 一個會播一次(或循環)的像素特效元素。z = 放大倍數,dur = 秒 */
+PX.fxEl = function(kind, opt){
+  opt = opt || {};
+  const s = PX.fx(kind); if(!s) return null;
+  const e = document.createElement('div');
+  const z = opt.z || 3;
+  e.className = 'pxfx' + (opt.cls ? ' ' + opt.cls : '');
+  e.style.cssText = `--fw:${s.fw};--fh:${s.fh};--n:${s.n};--z:${z};--dur:${opt.dur || .8}s;--dl:${opt.delay || 0}ms;`
+    + `background-image:url(${s.url});animation-iteration-count:${opt.loop ? 'infinite' : 1};` + (opt.css || '');
+  return e;
+};
+})();

@@ -1877,6 +1877,73 @@ test('帝國卡牌:行動點、出牌選項、解鎖;規則函式本身不扣點
   await page.__ctx.close();
 });
 
+test('帝國像素化:表情符號換像素圖示、像素地形、特效序列幀、同城部隊合併成一個標記', async (browser) => {
+  /* 使用者:「所有風格都改成像素,包含按鈕,還有文字裡的表情符號」「地圖也改成像素的,加一些山脈湖泊河流」
+     「爆炸特效也改成像素」「字和東西都卡在一起」。 */
+  const page = await freshPage(browser, { seed: SEED, hash: '#/tycoon' });
+  const r = await page.evaluate(async () => {
+    tyStart('heir', 7); TY.cash = 900e8; TY_MODAL = null; renderPage();
+    const out = {};
+    // ① 遊戲資料裡用到的每一個圖示字元都要有像素圖
+    const used = new Set();
+    const add = t => { for (const ch of String(t || '')) if (ch.codePointAt(0) > 0x2600) used.add(ch); };
+    Object.values(TY_UNITS).forEach(d => add(d.ic)); Object.values(TY_BIZ).forEach(d => add(d.ic));
+    Object.values(TY_STRIKES).forEach(d => add(d.ic)); TY.rivals.forEach(x => add(x.ic)); TY_ASSETS.forEach(a => add(a.ic));
+    out.missing = [...used].filter(ch => !PX.ICON[ch] && !/[\u2600-\u26ff\u2700-\u27bf]/.test(ch) ? true : !PX.ICON[ch] && ch.codePointAt(0) > 0xffff);
+    // ② 文字裡的表情符號會被換成 <img class="pxi">(屬性不動)
+    const d = document.createElement('div'); d.innerHTML = '<span title="⚔">⚔ 併購小組 🚀 飛彈</span>';
+    document.body.appendChild(d); PX.emojify(d);
+    out.imgs = d.querySelectorAll('img.pxi').length; out.titleKept = d.querySelector('span').title === '⚔';
+    out.textLeft = /⚔|🚀/.test(d.textContent); d.remove();
+    // 畫面上(重畫之後)也換好了
+    TY_MODAL = 'troop'; renderPage(); await new Promise(res => setTimeout(res, 50));
+    out.panelImgs = document.querySelectorAll('.tg-mb img.pxi').length;
+    out.panelEmoji = /[⚔⚖🏛👔🚀]/u.test(document.querySelector('.tg-mb').textContent);
+    // ③ 像素地形:東亞一小塊,顏色全部在調色盤裡,而且畫得出山(岩石色)與河(河流色)
+    const c = document.createElement('canvas'); c.width = 160; c.height = 120;
+    const ctx = c.getContext('2d');
+    const P = { lo0: 95, lo1: 125, la0: 20, la1: 42 };
+    TERRAIN.paint(ctx, P, 160, 120, x => { x.beginPath(); x.rect(0, 0, 130, 120); });   // 左邊當陸地
+    const px = ctx.getImageData(0, 0, 160, 120).data;
+    const pal = new Set(Object.values(TERRAIN.MP).map(h => h.toLowerCase()));
+    const hex = i => '#' + [px[i], px[i+1], px[i+2]].map(v => v.toString(16).padStart(2, '0')).join('');
+    const seen = new Set(); let off = 0;
+    for (let i = 0; i < px.length; i += 4) { const h = hex(i); seen.add(h); if (!pal.has(h)) off++; }
+    out.offPalette = off;
+    out.hasRock = seen.has(TERRAIN.MP.rock) || seen.has(TERRAIN.MP.rock2);
+    out.hasRiver = seen.has(TERRAIN.MP.river);
+    out.sameBiome = TERRAIN.biome(121.5, 25) === TERRAIN.biome(121.5, 25);
+    // ④ 特效序列幀
+    out.fx = ['boom', 'boomBig', 'ring', 'flash', 'fire', 'smoke', 'dust', 'coin', 'star'].map(k => { const f = PX.fx(k); return !!(f && f.n > 1 && f.url.startsWith('data:image/png')); });
+    // ⑤ 同一座城的部隊合併成一個標記(駐紮 + 下季到位)
+    for (const k of ['raid', 'law', 'lobby']) tyRecruit(k);
+    const us = TY.units;
+    tyDeploy(us[0].id, 'hkg'); tyDeploy(us[1].id, 'hkg'); tyDeploy(us[2].id, 'hkg');
+    const hk = tyTroopMarks().filter(m => m._units && !m._rvf && (m._k === 'at:hkg'));
+    out.hk = hk.length; out.hkIn = hk[0] && hk[0]._in; out.hkN = hk[0] && hk[0]._units.length;
+    // ⑥ 國旗是像素色帶,不是系統表情符號
+    out.flag = PX.flagHTML('TW').includes('pxflag');
+    return out;
+  });
+  eq(r.missing, [], `這些圖示字元沒有像素圖:${r.missing}`);
+  eq(r.imgs, 2, '文字裡的兩個表情符號都要換成像素圖');
+  ok(r.titleKept, 'title 屬性不能動(瀏覽器畫的提示換不了)');
+  ok(!r.textLeft, '換完之後文字裡不能還有表情符號');
+  ok(r.panelImgs > 0, '重畫後的面板裡要看得到像素圖示');
+  ok(!r.panelEmoji, '面板裡不能留著系統表情符號');
+  eq(r.offPalette, 0, '像素地形量化後,每一個像素都要是調色盤裡的顏色');
+  ok(r.hasRock, '東亞那一塊要畫得出山脈');
+  ok(r.hasRiver, '東亞那一塊要畫得出河流');
+  ok(r.sameBiome, '同一個地方的地貌要固定(不能用亂數)');
+  eq(r.fx, [true, true, true, true, true, true, true, true, true], '每一種像素特效都要有序列幀');
+  eq(r.hk, 1, '同一座城的部隊只能有一個標記');
+  eq(r.hkIn, 3, '標記上要知道有幾支下季到位');
+  eq(r.hkN, 3, '標記裡要有全部三支');
+  ok(r.flag, '國旗要是像素色帶');
+  ok(page.__errors.length === 0, `有 JS 錯誤:\n      ${page.__errors.join('\n      ')}`);
+  await page.__ctx.close();
+});
+
 /* =========================================================================
    跑
    ========================================================================= */
