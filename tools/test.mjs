@@ -2040,6 +2040,65 @@ test('帝國第十一輪:兵種改成坦克步兵火炮補給、偵察機給情�
   await page.__ctx.close();
 });
 
+test('帝國第十二輪:連點兩下城市開城市全景(依類型分區、全部列出)、太空按鈕', async (browser) => {
+  const page = await freshPage(browser, { seed: SEED, hash: '#/tycoon' });
+  const r = await page.evaluate(() => {
+    tyStart('heir', 7); TY.cash = 900e8; TY_MODAL = null; renderPage();
+    const id = TY.home, out = {};
+    for (const k of ['tech', 'media', 'hotel', 'bank']) tyFound(k, id);
+    TY_AMT = 3e9; tyBuy('estate', id); TY_AMT = null;
+    tyRecruitTo('raid', id); tyRecruitTo('law', id);
+    const d = tyCityData(id);
+    out.n = Object.fromEntries(Object.entries(d.zones).map(([k, v]) => [k, v.length]));
+    out.estateRule = d.zones.estate.filter(x => x.b.f === 5).length;   // 旅館數 = floor(棟數 / 5)(最多 8)
+    const units = tyUnitCount(TY.pos.find(p => p.site === id && p.k === 'estate'));
+    out.hotelsExpect = Math.min(8, Math.floor(Math.max(1, Math.round(units)) / 5));
+    out.housesExpect = Math.max(1, Math.round(units)) % 5;
+    out.houses = d.zones.estate.filter(x => x.b.f === 1).length;
+    out.bizKinds = d.zones.biz.map(x => x.b.k).sort();
+    out.nBiz = TY.biz.filter(b => b.site === id && !TY_BIZ[b.k].shell).length;
+    out.armyTags = d.zones.army.map(x => x.k).sort();
+    // 點一下 = 據點面板;450ms 內再點一下 = 城市全景
+    tyPickSite(id);
+    out.single = !document.getElementById('tyCity') && TY_MODAL === 'site';
+    tyPickSite(id);
+    out.opened = !!document.getElementById('tyCity') && TY_CITY === id;
+    out.legend = document.querySelector('#tyCity .cv-leg').textContent;
+    // 沒有 3D(測試環境連不到 CDN)也要看得到清單
+    out.fallback = (window.W3D && W3D.ok) || /科技公司/.test(document.querySelector('#tyCity').textContent);
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    out.closed = !document.getElementById('tyCity') && TY_CITY === null;
+    // 面板上的「走進城市」按鈕
+    renderPage();
+    const btn = document.querySelector('[data-ty="city"]');
+    out.btn = !!btn;
+    if (btn) btn.click();
+    out.btnOpens = !!document.getElementById('tyCity');
+    document.querySelector('#tyCity [data-cv="close"]').click();
+    out.btnClose = !document.getElementById('tyCity');
+    // 規則函式沒有被城市全景動到:同一個存檔前後一樣
+    out.space = !!document.querySelector('[data-ty="space"]');
+    out.icons = ['🏙', '🛰', '🏨'].every(k => !!PX.ICON[k]);
+    return out;
+  });
+  eq(r.n.biz, r.nBiz, '這座城的每一家事業都在商業區');
+  ok(['bank', 'hotel', 'media', 'tech'].every(k => r.bizKinds.includes(k)), `新開的四家都要在:${r.bizKinds}`);
+  eq(r.estateRule, r.hotelsExpect, '大富翁規則:每五棟房子換一間旅館');
+  eq(r.houses, r.housesExpect, '剩下不滿五棟的是房子');
+  eq(r.armyTags, ['law', 'raid'], '駐軍區列出每一支部隊');
+  ok(r.n.rival >= 1, '對手大本營在對手地盤');
+  ok(r.single, '點一下只開據點面板');
+  ok(r.opened, '連點兩下開城市全景');
+  ok(/商業區/.test(r.legend) && /住宅區/.test(r.legend), `圖例要列出分區:${r.legend}`);
+  ok(r.fallback, '沒有 3D 時也要列出清單');
+  ok(r.closed, 'Esc 關掉城市全景');
+  ok(r.btn && r.btnOpens && r.btnClose, '據點面板的「走進城市」按鈕開得了、關得掉');
+  ok(r.space, '側邊有太空按鈕');
+  ok(r.icons, '新圖示都有像素版');
+  ok(page.__errors.length === 0, `有 JS 錯誤:\n      ${page.__errors.join('\n      ')}`);
+  await page.__ctx.close();
+});
+
 /* =========================================================================
    跑
    ========================================================================= */
