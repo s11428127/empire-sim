@@ -26,6 +26,9 @@ const MP = {
   grass:'#72a24b', grass2:'#62933f', forest:'#3f7735', forest2:'#2f5e2b', savanna:'#a9a55a',
   sand:'#dcc47c', sand2:'#c9ac62', tundra:'#9db49a', snow:'#eef3f6',
   rock:'#8c7b64', rock2:'#6c5e4c', peak:'#f6f8fa', river:'#4ba6df', lake:'#3b8fcb',
+  // 立體用:丘陵、岩石三階、懸崖暗面(草 / 岩 / 海岸)、北緣亮邊
+  hill:'#889a4e', rock3:'#a8977c', cliffG:'#46652f', cliffR:'#54473a', cliffC:'#7a6446', cliffS:'#a58f5c',
+  lightG:'#9fd06c', lightR:'#c4b397', lightS:'#ecd79a',
 };
 TR.MP = MP;
 const rgb = h => [parseInt(h.slice(1,3),16), parseInt(h.slice(3,5),16), parseInt(h.slice(5,7),16)];
@@ -60,6 +63,12 @@ TR.MOUNTAINS = [
   [[137.3,36.8],[137.6,35.8],[138.4,35.4]], [[128.5,38.5],[128.8,37],[128.5,35.8]],                 // 日本阿爾卑斯、太白山脈
   [[127,67],[130,64],[134,61]],                                                                      // 上揚斯克
 ];
+/* 每一條山脈的高度(0~1)與寬度(度):喜馬拉雅最高最寬,台灣中央山脈窄 */
+TR.RANGE_HW = [[1,1.7],[.95,1.5],[.8,1.5],[.7,1.2],[.75,1.3],[.6,1.2],[.5,1],[.55,1.3],[.55,.8],[.7,.8],[.7,.8],[.5,.6],[.45,.8],
+  [.45,1.2],[.35,1],[.5,.9],[.6,1.5],[.45,.8],[.75,2.2],[.6,.9],[.55,1.2],[.35,1.2],[.9,1.3],[.35,1.2],[.6,.6],[.6,.35],[.5,.5],[.35,.5],[.45,1.2]];
+/* 高原:[經度, 緯度, 經向半徑, 緯向半徑, 高度] */
+TR.PLATEAUS = [[87,33,11,4.5,.44],[55,32,7,4,.3],[35,39,5,2,.3],[-68,-18,2.5,4,.6],[102,46,9,3.5,.25],[77,17,4,5,.2],
+  [-110,37,3,2,.35],[-102,23,4,4,.35],[-45,-15,6,6,.2],[36,-2,4,6,.35],[104,26,4,2,.35],[108,36,4,2,.25]];
 /* ---- 湖泊輪廓 ---- */
 TR.LAKES = [
   [[-92,46.7],[-89,48.3],[-86,48.6],[-84.6,46.9],[-87,46.5],[-90,46.6]],                              // 蘇必略
@@ -161,9 +170,40 @@ function biome(lng, lat){
 }
 TR.biome = biome;
 
-/* 像素小山:白頂、兩種岩石色 */
-const HILL = ['...p...', '..ppr..', '.rrrRr.', 'rrRrrRr'];
-const HC = { p: MP.peak, r: MP.rock, R: MP.rock2 };
+/* ---- 高程(0~1)----
+   山脈 = 沿稜線的高斯脊;高原 = 橢圓台地;再加一點丘陵雜訊。
+   貼圖用畫布畫(快),3D 位移用這個解析式(慢一點但只算幾萬個頂點)—— 兩者用同一組參數,形狀對得上。 */
+function segDist(px, py, ax, ay, bx, by){
+  const dx = bx - ax, dy = by - ay, l2 = dx * dx + dy * dy;
+  let t = l2 ? ((px - ax) * dx + (py - ay) * dy) / l2 : 0; t = Math.max(0, Math.min(1, t));
+  const ex = ax + dx * t - px, ey = ay + dy * t - py;
+  return Math.sqrt(ex * ex + ey * ey);
+}
+TR.elev = function(lng, lat){
+  const k = Math.cos(lat * Math.PI / 180);
+  let e = 0;
+  TR.MOUNTAINS.forEach((r, ri) => {
+    const [h, w] = TR.RANGE_HW[ri] || [.5, 1];
+    let d = 1e9;
+    for(let i = 1; i < r.length; i++){
+      let ax = r[i-1][0], bx = r[i][0], px = lng;
+      px -= Math.round((px - ax) / 360) * 360;
+      d = Math.min(d, segDist(px * k, lat, ax * k, r[i-1][1], bx * k, r[i][1]));
+    }
+    if(d < w * 3) e = Math.max(e, h * Math.exp(-((d / w) ** 2)));
+  });
+  for(const [cx, cy, rx, ry, h] of TR.PLATEAUS){
+    let dx = lng - cx; dx -= Math.round(dx / 360) * 360;
+    const q = (dx / rx) ** 2 + ((lat - cy) / ry) ** 2;
+    if(q < 1) e = Math.max(e, h * Math.min(1, (1 - q) * 3));
+  }
+  e += Math.max(0, noise(lng, lat, 2.5) - .55) * .35;          // 丘陵
+  return Math.min(1, e);
+};
+const LEVELS = [.12, .28, .45, .64, .86];                          // 梯田的門檻 → 0~5 階
+const levelOf = e => { let l = 0; while(l < LEVELS.length && e >= LEVELS[l]) l++; return l; };
+TR.levelOf = levelOf;
+
 
 /* 投影:P = { lo0, lo1, la0, la1, global }。整球的時候經度要環繞 */
 function X(P, W, lng){
@@ -195,53 +235,80 @@ TR.paint = function(c, P, W, H, landDraw){
   landDraw(c); c.lineJoin = 'round';
   c.lineWidth = Math.max(2, ppd * .9); c.strokeStyle = MP.shelf; c.stroke();
   c.lineWidth = Math.max(1, ppd * .35); c.strokeStyle = MP.shallow; c.stroke();
-  // ③ 陸地:先量出陸地遮罩,再逐像素決定地貌
+  // ③ 陸地遮罩
   const m = document.createElement('canvas'); m.width = W; m.height = H;
   const mc = m.getContext('2d'); landDraw(mc); mc.fillStyle = '#fff'; mc.fill('evenodd');
   const mask = mc.getImageData(0, 0, W, H).data;
-  const img = c.getImageData(0, 0, W, H), px = img.data;
-  const cache = new Map();
+  // ④ 高程畫布:每條山脈依高斯脊的門檻描幾圈由寬到窄的線(較亮 = 較高),高原填橢圓 —— 用 lighten 取最大值
+  const ev = document.createElement('canvas'); ev.width = W; ev.height = H;
+  const ec = ev.getContext('2d'); ec.fillStyle = '#000'; ec.fillRect(0, 0, W, H);
+  ec.globalCompositeOperation = 'lighten'; ec.lineCap = 'round'; ec.lineJoin = 'round';
+  const kLat = Math.cos(((P.la0 + P.la1) / 2) * Math.PI / 180);
+  const pxPerDegY = H / (P.la1 - P.la0);
+  TR.MOUNTAINS.forEach((r, ri) => {
+    if(!inView(r, P)) return;
+    const [h, w] = TR.RANGE_HW[ri] || [.5, 1];
+    for(let s2 = 1; s2 <= 12; s2++){
+      const v = s2 / 12; if(v > h) break;
+      const d = w * Math.sqrt(-Math.log(v / h));                  // 高斯脊高度 = v 的那一圈距離(度)
+      polyline(ec, r, P, W, H);
+      ec.lineWidth = Math.max(1, 2 * d * pxPerDegY);
+      const g = Math.round(v * 255); ec.strokeStyle = `rgb(${g},${g},${g})`; ec.stroke();
+    }
+  });
+  for(const [cx, cy, rx, ry, h] of TR.PLATEAUS){
+    if(!inView([[cx, cy]], { ...P, lo0: P.lo0 - rx, lo1: P.lo1 + rx, la0: P.la0 - ry, la1: P.la1 + ry })) continue;
+    for(let s2 = 1; s2 <= 6; s2++){
+      const v = h * Math.min(1, s2 / 6 * 3); const f = 1 - Math.min(1, s2 / 6 * 3) / 3;
+      const g = Math.round(v * 255);
+      ec.fillStyle = `rgb(${g},${g},${g})`;
+      ec.beginPath();
+      ec.ellipse(X(P, W, cx), Y(P, H, cy), Math.max(1, rx * f * W / (P.lo1 - P.lo0)), Math.max(1, ry * f * pxPerDegY), 0, 0, Math.PI * 2);
+      ec.fill();
+    }
+  }
+  const eraw = ec.getImageData(0, 0, W, H).data;
+  // ⑤ 逐像素:地貌顏色 + 梯田階數;再做「斜俯視」的立體:
+  //    高的那一階往南(畫面下方)長出懸崖暗面、北緣一格亮邊、東側一格陰影;陸地比海高一階,海岸也有懸崖
+  const L = new Int8Array(W * H), BIO = new Array(W * H);
   for(let y = 0; y < H; y++){
     const lat = P.la1 - (y + .5) / H * (P.la1 - P.la0);
     for(let x = 0; x < W; x++){
-      const i = (y * W + x) * 4;
-      if(mask[i + 3] < 128) continue;
+      const o = y * W + x, i = o * 4;
+      if(mask[i + 3] < 128){ L[o] = -1; continue; }
       const lng = P.lo0 + (x + .5) / W * (P.lo1 - P.lo0);
-      const hx = biome(lng, lat);
-      let col = cache.get(hx); if(!col){ col = rgb(hx); cache.set(hx, col); }
-      px[i] = col[0]; px[i + 1] = col[1]; px[i + 2] = col[2]; px[i + 3] = 255;
+      const e = eraw[i] / 255 + Math.max(0, noise(lng, lat, 2.5) - .55) * .35 + (noise(lng, lat, .9) - .5) * .16;   // 邊緣打散,梯田不是完美的橢圓
+      L[o] = levelOf(e);
+      BIO[o] = biome(lng, lat);
+    }
+  }
+  const cp = Math.max(1, Math.round(ppd * .12));                   // 一階懸崖幾個像素高
+  const img = c.getImageData(0, 0, W, H), px = img.data;
+  const cache = new Map();
+  const put = (i, hx) => { let col = cache.get(hx); if(!col){ col = rgb(hx); cache.set(hx, col); } px[i] = col[0]; px[i+1] = col[1]; px[i+2] = col[2]; px[i+3] = 255; };
+  const dry = b => b === MP.sand || b === MP.sand2 || b === MP.savanna;
+  // 一階丘陵(草 / 乾地)、二階高地(橄欖綠或凍原)、三階岩石淺、四階岩石深、五階雪
+  const topCol = (l, b) => l <= 0 ? b : l === 1 ? (dry(b) ? MP.sand2 : b === MP.snow ? MP.snow : MP.hill)
+                        : l === 2 ? (dry(b) ? MP.rock3 : MP.tundra) : l === 3 ? MP.rock3 : l === 4 ? MP.rock : MP.snow;
+  const faceCol = (l, b) => l <= 0 ? (dry(b) ? MP.cliffS : MP.cliffC) : l === 1 ? (dry(b) ? MP.cliffS : MP.cliffG) : MP.cliffR;
+  const rimCol = (l, b) => l <= 0 ? (dry(b) ? MP.lightS : MP.lightG) : l === 1 ? MP.lightG : MP.lightR;
+  for(let x = 0; x < W; x++){
+    let run = 0, runL = -1, runB = null;
+    for(let y = 0; y < H; y++){
+      const o = y * W + x, i = o * 4, l = L[o];
+      const up = y > 0 ? L[o - W] : l;
+      if(up > l){ run = (up - l) * cp; runL = up; runB = BIO[o - W]; }  // 北邊比較高:從這裡往南是它的懸崖
+      if(run > 0 && l < runL){ put(i, faceCol(runL - 1, runB || BIO[o] || MP.grass)); run--; continue; }
+      run = 0;
+      if(l < 0) continue;                                           // 海:保留原本的顏色
+      const b = BIO[o];
+      let col = topCol(l, b);
+      if(up < l) col = rimCol(l, b);                                // 北緣亮邊
+      else if(x < W - 1 && L[o + 1] < l && l > 0) col = faceCol(l, b);   // 東側一格陰影
+      put(i, col);
     }
   }
   c.putImageData(img, 0, 0);
-  // ④ 山脈:沿稜線一條岩石帶(只留在陸地上),再放像素小山
-  c.save(); landDraw(c); c.clip('evenodd');
-  for(const r of TR.MOUNTAINS){
-    if(!inView(r, P)) continue;
-    polyline(c, r, P, W, H); c.lineCap = 'round';
-    c.lineWidth = Math.max(2, ppd * 1.3); c.strokeStyle = MP.rock; c.stroke();
-    c.lineWidth = Math.max(1, ppd * .45); c.strokeStyle = MP.rock2; c.stroke();
-  }
-  c.restore();
-  const z = Math.max(1, Math.round(ppd * .2));
-  for(const r of TR.MOUNTAINS){
-    if(!inView(r, P)) continue;
-    let carry = 0;
-    for(let i = 1; i < r.length; i++){
-      const [x0, y0] = r[i - 1], [x1, y1] = r[i];
-      const seg = Math.hypot(x1 - x0, y1 - y0), step = 1.3;
-      for(let t = carry; t < seg; t += step){
-        const lng = x0 + (x1 - x0) * t / seg, lat = y0 + (y1 - y0) * t / seg;
-        const off = (hash(Math.round(lng * 10), Math.round(lat * 10)) - .5) * .6;
-        const px0 = Math.round(X(P, W, lng + off) - 3.5 * z), py0 = Math.round(Y(P, H, lat - off * .5) - 4 * z);
-        if(px0 < -8 * z || px0 > W || py0 < -8 * z || py0 > H) continue;
-        for(let j = 0; j < HILL.length; j++) for(let k = 0; k < HILL[j].length; k++){
-          const ch = HILL[j][k]; if(ch === '.') continue;
-          c.fillStyle = HC[ch]; c.fillRect(px0 + k * z, py0 + j * z, z, z);
-        }
-      }
-      carry = (carry + Math.ceil((seg - carry) / step) * step) - seg;
-    }
-  }
   // ⑤ 湖泊與河流
   for(const L of TR.LAKES){
     if(!inView(L, P)) continue;

@@ -444,12 +444,23 @@ function paintPatch(P){
   P.tex.needsUpdate = true;
 }
 /* 貼著球面的那一片曲面:經緯度網格,每一點用 getCoords 算 —— 跟建築同一個座標系。 */
+/* 地形的真實高度(使用者:「地形也要立體,要跟地圖很完美的融合」)。
+   近看的那一片曲面照 terrain.js 的高程往上推:山真的是凸起來的,傾斜的鏡頭看得到山的側面;
+   貼圖上的梯田、懸崖暗面、北緣亮邊是同一組高程畫的,所以凸起來的地方就是畫著山的地方。
+   高度一半取梯田的階數(像素風的「一階一階」)、一半取平滑高程(不要變成一根根柱子);
+   曲面的四邊收斂到 0,跟整球貼圖接得起來。建築也站在同一個高度上(elevAlt)。 */
+const EH = .0045;
+const elevAlt = (lat, lng) => (typeof TERRAIN !== 'undefined' && TERRAIN.elev) ? (() => {
+  const e = TERRAIN.elev(lng, lat); return (e * .5 + TERRAIN.levelOf(e) / 5 * .5) * EH; })() : 0;
+W3D.elevAlt = elevAlt;
 function patchGeo(P){
-  // 格子依範圍加密:每格不超過 1 度,弦才不會切進球面
-  const N = clamp(Math.ceil(Math.max(P.la1 - P.la0, P.lo1 - P.lo0) / 1), 24, 140), pos = [], uv = [], nor = [], idx = [];
+  // 格子依範圍加密:每格不超過 0.25 度 —— 山的起伏要做得出來,弦也不會切進球面
+  const N = clamp(Math.ceil(Math.max(P.la1 - P.la0, P.lo1 - P.lo0) / .25), 48, 170), pos = [], uv = [], nor = [], idx = [];
+  const edge = Math.max(2, N * .12);
   for(let j = 0; j <= N; j++) for(let i = 0; i <= N; i++){
     const lat = P.la0 + (P.la1 - P.la0) * j / N, lng = P.lo0 + (P.lo1 - P.lo0) * i / N;
-    const q = G.getCoords(lat, lng, .0004);
+    const taper = smooth(Math.min(i, N - i, j, N - j) / edge);
+    const q = G.getCoords(lat, lng, .0004 + elevAlt(lat, lng) * taper);
     pos.push(q.x, q.y, q.z);
     const l = Math.hypot(q.x, q.y, q.z) || 1; nor.push(q.x/l, q.y/l, q.z/l);
     uv.push(i / N, j / N);
@@ -823,7 +834,7 @@ function buildSite(d){
 /* 近看要縮小:第一版最小 .55,貼近台灣時一座小城比新竹市還大,半個都站到海裡去了 */
 const bScale = () => clamp(.15 + W3D.alt * 2.2, .38, 5.5);
 function placeSite(obj, d){
-  const a = (d._base || .0085);
+  const a = (d._base || .0085) + elevAlt(d.lat, d.lng);        // 站在地形上(山上的城市不能埋進山裡)
   const c = G.getCoords(d.lat, d.lng, a);
   obj.position.set(c.x, c.y, c.z);
   /* 立起來：z = 地表法線、x = 正東、y = 正北。
@@ -1615,8 +1626,19 @@ function shake(big){
   host.classList.add(big ? 'w3d-shake2' : 'w3d-shake');
   clearTimeout(shake._t); shake._t = setTimeout(() => host.classList.remove('w3d-shake', 'w3d-shake2'), big ? 650 : 420);
 }
+const sfx = (snd, buzz) => { try{ if(typeof SFX !== 'undefined') SFX.fx(snd, buzz); }catch(e){} };
+/* 撞擊感:整個地圖往內縮一下再彈回(兩格),大爆炸再加一格白色閃屏 */
+function impact(big){
+  const host = document.getElementById('tyGlobeHost'); if(!host || reduced()) return;
+  host.classList.remove('w3d-impact', 'w3d-impact2'); void host.offsetWidth;
+  host.classList.add(big ? 'w3d-impact2' : 'w3d-impact');
+  clearTimeout(impact._t); impact._t = setTimeout(() => host.classList.remove('w3d-impact', 'w3d-impact2'), 400);
+}
+W3D.impact = impact;
 function boom(lat, lng, big){
   shake(big);
+  if(big) impact(true);
+  sfx(big ? 'boomBig' : 'boom', big ? 'boomBig' : 'boom');
   if(!hasPX() || !PX.fxEl){ return; }
   const add = (el, alt, life) => { if(el) anchorFx(el, lat, lng, alt, life); };
   /* 全部是像素特效(使用者:「爆炸特效也改成像素」):
@@ -1677,7 +1699,15 @@ W3D.cardHit = function(id, k, label){
     for(let i = 0; i < 6; i++) fxAt(lat, lng, 'coin', { z: 3, cls: 'fly', delay: i * 70, life: 1400,
       css: `--dx:${((rnd() - .5) * 60).toFixed(0)}px;--dy:${(-40 - rnd() * 40).toFixed(0)}px;--dur:1s;` });
   }
-  shake(false);
+  shake(false); impact(false);
+  sfx('drop', 'land');
+  const extra = { build: 'build', shell: 'build', upgrade: 'upgrade', invest: 'coin', sell: 'coin', deal: 'deal', partner: 'deal', troop: 'unit', move: 'build' }[k];
+  if(extra) setTimeout(() => sfx(extra), 90);
+  if(k === 'upgrade'){                                      // 升級:往上噴的金色箭頭
+    for(let i = 0; i < 4; i++) fxAt(lat, lng, 'star', { z: 4, cls: 'fly', delay: 80 + i * 90, life: 1400,
+      css: `--dx:${((i - 1.5) * 14).toFixed(0)}px;--dy:-90px;--dur:1s;` });
+  }
+  if(k === 'troop' || k === 'move' || k === 'partner') fxAt(lat, lng, 'dust', { z: 3, dur: .7, life: 900, alt: .001 });
   if(label){ const fx = fxLayer(); if(fx) floatAt(fx, lat, lng, label, 'card', 120); }
 };
 /* 開演之前鏡頭先飛過去:起點與終點都要在畫面裡 */
@@ -1703,7 +1733,8 @@ W3D.animMove = function(m){
   if(now - moveBurst.t > 400) moveBurst.n = 0;
   moveBurst.t = now; const lag = moveBurst.n++ * 900;
   focusOn(A, B, () => setTimeout(() => {
-    const land = () => floatAt(fxLayer(), B.lat, B.lng, `${TY_UNITS[m.k].ic} 抵達 ${escH(B.nm)}`, 'rv', 0);
+    const land = () => { floatAt(fxLayer(), B.lat, B.lng, `${TY_UNITS[m.k].ic} 抵達 ${escH(B.nm)}`, 'rv', 0); sfx('hit', 'tap'); fxAt(B.lat, B.lng, 'dust', { z: 3, dur: .7, life: 900, alt: .001 }); };
+    sfx(m.k === 'raid' ? 'unit' : 'jet');
     if(m.k === 'raid'){
       const pts = routeFor('ground', A, B);
       const sea = pts.filter(p => p.mode === 'ship').length;
@@ -1721,6 +1752,7 @@ W3D.animStrike = function(s){
   const A = tySite(s.from), B = tySite(s.to);
   const km = kmLL([A.lat, A.lng], [B.lat, B.lng]);
   focusOn(A, B, () => {
+    sfx(s.k === 'missile' ? 'launch' : 'jet', 'tap');
     if(s.k === 'missile'){
       fly({ kind: 'missile', from: A, to: B, arc: clamp(km / 6000 * .25, .06, .36), dur: clamp(3500 + km * .3, 4000, 7000),
             trail: { col: ['rgba(200,200,200,0)', 'rgba(255,190,120,.95)'], w: 2.4 },
