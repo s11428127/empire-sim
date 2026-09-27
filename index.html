@@ -10,6 +10,7 @@
 <meta name="theme-color" content="#0a0d12">
 <script src="https://unpkg.com/globe.gl"></script>
 <!-- 畫面層(3D 建築、傾斜鏡頭、季間過場)。只讀 TY、不碰規則,見檔頭註解 -->
+<script src="pixel.js"></script>
 <script src="world3d.js"></script>
 
 <style>
@@ -9101,24 +9102,24 @@ function tySiteBuildings(id){
       // 大富翁的規矩:五棟房子換一間旅館
       const n=Math.max(1,Math.round(tyUnitCount(p)));
       const hotel=Math.floor(n/5), house=n%5;
-      for(let i=0;i<Math.min(2,hotel);i++) out.push({ c:'estate', f:5, ref, tag:'旅館(5 棟)' });
-      for(let i=0;i<Math.min(3,house);i++) out.push({ c:'estate', f:1, ref, tag:'房子' });
-      if(!hotel && !house) out.push({ c:'estate', f:1, ref, tag:'房子' });
+      for(let i=0;i<Math.min(2,hotel);i++) out.push({ c:'estate', k:'estate', f:5, ref, tag:'旅館(5 棟)' });
+      for(let i=0;i<Math.min(3,house);i++) out.push({ c:'estate', k:'estate', f:1, ref, tag:'房子' });
+      if(!hotel && !house) out.push({ c:'estate', k:'estate', f:1, ref, tag:'房子' });
     }else{
       const gainy = tyPosVal(p) > p.cb;
-      out.push({ c: a.k==='gold'?'gold':a.g==='real'?'real':'paper',
+      out.push({ c: a.k==='gold'?'gold':a.g==='real'?'real':'paper', k:p.k,
                  f: tyFloors(v), v, ref, tag:`${a.nm} ${tyM(v)}`, st: gainy?'earn':'' });
     }
   }
   for(const b of t.biz){
     const d=TY_BIZ[b.k], ref=`biz:${b.id}`;
-    if(d.shell){ out.push({ c:'shell', f:1, ref, tag:'空殼公司', st:'shell' }); continue; }
-    out.push({ c:'biz', f:tyFloors(tyBizVal(b)*b.own), v:tyBizVal(b)*b.own, ref, tag:`${d.nm}${b.pub?'(上市)':''}`,
+    if(d.shell){ out.push({ c:'shell', k:'shell', f:1, ref, tag:'空殼公司', st:'shell' }); continue; }
+    out.push({ c:'biz', k:b.k, f:tyFloors(tyBizVal(b)*b.own), v:tyBizVal(b)*b.own, ref, tag:`${d.nm}${b.pub?'(上市)':''}`,
                st: b.pub?'pub':(b.cf<0?'burn':(b.cf>0?'earn':'')) });
   }
   if(t.cash>0) out.push({ c:'cash', f:1, ref:'cash', tag:`現金 ${tyM(t.cash)}` });
   if(t.holdco) out.push({ c:'hold', f:2, ref:'hold', tag:'控股層', st:'hold' });
-  return out.slice(0,5);
+  return out.slice(0,6);
 }
 /* 一棟 CSS 等角方塊:三個面用 clip-path 切出來。
    為什麼不用真的 3D:globe.gl 的 UMD 版沒有把 THREE 匯出來,要畫真的網格
@@ -9239,7 +9240,7 @@ function tyGlobeData(){
      有一大半是這個。簽章只放「畫面上看得出差別」的東西。 */
   const troopsNow=tyTroopMarks();
   const sig=JSON.stringify([TY.t, TY_LAYER, TY_SEL, TY.holdco, (window.W3D&&W3D.ok)?1:0,
-    pts.map(d=>[d.id,d._cat,Math.round(d._v/1e6),d._blds.map(b=>b.c+b.f+(b.st||'')+b.h).join()]),
+    pts.map(d=>[d.id,d._cat,Math.round(d._v/1e6),d._blds.map(b=>b.c+(b.k||'')+b.f+(b.st||'')+b.h).join()]),
     rv.map(d=>[d._rival.id,Math.round(d._v/1e7),d._hk,Math.sign(Math.trunc((d._rival.rel||0)/20))]),
     troopsNow.map(t=>t._k+':'+(t._mv||'')+':'+(t._units?t._units.map(u=>u.k).join():'')),
     Object.keys(TY.partners||{}), (window.W3D&&W3D.extraArcs||[]).length]);

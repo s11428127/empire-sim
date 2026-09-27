@@ -44,10 +44,8 @@ const W3D = window.W3D = {
 
 let G = null;         // globe.gl 實例
 let T = null;         // 撿回來的 THREE 建構子
-let MAT = null;       // 建築共用的材質
 const OBJS = new Set();            // 目前在場上的建築群（縮放時要一個一個調）
 const SEEN = Object.create(null);  // 每個據點上一次長什麼樣（決定要不要播「長出來」）
-const GEO_CACHE = new Map();       // 同一個樣子的建築只算一次幾何
 
 /* 畫面用的亂數。**絕對不可以用 tyRnd()** —— 那顆是遊戲的種子亂數，
    畫面拿走一個數字，整局接下來的事件就全部錯位了。 */
@@ -381,6 +379,8 @@ function paintSkin(){
     if(mountTex()){
       FEATS = countries; paintBase(FEATS); paintTop(true);
       W3D.textured = true; painting = false;
+      // 像素看板要等貼圖掛好才建得出來:之前那一批是空的,現在重蓋一次
+      if(NEED_REBUILD && LAST_SITES){ const a = LAST_SITES; G.customLayerData([]); W3D.sites(...a); }
       W3D.material();
       if(typeof tyPaintGlobe === 'function') tyPaintGlobe();
       loadHiRes();
@@ -720,382 +720,12 @@ W3D.material = function(){
 };
 
 /* =============================================================================
-   2. 3D 建築
+   2. 城市地標 —— 使用者:「每個城市都可以有地標或是特色建築」
    -----------------------------------------------------------------------------
-   座標系：每一座小城自己的座標，z 朝天、y 朝北、單位是 globe.gl 的長度
-   （球半徑 100）。最後用 lookAt 把 +z 對準地表法線立起來。
-   所有東西合併成**一個**網格（一個據點一次 draw call），顏色放在頂點上。
-   ============================================================================= */
-const PAL = {
-  estate:['#e8932a','#ffd27a'], hotel:['#d9463b','#ff9b8c'], roof:['#b8452c','#e0714e'],
-  biz:['#8e44c9','#dcaef7'], paper:['#2376c9','#9fd2ff'], gold:['#c9a227','#ffe7a0'],
-  cash:['#239a4b','#9ff0b5'], hold:['#c8322a','#ffb3aa'], real:['#7c7f8c','#d4d6de'],
-  shell:['#8a8a94','#cfcfd6'], glass:['#7fd0ff','#d8f1ff'],
-};
-function lin(hex, k){
-  const c = new T.Color(hex);
-  return [c.r*(k||1), c.g*(k||1), c.b*(k||1)];
-}
-function GB(){ return { p:[], n:[], c:[] }; }
-function tri(g, a, b, c, col){
-  const ux=b[0]-a[0], uy=b[1]-a[1], uz=b[2]-a[2], vx=c[0]-a[0], vy=c[1]-a[1], vz=c[2]-a[2];
-  let nx=uy*vz-uz*vy, ny=uz*vx-ux*vz, nz=ux*vy-uy*vx;
-  const l = Math.hypot(nx,ny,nz) || 1; nx/=l; ny/=l; nz/=l;
-  for(const p of [a,b,c]){ g.p.push(p[0],p[1],p[2]); g.n.push(nx,ny,nz); g.c.push(col[0],col[1],col[2]); }
-}
-const quad = (g,a,b,c,d,col) => { tri(g,a,b,c,col); tri(g,a,c,d,col); };
-/* 一個方塊。側面稍暗、頂面稍亮 —— 光再打上去，就算在很小的螢幕上也看得出是立體的。 */
-function box(g, cx, cy, z0, w, d, h, side, top){
-  const x0=cx-w/2, x1=cx+w/2, y0=cy-d/2, y1=cy+d/2, z1=z0+h;
-  quad(g,[x0,y0,z1],[x1,y0,z1],[x1,y1,z1],[x0,y1,z1], top);
-  quad(g,[x0,y0,z0],[x1,y0,z0],[x1,y0,z1],[x0,y0,z1], side);
-  quad(g,[x1,y1,z0],[x0,y1,z0],[x0,y1,z1],[x1,y1,z1], side);
-  quad(g,[x1,y0,z0],[x1,y1,z0],[x1,y1,z1],[x1,y0,z1], side);
-  quad(g,[x0,y1,z0],[x0,y0,z0],[x0,y0,z1],[x0,y1,z1], side);
-  return z1;
-}
-/* 正 n 邊形柱：地磚（六角）與油槽（八角） */
-function prism(g, cx, cy, z0, r, h, n, side, top, rot){
-  const z1 = z0 + h, pts = [];
-  for(let i = 0; i < n; i++){ const a = (rot||0) + i/n*Math.PI*2; pts.push([cx + Math.cos(a)*r, cy + Math.sin(a)*r]); }
-  for(let i = 0; i < n; i++){
-    const p = pts[i], q = pts[(i+1)%n];
-    quad(g,[p[0],p[1],z0],[q[0],q[1],z0],[q[0],q[1],z1],[p[0],p[1],z1], side);
-    tri(g,[cx,cy,z1],[p[0],p[1],z1],[q[0],q[1],z1], top);
-  }
-  return z1;
-}
-/* 四角錐屋頂 */
-function pyramid(g, cx, cy, z0, w, h, col){
-  const x0=cx-w/2, x1=cx+w/2, y0=cy-w/2, y1=cy+w/2, ap=[cx,cy,z0+h];
-  tri(g,[x0,y0,z0],[x1,y0,z0],ap,col); tri(g,[x1,y0,z0],[x1,y1,z0],ap,col);
-  tri(g,[x1,y1,z0],[x0,y1,z0],ap,col); tri(g,[x0,y1,z0],[x0,y0,z0],ap,col);
-}
-
-/* 一棟建築的長相，照 tySiteBuildings() 給的類型（c）與樓層（f）。
-   樓層 1–7 已經是 log 壓縮過的（見 tyFloors），這裡直接線性換成高度。 */
-function drawBuilding(g, b, x, y, z){
-  const P = k => PAL[k] || PAL.shell;
-  const S = (k, m) => lin(P(k)[0], m||.82), Tp = (k, m) => lin(P(k)[1], m||1);
-  const f = b.f || 1;
-  switch(b.c){
-    case 'estate':
-      if(f >= 5){                                   // 旅館：五棟房子換一間
-        const t = box(g, x, y, z, .26, .2, .95, S('hotel'), Tp('hotel'));
-        box(g, x, y, t, .18, .12, .06, S('roof'), Tp('roof'));
-      }else{                                        // 房子：方塊 + 尖屋頂
-        const t = box(g, x, y, z, .2, .2, .16, S('estate'), Tp('estate'));
-        pyramid(g, x, y, t, .24, .13, lin(PAL.roof[0]));
-      }
-      break;
-    case 'biz': {                                   // 事業：塔樓 + 退縮 + 天線
-      // b.h:跟對手大本營同一把尺的高度(0~1,見 index 的 tyHeightScale);沒有就退回樓層
-      const h = b.h != null ? .3 + b.h * 2.2 : .3 + f*.26;
-      const t = box(g, x, y, z, .26, .26, h, S('biz'), Tp('biz'));
-      const t2 = box(g, x, y, t, .17, .17, h*.22, S('biz', .95), Tp('biz'));
-      box(g, x, y, t2, .025, .025, .18, lin('#e8e8f0'), lin('#ffffff'));
-      if(b.st === 'pub') box(g, x, y, t2 + .18, .06, .06, .06, lin('#2997ff', 1.2), lin('#9fd2ff', 1.3));
-      break; }
-    case 'paper': {                                 // 金融資產：玻璃大樓
-      const h = b.h != null ? .25 + b.h * 2.1 : .25 + f*.24;
-      const t = box(g, x, y, z, .22, .22, h, S('paper'), Tp('glass'));
-      box(g, x, y, t, .12, .12, .05, S('glass'), Tp('glass'));
-      break; }
-    case 'real': {                                  // 原物料：油槽
-      const h = .12 + f*.08;
-      prism(g, x, y, z, .12, h, 10, S('real'), Tp('real'));
-      break; }
-    case 'gold':                                    // 黃金：一疊金條
-      for(let i = 0; i < Math.min(4, 1 + Math.ceil(f/2)); i++)
-        box(g, x + (i%2 ? .04 : -.04), y, z + i*.055, .2, .09, .05, S('gold', .9), Tp('gold', 1.1));
-      break;
-    case 'cash':                                    // 現金：一疊鈔票
-      for(let i = 0; i < 3; i++) box(g, x, y + (i%2 ? .02 : -.02), z + i*.045, .2, .13, .04, S('cash'), Tp('cash'));
-      break;
-    case 'hold': {                                  // 控股層：紅色堡壘 + 金頂
-      const t = box(g, x, y, z, .26, .26, .42, S('hold'), Tp('hold'));
-      pyramid(g, x, y, t, .26, .16, lin('#e0b23c'));
-      break; }
-    default:                                        // 空殼：一個淡淡的小盒子
-      box(g, x, y, z, .16, .16, .12, S('shell', .6), Tp('shell', .7));
-  }
-}
-const SLOTS = [[0,0],[-.29,.2],[.29,.2],[-.29,-.2],[.29,-.2]];
-const TILE_R = .62;
-
-function geoFor(key, fill){
-  if(GEO_CACHE.has(key)) return GEO_CACHE.get(key);
-  const g = GB(); fill(g);
-  const geo = new T.BG();
-  geo.setAttribute('position', new T.Attr(new Float32Array(g.p), 3));
-  geo.setAttribute('normal', new T.Attr(new Float32Array(g.n), 3));
-  geo.setAttribute('color', new T.Attr(new Float32Array(g.c), 3));
-  geo.computeBoundingSphere();
-  if(GEO_CACHE.size > 160) GEO_CACHE.clear();      // 很長的一局不要無限累積
-  GEO_CACHE.set(key, geo);
-  return geo;
-}
-
-/* =============================================================================
-   部隊棋子 —— 參考畫面裡那些站在地圖上的戰車與船
-   -----------------------------------------------------------------------------
-   一支部隊 = 一塊隊伍顏色的六角底座 + 一個看得出兵種的模型。
-   同一個城市駐了好幾支就並排站在同一塊底座上（最多畫三個，其餘看標籤上的 ×N）。
-   在路上的部隊如果正在海上，就畫成一艘船 —— 參考那款遊戲的海上單位。
-   ============================================================================= */
-const TEAM = '#2f8fe0';
-/* 使用者:「軍隊可以再精細一點點,但是也不要讓地圖太卡」。
-   所以多的是**形狀的細節**(負重輪、艙蓋、階梯、桅杆、手腳),不是多邊形數量的暴增 ——
-   一支部隊還是幾百個三角形,而且同一種組合的幾何只算一次。 */
-function drawUnit(g, k, x, y, z, tint){
-  const T2 = tint || TEAM;
-  switch(k){
-    case 'raid': {                                  // 併購小組:戰車
-      const hull = lin('#5d6b45'), top = lin('#7d8d5c'), dark = lin('#2b2f24'), dt = lin('#3b4031');
-      for(const s of [-1, 1]){
-        box(g, x, y + s*.115, z, .38, .04, .055, dark, dt);                      // 履帶
-        for(let i = 0; i < 5; i++) frustum(g, x - .14 + i*.07, y + s*.14, z + .005, .022, .022, .012, 8, lin('#4a4f40'), lin('#6a705c'));  // 負重輪
-      }
-      let t = box(g, x, y, z + .03, .34, .2, .06, hull, top);
-      box(g, x + .15, y, z + .03, .04, .18, .045, hull, top);                    // 前裝甲斜面
-      const tr = box(g, x - .03, y, t, .17, .14, .065, lin('#6c7b50'), lin('#8fa068'));
-      frustum(g, x - .06, y + .03, tr, .025, .022, .02, 8, lin('#55613f'), lin('#7d8d5c'));   // 艙蓋
-      box(g, x + .14, y, t + .025, .22, .028, .028, lin('#3d472e'), lin('#56623f'));        // 砲管
-      box(g, x + .255, y, t + .025, .03, .038, .038, lin('#2f3824'), lin('#46523a'));       // 砲口
-      box(g, x - .16, y - .06, t - .02, .03, .04, .03, lin('#3a3a32'), lin('#555'));        // 排氣
-      box(g, x - .1, y + .05, tr, .01, .01, .16, lin('#cccccc'), lin('#ffffff'));          // 天線
-      box(g, x - .065, y + .05, tr + .11, .07, .008, .045, lin(T2, .9), lin(T2, 1.1));     // 小旗
-      break; }
-    case 'law': {                                   // 律師團:法院(階梯 + 柱廊 + 山牆)
-      const w = lin('#e9e6dc'), wt = lin('#ffffff'), st = lin('#c9c4b6');
-      box(g, x, y - .02, z, .36, .28, .02, st, wt);
-      box(g, x, y - .01, z + .02, .34, .24, .02, st, wt);
-      const t = box(g, x, y, z + .04, .32, .22, .02, st, wt);
-      for(const cx of [-.12, -.06, 0, .06, .12]) frustum(g, x + cx, y - .07, t, .016, .014, .15, 6, w, wt);
-      box(g, x, y + .035, t, .28, .1, .15, lin('#d8d3c6'), wt);
-      const r = box(g, x, y, t + .15, .34, .24, .03, w, wt);
-      pyramid(g, x, y, r, .3, .08, lin(T2, 1));
-      box(g, x, y - .12, r - .01, .1, .01, .03, lin('#e0b23c'), lin('#ffd76a'));   // 門楣上的徽章
-      break; }
-    case 'lobby': {                                 // 遊說團:講台 + 麥克風 + 旗子 + 兩個聽眾
-      const t = box(g, x, y, z, .16, .12, .15, lin('#6b4a2e'), lin('#8a6440'));
-      box(g, x, y - .02, t, .12, .05, .02, lin('#2a2a2a'), lin('#444'));
-      box(g, x, y - .03, t + .02, .008, .008, .05, lin('#222'), lin('#555'));        // 麥克風
-      box(g, x + .1, y + .04, z, .014, .014, .38, lin('#bbbbbb'), lin('#eeeeee'));
-      box(g, x + .18, y + .04, z + .28, .16, .01, .1, lin(T2, .95), lin(T2, 1.15));
-      for(const dx of [-.07, .04]){                                                   // 聽眾
-        const b = frustum(g, x + dx, y - .17, z, .03, .026, .09, 6, lin('#3c4556'), lin('#4e586b'));
-        frustum(g, x + dx, y - .17, b, .022, .022, .03, 6, lin('#e2b894'), lin('#f0c9a4'));
-      }
-      break; }
-    case 'mgr': {                                   // 經理人:西裝人像(腿、身體、手臂、頭)+ 公事包
-      const suit = lin('#2d3440'), st = lin('#3c4556'), sk = lin('#e2b894');
-      for(const dy of [-.025, .025]) box(g, x, y + dy, z, .035, .03, .09, suit, st);    // 腿
-      const t = frustum(g, x, y, z + .09, .06, .07, .12, 8, suit, st);
-      for(const dy of [-.08, .08]) box(g, x, y + dy, t - .11, .03, .025, .1, suit, st); // 手臂
-      prism(g, x, y, t, .045, .065, 8, sk, lin('#f0c9a4'));
-      box(g, x, y, t + .06, .1, .1, .012, lin('#222'), lin('#333'));                  // 頭髮
-      box(g, x - .062, y, t - .06, .012, .03, .06, lin(T2), lin(T2, 1.2));            // 領帶
-      box(g, x + .01, y + .1, z + .03, .09, .035, .07, lin('#5a3a22'), lin('#7a5234')); // 公事包
-      break; }
-    case 'ship': {                                  // 海上:一艘船(船身、艦橋、砲塔、桅杆)
-      const hull = lin('#5f6b78'), deck = lin('#8a96a2');
-      const t = box(g, x - .04, y, z, .38, .15, .07, hull, deck);
-      tri(g, [x + .15, y - .075, z], [x + .28, y, z], [x + .15, y - .075, t], hull);
-      tri(g, [x + .15, y + .075, t], [x + .28, y, z], [x + .15, y + .075, z], hull);
-      tri(g, [x + .15, y - .075, t], [x + .28, y, z], [x + .15, y + .075, t], deck);
-      box(g, x - .04, y, z + .02, .39, .155, .008, lin('#c8322a'), lin('#d9443a'));    // 吃水線
-      const b = box(g, x - .1, y, t, .12, .1, .08, lin('#d9dde2'), lin('#f4f6f8'));
-      box(g, x - .1, y - .051, t + .05, .1, .004, .015, lin('#223'), lin('#334'));    // 艦橋窗
-      box(g, x - .1, y, b, .02, .02, .14, lin('#bbb'), lin('#eee'));                   // 桅杆
-      box(g, x - .1, y, b + .1, .07, .01, .01, lin('#bbb'), lin('#eee'));
-      frustum(g, x + .08, y, t, .035, .03, .03, 8, lin('#6c7884'), lin('#95a1ad'));    // 砲塔
-      box(g, x + .13, y, t + .015, .08, .012, .012, lin('#444'), lin('#666'));
-      box(g, x - .2, y, t, .03, .03, .06, lin(T2), lin(T2, 1.2));                     // 船尾旗
-      break; }
-  }
-}
-function troopKey(d){
-  if(d._threat) return `th:${d._r.id}:${d._sea ? 1 : 0}`;
-  if(d._rvf) return `rf:${d._r.id}:${d._units.map(u => u.k).join(',')}`;
-  return `tr:${d._sea ? 'ship' : d._units.slice(0, 3).map(u => u.k).join(',')}`;
-}
-function buildTroop(d){
-  const enemy = d._threat || d._rvf;
-  const col = enemy ? `rgb(${(typeof TY_RVCOL !== 'undefined' && TY_RVCOL[d._r.id]) || '255,69,58'})` : TEAM;
-  const kinds = d._threat ? [d._sea ? 'ship' : 'raid'] : d._sea ? ['ship'] : d._units.slice(0, 3).map(u => u.k);
-  const key = troopKey(d);
-  return geoFor(key, g => {
-    const n = kinds.length, r = .22 + n * .13;
-    const z = prism(g, 0, 0, 0, r, .05, 6, lin(col, .55), lin(col, .95), Math.PI/6);
-    prism(g, 0, 0, z, r * .84, .01, 6, lin('#1a2a36'), lin(enemy ? '#3a1414' : '#1f3a52'), Math.PI/6);
-    kinds.forEach((k, i) => drawUnit(g, k, (i - (n - 1) / 2) * .36, 0, z + .01, col));
-  });
-}
-
-/* =============================================================================
-   城市地標 —— 使用者:「每個城市都可以有地標或是特色建築」
-   -----------------------------------------------------------------------------
-   44 座城市各配一個一眼認得出來的地標,用最基本的幾何(方塊、稜柱、錐台、角錐)
-   拼出來:每一個只有幾百個三角形,同一種地標的幾何只算一次,所以整張地圖多出來的
-   負擔大約是 44 個 draw call —— 不會讓地圖變卡。
+   44 座城市各配一個一眼認得出來的地標(像素圖在 pixel.js 的 PX.LMS)。
    遠看(部隊變成圖示的那個高度)一律收起來:那時候它們只會是一堆擠在一起的小點。
    ============================================================================= */
-/* 錐台:底半徑 r0、頂半徑 r1 的 n 邊柱。r1 = 0 就是角錐,r0 = r1 就是稜柱。 */
-function frustum(g, cx, cy, z0, r0, r1, h, n, side, top, rot){
-  const z1 = z0 + h, A = [], B = [];
-  for(let i = 0; i < n; i++){
-    const a = (rot || 0) + i / n * Math.PI * 2, c = Math.cos(a), s = Math.sin(a);
-    A.push([cx + c*r0, cy + s*r0]); B.push([cx + c*r1, cy + s*r1]);
-  }
-  for(let i = 0; i < n; i++){
-    const j = (i + 1) % n;
-    quad(g, [A[i][0],A[i][1],z0], [A[j][0],A[j][1],z0], [B[j][0],B[j][1],z1], [B[i][0],B[i][1],z1], side);
-    if(r1 > 0) tri(g, [cx,cy,z1], [B[i][0],B[i][1],z1], [B[j][0],B[j][1],z1], top || side);
-  }
-  return z1;
-}
-/* 球(或圓頂):幾段錐台疊起來 */
-function ball(g, cx, cy, z0, r, col, half){
-  const seg = half ? 3 : 6, n = 10;
-  let z = z0;
-  for(let i = 0; i < seg; i++){
-    const t0 = half ? i / seg * Math.PI/2 : -Math.PI/2 + i / seg * Math.PI;
-    const t1 = half ? (i+1) / seg * Math.PI/2 : -Math.PI/2 + (i+1) / seg * Math.PI;
-    const h = r * (Math.sin(t1) - Math.sin(t0));
-    z = frustum(g, cx, cy, z, r * Math.cos(t0), r * Math.cos(t1), h, n, col, col);
-  }
-  return z;
-}
-const LM = {
-  // 台北 101:八節往外張的竹節 + 尖塔
-  t101(g){ const gl = lin('#5f8f86'), gt = lin('#8ec3b8');
-    let z = box(g, 0, 0, 0, .3, .3, .3, gl, gt);
-    for(let i = 0; i < 8; i++) z = frustum(g, 0, 0, z, .1, .145, .1, 4, gl, gt, Math.PI/4);
-    z = box(g, 0, 0, z, .12, .12, .08, gl, gt);
-    box(g, 0, 0, z, .02, .02, .3, lin('#dddddd'), lin('#ffffff')); },
-  // 東京鐵塔 / 石油井架:往上收的格架,紅白相間
-  lattice(g, red){ let z = 0, w = .42;
-    for(let i = 0; i < 6; i++){ const c = red ? lin(i % 2 ? '#f2f2f2' : '#e0452f') : lin(i % 2 ? '#9aa3ab' : '#6d767e');
-      const nw = w * .7; z = frustum(g, 0, 0, z, w * .7, nw * .7, .2, 4, c, c, Math.PI/4); w = nw;
-      if(i === 2) box(g, 0, 0, z, .18, .18, .05, lin('#d0d0d0'), lin('#f0f0f0')); }
-    box(g, 0, 0, z, .015, .015, .22, lin('#dddddd'), lin('#ffffff')); },
-  eiffel(g){ const b = lin('#8a6f4d'), bt = lin('#a88b62');
-    for(const [x, y] of [[-.14,-.14],[.14,-.14],[-.14,.14],[.14,.14]]) frustum(g, x, y, 0, .06, .035, .22, 4, b, bt, Math.PI/4);
-    let z = box(g, 0, 0, .22, .36, .36, .04, b, bt);
-    z = frustum(g, 0, 0, z, .17, .08, .35, 4, b, bt, Math.PI/4);
-    z = box(g, 0, 0, z, .14, .14, .03, b, bt);
-    z = frustum(g, 0, 0, z, .07, .02, .5, 4, b, bt, Math.PI/4);
-    box(g, 0, 0, z, .012, .012, .12, b, bt); },
-  bigben(g){ const s = lin('#c8b27a'), st = lin('#e2cf9b');
-    let z = box(g, 0, 0, 0, .16, .16, .75, s, st);
-    z = box(g, 0, 0, z, .19, .19, .14, lin('#e9e2cf'), lin('#fff8e6'));
-    pyramid(g, 0, 0, z, .19, .28, lin('#4b5a4f'));
-    box(g, .28, 0, 0, .34, .2, .25, s, st); },
-  liberty(g){ const p = lin('#9a9486'), pt = lin('#bdb7a8'), v = lin('#6fae98'), vt = lin('#8fd0b8');
-    let z = frustum(g, 0, 0, 0, .2, .16, .12, 4, p, pt, Math.PI/4);
-    z = box(g, 0, 0, z, .16, .16, .22, p, pt);
-    const t = frustum(g, 0, 0, z, .07, .045, .38, 8, v, vt);
-    ball(g, 0, 0, t, .045, v);
-    box(g, .05, 0, t - .05, .025, .025, .22, v, vt);
-    frustum(g, .05, 0, t + .17, .03, .045, .05, 8, lin('#e0b23c'), lin('#ffd76a')); },
-  burj(g){ const c = lin('#c9d3dc'), ct = lin('#eef3f7'); let z = 0, r = .16;
-    for(let i = 0; i < 7; i++){ const nr = r * .78; z = frustum(g, 0, 0, z, r, nr, .22, 6, c, ct); r = nr; }
-    frustum(g, 0, 0, z, r, 0, .35, 6, c, ct); },
-  pearl(g){ const s = lin('#b9b9c4'), p = lin('#d86aa0');
-    for(const [x, y] of [[-.1,-.06],[.1,-.06],[0,.1]]) frustum(g, x, y, 0, .03, .03, .5, 6, s, s);
-    ball(g, 0, 0, .12, .14, p);
-    const z = frustum(g, 0, 0, .4, .035, .03, .45, 6, s, s);
-    ball(g, 0, 0, z - .1, .08, p);
-    frustum(g, 0, 0, z + .06, .015, 0, .3, 6, s, s); },
-  mbs(g){ const c = lin('#d9dde2'), ct = lin('#f4f6f8');
-    for(const x of [-.2, 0, .2]){ box(g, x, -.04, 0, .1, .08, .55, c, ct); box(g, x, .05, 0, .1, .08, .5, c, ct); }
-    box(g, .04, 0, .55, .62, .14, .04, lin('#8fae78'), lin('#b9d6a0')); },
-  opera(g){ const w = lin('#f2efe6'), b = lin('#b5886a');
-    box(g, 0, 0, 0, .56, .3, .06, b, lin('#c99e7f'));
-    for(const [x, h, s] of [[-.2,.24,.16],[-.07,.3,.2],[.07,.26,.17],[.2,.2,.14]]) pyramid(g, x, 0, .06, s, h, w); },
-  bridge(g){ const r = lin('#c8442c'), rt = lin('#e45a3f');
-    for(const x of [-.3, .3]){ box(g, x, -.04, 0, .05, .05, .6, r, rt); box(g, x, .04, 0, .05, .05, .6, r, rt); box(g, x, 0, .5, .05, .13, .04, r, rt); }
-    box(g, 0, 0, .18, .9, .1, .03, r, rt);
-    for(let i = 0; i < 6; i++){ const x = -.3 + i * .12, h = .22 + Math.abs(Math.cos(i / 5 * Math.PI)) * .28;
-      box(g, x, .045, .21, .01, .01, h - .21, lin('#a33'), lin('#c44')); } },
-  pagoda(g, gold){ const wall = lin(gold ? '#c9a227' : '#b53a2a'), roof = lin(gold ? '#e8c050' : '#2f5d4a'), rt = lin(gold ? '#ffe08a' : '#3f7a60');
-    let z = box(g, 0, 0, 0, .4, .3, .08, lin('#9c9384'), lin('#bbb2a1'));
-    for(let i = 0; i < 3; i++){ const s = .3 - i * .07;
-      z = box(g, 0, 0, z, s, s * .8, .12, wall, wall);
-      z = frustum(g, 0, 0, z, s * .85, s * .45, .07, 4, roof, rt, Math.PI/4); }
-    frustum(g, 0, 0, z, .025, 0, .18, 6, lin('#e0b23c'), lin('#ffd76a')); },
-  stupa(g){ const c = lin('#d9a82c'), ct = lin('#ffd76a'); let z = 0, r = .24;
-    for(let i = 0; i < 5; i++){ z = frustum(g, 0, 0, z, r, r * .82, .08, 8, c, ct); r *= .78; }
-    ball(g, 0, 0, z, r * 1.3, c, true);
-    frustum(g, 0, 0, z + r * 1.2, r * .5, 0, .45, 8, c, ct); },
-  aztec(g){ const c = lin('#b89a68'), ct = lin('#d4b886'); let z = 0;
-    for(let i = 0; i < 4; i++) z = box(g, 0, 0, z, .5 - i * .1, .5 - i * .1, .08, c, ct);
-    box(g, 0, 0, z, .12, .12, .08, lin('#8a7550'), ct); },
-  mosque(g){ const w = lin('#ece3cf'), wt = lin('#fff8e8'), d = lin('#3f8a86');
-    let z = box(g, 0, 0, 0, .34, .34, .16, w, wt);
-    ball(g, 0, 0, z, .14, d, true);
-    for(const x of [-.24, .24]){ const t = frustum(g, x, -.14, 0, .03, .025, .55, 8, w, wt); frustum(g, x, -.14, t, .03, 0, .08, 8, d, d); } },
-  gateway(g){ const s = lin('#c9a46a'), st = lin('#e2c08a');
-    for(const x of [-.17, .17]) box(g, x, 0, 0, .12, .16, .3, s, st);
-    box(g, 0, 0, .3, .46, .16, .08, s, st);
-    for(const x of [-.19, -.06, .06, .19]) frustum(g, x, 0, .38, .03, 0, .12, 6, s, st); },
-  bank(g){ const w = lin('#e9e6dc'), wt = lin('#ffffff');
-    const t = box(g, 0, 0, 0, .44, .3, .05, lin('#c9c4b6'), wt);
-    for(const cx of [-.15, -.05, .05, .15]) box(g, cx, -.09, t, .04, .04, .22, w, wt);
-    box(g, 0, .05, t, .38, .14, .22, lin('#d8d3c6'), wt);
-    const r = box(g, 0, 0, t + .22, .46, .32, .04, w, wt);
-    pyramid(g, 0, 0, r, .36, .1, lin('#7c8c96')); },
-  skyline(g, tint){ const c = lin(tint || '#6f93b8'), ct = lin('#cfe3f5');
-    for(const [x, y, h, w] of [[0,0,.9,.13],[-.17,.06,.6,.12],[.16,-.05,.7,.12],[-.05,-.16,.45,.1],[.12,.15,.4,.1]]){
-      const t = box(g, x, y, 0, w, w, h, c, ct);
-      if(h > .8) frustum(g, x, y, t, w * .35, 0, .22, 4, c, ct, Math.PI/4); } },
-  needle(g, pod){ const c = lin('#cfcfcf'), ct = lin('#f0f0f0');
-    const z = frustum(g, 0, 0, 0, .09, .04, 1.1, 6, c, ct);
-    frustum(g, 0, 0, z - .3 + (pod || 0), .16, .16, .09, 10, lin('#8a9097'), lin('#b8bec5'));
-    frustum(g, 0, 0, z, .025, 0, .4, 6, c, ct);
-    box(g, 0, 0, 0, .3, .3, .05, lin('#9a9486'), lin('#bdb7a8')); },
-  palm(g){ const t = lin('#8a6a44'), l = lin('#3f9a4a'), lt = lin('#6cc46f');
-    let z = 0; for(let i = 0; i < 5; i++) z = frustum(g, i * .012, 0, z, .035, .03, .1, 6, t, t);
-    for(let i = 0; i < 6; i++){ const a = i / 6 * Math.PI * 2; box(g, .06 + Math.cos(a) * .12, Math.sin(a) * .12, z - .03, .2, .05, .02, l, lt); }
-    box(g, 0, 0, 0, .5, .34, .02, lin('#e6d6a8'), lin('#f4e6bc')); },
-  lighthouse(g){ let z = 0; for(let i = 0; i < 5; i++) z = frustum(g, 0, 0, z, .1 - i * .008, .092 - i * .008, .12, 10, lin(i % 2 ? '#f4f4f4' : '#c8322a'), lin('#fff'));
-    z = frustum(g, 0, 0, z, .07, .07, .08, 10, lin('#ffe08a'), lin('#fff4c0'));
-    frustum(g, 0, 0, z, .08, 0, .08, 10, lin('#333'), lin('#444')); },
-  fab(g){ const w = lin('#dfe5ea'), wt = lin('#ffffff');
-    const t = box(g, 0, 0, 0, .6, .36, .16, w, wt);
-    for(let i = 0; i < 4; i++) pyramid(g, -.22 + i * .15, 0, t, .14, .06, lin('#8fa6b8'));
-    for(const x of [-.2, .2]) frustum(g, x, .22, 0, .04, .035, .42, 8, lin('#b0b7bd'), lin('#d0d6db')); },
-  headframe(g){ const s = lin('#6d767e'), st = lin('#9aa3ab');
-    let z = 0, w = .3; for(let i = 0; i < 4; i++){ z = frustum(g, 0, 0, z, w * .7, w * .55, .14, 4, s, st, Math.PI/4); w *= .78; }
-    frustum(g, 0, 0, z, .1, .1, .03, 12, lin('#444'), lin('#666'));
-    box(g, .3, 0, 0, .26, .22, .12, lin('#8a6a44'), lin('#a98256')); },
-  saucer(g){ const c = lin('#c9a46a'), ct = lin('#e2c08a');
-    const z = frustum(g, 0, 0, 0, .1, .09, .7, 10, c, ct);
-    frustum(g, 0, 0, z, .12, .22, .05, 12, lin('#8a6a44'), lin('#a98256'));
-    box(g, .22, 0, 0, .2, .3, .14, lin('#b0a898'), lin('#d0c8b8')); },
-  luxor(g){ pyramid(g, 0, 0, 0, .56, .5, lin('#2b2f3a'));
-    frustum(g, 0, 0, .5, .01, .01, .6, 4, lin('#fff6c0'), lin('#fff6c0')); },
-  casino(g){ const w = lin('#efe6d2'), wt = lin('#fffaf0');
-    const t = box(g, 0, 0, 0, .5, .3, .18, w, wt);
-    ball(g, 0, 0, t, .1, lin('#6b8c84'), true);
-    for(const x of [-.21, .21]){ const tt = box(g, x, 0, t, .08, .08, .1, w, wt); pyramid(g, x, 0, tt, .09, .08, lin('#6b8c84')); } },
-  spire(g){ frustum(g, 0, 0, 0, .05, 0, 1.3, 8, lin('#c9d3dc'), lin('#eef3f7'));
-    box(g, 0, 0, 0, .3, .3, .03, lin('#9a9486'), lin('#bdb7a8')); },
-  kingdom(g){ const c = lin('#8fa2b3'), ct = lin('#c7d6e3');
-    const z = frustum(g, 0, 0, 0, .2, .14, .8, 4, c, ct, Math.PI/4);
-    for(const s of [-1, 1]) frustum(g, s * .07, 0, z, .07, .01, .3, 4, c, ct, Math.PI/4);
-    box(g, 0, 0, z + .2, .16, .04, .03, lin('#dfe8f0'), lin('#fff')); },
-  monas(g){ const w = lin('#f0f0ea'), wt = lin('#ffffff');
-    let z = frustum(g, 0, 0, 0, .3, .24, .1, 4, w, wt, Math.PI/4);
-    z = frustum(g, 0, 0, z, .07, .04, .75, 4, w, wt, Math.PI/4);
-    frustum(g, 0, 0, z, .07, .04, .09, 8, lin('#e0b23c'), lin('#ffd76a')); },
-  castle(g){ const w = lin('#f2f0ea'), wt = lin('#fff'), r = lin('#3c5a6e'), rt = lin('#56788e');
-    let z = box(g, 0, 0, 0, .46, .4, .14, lin('#8e8a82'), lin('#aaa59b'));
-    for(let i = 0; i < 4; i++){ const s = .32 - i * .06; z = box(g, 0, 0, z, s, s * .85, .1, w, wt); z = frustum(g, 0, 0, z, s * .8, s * .5, .06, 4, r, rt, Math.PI/4); }
-    box(g, 0, 0, z, .04, .04, .06, lin('#e0b23c'), lin('#ffd76a')); },
-};
-/* 每座城市用哪一個。名字會出現在城市的懸停小卡上。 */
+const TEAM = '#2f8fe0';           // 你的隊伍色(部隊、旗子)
 const LANDMARK = {
   nyc:['liberty','自由女神像'], sfo:['bridge','金門大橋'], mia:['palm','南灘'], las:['luxor','賭城大道'],
   hou:['lattice','石油井架',0], del:['bank','公司註冊處'], chi:['skyline','天際線','#4c5d73'], tor:['needle','西恩塔'],
@@ -1110,66 +740,146 @@ const LANDMARK = {
   nbo:['saucer','肯亞塔國際會議中心'], cay:['palm','七哩海灘'], vgb:['palm','維京群島'], bmu:['lighthouse','吉布斯山燈塔'],
 };
 W3D.landmarkName = id => (LANDMARK[id] || [])[1] || '';
-function buildLandmark(d){
-  const L = LANDMARK[d.id]; if(!L) return null;
-  const [k, , arg] = L;
-  const geo = geoFor('lm:' + d.id, g => (LM[k] || LM.skyline)(g, arg));
+/* =============================================================================
+   像素看板 —— 使用者:「全部變成像素風格,包含所有建築、軍事」
+   -----------------------------------------------------------------------------
+   建築、部隊、地標都是一張像素圖(pixel.js)貼在一片永遠面向鏡頭的四邊形上(看板),
+   底部釘在地上。貼圖用最近鄰取樣(NearestFilter)—— 放大之後像素還是方的,不會糊。
+   材質:底色黑、自發光白、自發光貼圖 = 像素圖 → 畫出來的就是原本的顏色,不受光照影響;
+   alphaTest 把透明的像素挖掉(不用半透明排序)。
+   ⚠ Texture 的建構子要等地球貼圖掛好(mountTex)才撿得到;在那之前先回傳空物件,
+     掛好之後 W3D.sites 用上一次的資料重蓋一次。
+   ============================================================================= */
+const PXU = .04;                  // 看板:一個像素 = 幾個地磚單位
+const VPX = .025;                 // 載具:一個像素 = 幾個單位(之後還會乘上 animStep 的倍率)
+const TEXC = new Map(), QGEO = new Map();
+const hasPX = () => typeof PX !== 'undefined' && PX && PX.canvas;
+function pxMat(key, make){
+  if(TEXC.has(key)) return TEXC.get(key);
+  if(!TEX || !hasPX()) return null;
+  const cv = make();
+  const t = new TEX.constructor(cv);
+  t.magFilter = 1003; t.minFilter = 1003; t.generateMipmaps = false;   // NearestFilter
+  t.colorSpace = TEX.colorSpace; t.needsUpdate = true;
+  const m = new T.Phong({ map: t, emissiveMap: t, alphaTest: .5, side: 2, shininess: 0 });
+  m.color && m.color.set('#000000'); m.emissive && m.emissive.set('#ffffff'); m.specular && m.specular.set('#000000');
+  const r = { mat: m, w: cv.width, h: cv.height };
+  TEXC.set(key, r);
+  return r;
+}
+/* 四邊形:站著的(看板,底邊中點是原點、往 +z 長)或平躺的(載具,中心是原點、機頭 +x) */
+function quadGeo(w, h, flat){
+  const key = w.toFixed(4) + 'x' + h.toFixed(4) + (flat ? 'f' : 's');
+  if(QGEO.has(key)) return QGEO.get(key);
+  const P = flat ? [-w/2,-h/2,0, w/2,-h/2,0, w/2,h/2,0, -w/2,h/2,0] : [-w/2,0,0, w/2,0,0, w/2,0,h, -w/2,0,h];
+  const pos = [], uv = [], nor = [];
+  const U = [0,0, 1,0, 1,1, 0,1];
+  for(const i of [0,1,2, 0,2,3]){ pos.push(P[i*3], P[i*3+1], P[i*3+2]); uv.push(U[i*2], U[i*2+1]); nor.push(0, flat ? 0 : -1, flat ? 1 : 0); }
+  const g = new T.BG();
+  g.setAttribute('position', new T.Attr(new Float32Array(pos), 3));
+  g.setAttribute('normal', new T.Attr(new Float32Array(nor), 3));
+  g.setAttribute('uv', new T.Attr(new Float32Array(uv), 2));
+  QGEO.set(key, g);
+  return g;
+}
+function bbRoot(d, key, make, flags){
+  const M = pxMat(key, make);
   const root = new T.O3();
-  root.add(new T.Mesh(geo, MAT));
-  root.userData.site = d; root.userData.lm = true;
-  root.visible = !FAR;
+  root.userData.site = d;
+  Object.assign(root.userData, flags || {});
+  if(!M){ NEED_REBUILD = true; return root; }
+  const mesh = new T.Mesh(quadGeo(M.w * PXU, M.h * PXU, false), M.mat);
+  mesh.renderOrder = 2;
+  /* 在「真的要畫」的那一刻才轉向:鏡頭的傾斜(installTilt)是在控制器更新時才套上的,
+     自己另開一個 rAF 去轉,轉的會是還沒傾斜的鏡頭 —— 看板會斜斜的像平行四邊形。
+     three 在呼叫 onBeforeRender 之前已經算好 matrixWorld,所以轉完要自己補算一次。 */
+  mesh.onBeforeRender = (r, sc, cam) => {
+    faceCam(root, cam);
+    mesh.updateMatrix();
+    mesh.matrixWorld.multiplyMatrices(root.matrixWorld, mesh.matrix);
+  };
+  root.add(mesh);
+  root.userData.bb = mesh;
+  root.userData.key = key;
   OBJS.add(root);
   return root;
+}
+let NEED_REBUILD = false, LAST_SITES = null;
+/* 讓看板面向鏡頭:在據點自己的座標系(x 東、y 北、z 天)裡,把四邊形的法線轉向鏡頭,
+   上緣盡量朝天。鏡頭在正上方的時候(法線跟天頂同方向)改用正北當「上」。 */
+/* 「上」用鏡頭自己的上方(螢幕的上),不用地表法線 —— 鏡頭幾乎正對地面的時候,
+   法線投影到畫面上只剩一個點,方向亂跳,看板會斜斜地躺著(第一版就是這樣)。 */
+let bbV = null, bbU = null;
+function faceCam(root, camObj){
+  const mesh = root.userData.bb; if(!mesh) return;
+  const cam = camObj.position;
+  if(!bbV){ bbV = cam.clone(); bbU = cam.clone(); }
+  bbV.copy(cam); root.worldToLocal(bbV);
+  bbU.set(0, 1, 0).applyQuaternion(camObj.quaternion).add(cam); root.worldToLocal(bbU); bbU.sub(bbV);
+  const l = Math.hypot(bbV.x, bbV.y, bbV.z) || 1;
+  const fx = bbV.x/l, fy = bbV.y/l, fz = bbV.z/l;
+  const d = bbU.x*fx + bbU.y*fy + bbU.z*fz;
+  let ux = bbU.x - d*fx, uy = bbU.y - d*fy, uz = bbU.z - d*fz;
+  const ul = Math.hypot(ux, uy, uz) || 1;
+  ux /= ul; uy /= ul; uz /= ul;
+  // X = (−f) × U,欄位 (X, −f, U):從鏡頭看過去 +x 在右邊,像素圖不會左右顛倒
+  const xx = -(fy*uz - fz*uy), xy = -(fz*ux - fx*uz), xz = -(fx*uy - fy*ux);
+  mesh.matrix.set(xx, -fx, ux, 0,  xy, -fy, uy, 0,  xz, -fz, uz, 0,  0, 0, 0, 1);
+  mesh.quaternion.setFromRotationMatrix(mesh.matrix);
+}
+/* 一座城的像素圖:每一棟照它的種類挑圖,事業塔樓的樓層數 = 同一把尺的高度 */
+function bldSprite(b){
+  const S = PX.SPR;
+  switch(b.c){
+    case 'biz':    return PX.bizTower(b.k || 'tech', b.h != null ? b.h : ((b.f || 1) - 1) / 6);
+    case 'estate': return (b.f || 1) >= 5 ? S.hotel5 : S.house;
+    case 'paper': case 'gold': case 'real': return PX.assetSprite(b.k);
+    case 'cash':   return S.cash;
+    case 'hold':   return S.hold;
+    default:       return S.shell;
+  }
+}
+const BADGE_OF = { earn: 'up', burn: 'down', pub: 'pub' };
+const rvRGB = id => (typeof TY_RVCOL !== 'undefined' && TY_RVCOL[id]) || '160,160,170';
+
+function buildLandmark(d){
+  const L = LANDMARK[d.id]; if(!L) return null;
+  const k = L[0];
+  return bbRoot(d, 'lm:' + k, () => PX.paint(PX.city([{ sp: PX.LMS[k] || PX.LMS.skyline }], '#9aa5b8')),
+                { lm: true, visibleFar: false });
+}
+function buildTroop(d){
+  const enemy = d._threat || d._rvf;
+  const tint = enemy ? `rgb(${rvRGB(d._r.id)})` : TEAM;
+  const kinds = d._threat ? [d._sea ? 'ship' : 'raid'] : d._sea ? ['ship'] : d._units.slice(0, 3).map(u => u.k);
+  const key = 'tr:' + tint + ':' + kinds.join(',');
+  return bbRoot(d, key, () => PX.paint(PX.city([...kinds.map(k => ({ sp: PX.SPR[k] || PX.SPR.raid, tint })),
+                                                  { sp: PX.SPR.flag, tint }], tint)), { troop: true });
 }
 
 /* 一個據點（或一個對手大本營）的整座小城 */
 function buildSite(d){
-  if(d._lm) return buildLandmark(d) || new T.O3();
-  if(d._units || d._threat){
-    const root = new T.O3();
-    root.add(new T.Mesh(buildTroop(d), MAT));
-    root.userData.site = d;
-    root.userData.troop = true;
-    root.visible = !FAR;
-    OBJS.add(root);
-    return root;
-  }
-  let key, fill;
+  if(d._lm){ const r = buildLandmark(d) || new T.O3(); r.visible = !FAR; return r; }
+  if(d._units || d._threat){ const r = buildTroop(d); r.visible = !FAR; return r; }
+  let key, make;
   if(d._rival){
-    const col = `rgb(${(typeof TY_RVCOL !== 'undefined' && TY_RVCOL[d._rival.id]) || '160,160,170'})`;
-    // 跟你的建築同一把尺:對手的身家 vs 你在一座城的規模(見 index 的 tyHeightScale)
-    const h = d._hk != null ? .3 + d._hk * 2.2 : .45 + (d._rvk || 0) * .9;
+    const col = `rgb(${rvRGB(d._rival.id)})`;
+    const h = d._hk != null ? d._hk : (d._rvk || 0);
     key = `rv:${d._rival.id}:${h.toFixed(2)}`;
-    fill = g => {
-      const z = prism(g, 0, 0, 0, TILE_R*.8, .07, 6, lin(col, .45), lin(col, .75), Math.PI/6);
-      const t = box(g, 0, 0, z, .24, .24, h, lin(col, .7), lin(col, 1.1));
-      pyramid(g, 0, 0, t, .24, .2, lin(col, 1.2));
-      box(g, -.22, .12, z, .14, .14, h*.45, lin(col, .55), lin(col, .9));
-      box(g, .2, -.14, z, .14, .14, h*.3, lin(col, .55), lin(col, .9));
-    };
+    make = () => PX.paint(PX.city([{ sp: PX.rivalTower(h), tint: col }], col));
   }else{
-    const blds = (d._blds || []).slice().sort((a,b) => ((b.h != null ? b.h*9 : b.f||1) - (a.h != null ? a.h*9 : a.f||1)));
-    const catCol = (d._col && d._col[0] === '#') ? d._col : '#4fc3f7';
-    key = `me:${d._cat}:${blds.map(b => b.c + b.f + (b.st||'') + (b.h != null ? '@' + b.h : '')).join(',')}`;
-    fill = g => {
-      const z = prism(g, 0, 0, 0, TILE_R, .07, 6, lin(catCol, .35), lin(catCol, .6), Math.PI/6);
-      prism(g, 0, 0, z, TILE_R*.86, .012, 6, lin('#0d1d2a'), lin('#16303f'), Math.PI/6);
-      blds.forEach((b, i) => { const s = SLOTS[i] || SLOTS[0]; drawBuilding(g, b, s[0], s[1], z + .012); });
-    };
+    const blds = (d._blds || []);
+    const ground = (d._col && d._col[0] === '#') ? d._col : '#4fc3f7';
+    key = `me:${ground}:${blds.map(b => b.c + (b.k || '') + b.f + (b.st || '') + (b.h != null ? '@' + b.h : '')).join(',')}`;
+    make = () => PX.paint(PX.city(blds.map(b => ({ sp: bldSprite(b), badge: BADGE_OF[b.st] })), ground));
   }
-  const geo = geoFor(key, fill);
-  const mesh = new T.Mesh(geo, MAT);
-  const root = new T.O3();
-  root.add(mesh);
-  root.userData.key = key;
-  root.userData.site = d;
+  const root = bbRoot(d, key, make);
   /* 這個據點的樣子跟上一次不一樣（新蓋的、長高的）→ 播一次「從地上長出來」 */
   const id = d._rival ? 'rv:' + d._rival.id : d.id;
-  if(SEEN[id] !== key){
+  if(root.userData.bb && SEEN[id] !== key){
     if(SEEN[id] !== undefined || W3D._warm) root.userData.grow = performance.now();
     SEEN[id] = key;
   }
-  OBJS.add(root);
   if(root.userData.grow) kick();
   return root;
 }
@@ -1210,7 +920,12 @@ function applyScale(obj, now){
     k = Math.max(.02, k);
     if(p >= 1) obj.userData.grow = 0;
   }
-  obj.scale.set(s * 1.6, s * 1.6, s * k);        // 底座放寬:遠看才認得出是一座城,不是一根針
+  if(obj.userData.bb){
+    // 看板:外層等比例縮放(不等比的話子物件轉向鏡頭時會被拉歪),「長出來」只拉高度
+    const b = s * (obj.userData.troop ? .75 : obj.userData.lm ? .85 : 1);   // 看板比舊的 3D 模型佔地大,部隊與地標縮一點
+    obj.scale.set(b, b, b);
+    obj.userData.bb.scale.set(1, 1, k);
+  }else obj.scale.set(s * 1.6, s * 1.6, s * k);   // 底座放寬:遠看才認得出是一座城,不是一根針
   const at = obj.userData.at;
   if(at && at.slot){
     /* 城市旁邊的位子:用「度」算、而且在**當下這個距離**檢查是不是陸地。
@@ -1350,8 +1065,6 @@ W3D.attach = function(globe){
     return false;
   }
   try{
-    MAT = new T.Phong({ vertexColors: true, shininess: 28 });
-    MAT.emissive && MAT.emissive.set('#141a22');
     G.customLayerData([])
      .customThreeObject(d => buildSite(d))
      .customThreeObjectUpdate((obj, d) => placeSite(obj, d));
@@ -1415,10 +1128,13 @@ function slotDirs(id, lat, lng, D){
   for(const a of DIRS.slice(0, 8)) if(!out.some(o => angGap(o[0], a) < .7)) out.push([a, .28]);
   return (SLOT_C[key] = out);
 }
+W3D._objs = () => [...OBJS];     // 給截圖驗證用
 W3D._slot = (id, lat, lng, D) => slotDirs(id, lat, lng, D);   // 給測試用
 
 W3D.sites = function(mine, rivals, troops){
   if(!W3D.ok) return;
+  LAST_SITES = [mine, rivals, troops];
+  NEED_REBUILD = false;
   paintSkin();
   const rvMax = Math.max(1, ...rivals.map(r => r._v || 0));
   rivals.forEach(r => { r._rvk = Math.sqrt((r._v || 0) / rvMax); });
@@ -1693,127 +1409,12 @@ function armHover(){
 }
 
 /* =============================================================================
-   出發與打擊的動畫 —— 參考那款遊戲的手感
+   載具 —— 部隊出發、飛彈、空襲的動畫主角
    -----------------------------------------------------------------------------
-   使用者第二輪的要求:「飛機、船不要太快結束」「飛機用運輸機或客機,船用高級一點的軍艦」
-   「炸彈炸下去要有震動,空襲要有火花」「飛彈空襲要確定有動畫」。所以:
-     · 每一趟都放慢(飛機 5~10 秒、船 8~16 秒、飛彈 4~7 秒)
-     · 開演之前鏡頭先飛過去,讓起點與目標都在畫面裡 —— 看不到的動畫等於沒有
-     · 手機上面板是整張蓋住地圖的:按下發射的那一刻先把面板收起來(見 index 的 tyPlayLast)
-     · 客機(圓機身、後掠翼、四具引擎、窗戶)/ 驅逐艦(艦橋、雷達、主砲、垂直發射器、直升機甲板)
-       / 三輛軍用卡車的車隊 / 有尾焰的飛彈 / 戰鬥機
-     · 飛機拉凝結尾、船拉航跡;爆炸 = 震動 + 閃光 + 火花 + 會燒一陣子的火 + 煙 + 衝擊波
-   載具的方向:x = 前進方向、z = 地表法線,每一幀用前後兩點算。
+   客機 / 驅逐艦 / 卡車車隊 / 飛彈 / 戰機 / 炸彈,都是 pixel.js 的俯視像素圖,
+   平躺在地上(或空中),機頭 = 前進方向,每一幀用前後兩點算方向(orient)。
+   飛機拉凝結尾、船拉航跡;爆炸 = 震動 + 閃光 + 火花 + 會燒一陣子的火 + 煙 + 衝擊波。
    ============================================================================= */
-/* 沿 x 軸的圓柱 / 錐:機身、砲管、飛彈 */
-function cylX(g, x0, x1, y, z, r0, r1, n, col, cap){
-  const P = (x, r, a) => [x, y + Math.cos(a) * r, z + Math.sin(a) * r];
-  for(let i = 0; i < n; i++){
-    const a = i / n * Math.PI * 2, b = (i + 1) / n * Math.PI * 2;
-    quad(g, P(x0, r0, a), P(x0, r0, b), P(x1, r1, b), P(x1, r1, a), col);
-    if(cap !== false && r0 > 0) tri(g, [x0, y, z], P(x0, r0, b), P(x0, r0, a), col);
-    if(cap !== false && r1 > 0) tri(g, [x1, y, z], P(x1, r1, a), P(x1, r1, b), col);
-  }
-}
-/* 任意凸多邊形擠出:pts 是平面上的點,axis 'z' = 在 xy 平面上、往上擠(機翼、船身);
-   'y' = 在 xz 平面上、往側面擠(垂直尾翼)。順序不用管,這裡自己轉成逆時針。 */
-function extrude(g, pts, axis, a0, a1, side, cap){
-  let area = 0; for(let i = 0; i < pts.length; i++){ const p = pts[i], q = pts[(i+1) % pts.length]; area += p[0]*q[1] - q[0]*p[1]; }
-  const P = area < 0 ? pts.slice().reverse() : pts;
-  const V = axis === 'z' ? (p, h) => [p[0], p[1], h] : (p, h) => [p[0], -h, p[1]];
-  // 'y' 軸擠出時,平面座標 (x, z) 的逆時針在 -y 方向看;所以側面與頂面的順序要反過來
-  const flip = axis === 'y';
-  const t = (A, B, C, c) => flip ? tri(g, A, C, B, c) : tri(g, A, B, C, c);
-  const n = P.length, c0 = P[0];
-  for(let i = 1; i < n - 1; i++){
-    t(V(c0, a1), V(P[i], a1), V(P[i+1], a1), cap || side);   // 頂
-    t(V(c0, a0), V(P[i+1], a0), V(P[i], a0), cap || side);   // 底
-  }
-  for(let i = 0; i < n; i++){
-    const p = P[i], q = P[(i+1) % n];
-    t(V(p, a0), V(q, a0), V(q, a1), side); t(V(p, a0), V(q, a1), V(p, a1), side);
-  }
-}
-const VEH = {
-  /* 客機:白色機身、隊伍色的腰線與垂直尾翼、四具引擎、一排窗戶 */
-  plane(g){
-    const w = lin('#f2f4f7'), wd = lin('#d6dbe1'), tm = lin(TEAM), dk = lin('#1b2530'), en = lin('#9aa3ad');
-    cylX(g, -.42, .36, 0, 0, .075, .075, 10, w);
-    cylX(g, .36, .52, 0, 0, .075, .012, 10, w);                         // 機鼻
-    cylX(g, -.62, -.42, 0, .02, .03, .075, 10, w);                      // 機尾
-    box(g, -.03, .076, -.02, .74, .004, .018, tm, tm);                  // 腰線
-    box(g, -.03, -.076, -.02, .74, .004, .018, tm, tm);
-    for(let i = 0; i < 9; i++){ const x = -.3 + i * .075;               // 窗戶
-      box(g, x, .077, .025, .03, .003, .018, dk, dk); box(g, x, -.077, .025, .03, .003, .018, dk, dk); }
-    box(g, .41, 0, .035, .06, .13, .025, dk, dk);                       // 駕駛艙窗
-    for(const s of [1, -1]){
-      extrude(g, [[.1, .06*s], [-.1, .06*s], [-.3, .62*s], [-.2, .62*s]], 'z', -.025, -.005, wd, w);   // 後掠主翼
-      extrude(g, [[-.48, .03*s], [-.58, .03*s], [-.66, .24*s], [-.6, .24*s]], 'z', .03, .045, wd, w);  // 水平尾翼
-      for(const y of [.22, .4]){ cylX(g, -.12 - y*.25, .04 - y*.25, y*s, -.07, .035, .035, 8, en);
-                                 cylX(g, .04 - y*.25, .06 - y*.25, y*s, -.07, .035, .025, 8, dk); }
-    }
-    extrude(g, [[-.44, .05], [-.6, .05], [-.66, .3], [-.58, .3]], 'y', -.01, .01, tm, tm);              // 垂直尾翼
-  },
-  /* 驅逐艦:灰色艦身、紅色水線、疊起來的艦橋、雷達桅杆、主砲、垂直發射器、煙囪、直升機甲板 */
-  ship(g){
-    const hull = lin('#5c6670'), deck = lin('#8b949c'), sup = lin('#a9b1b9'), dk = lin('#1e262e'), red = lin('#8e2a22');
-    const H = [[-.55, -.085], [.3, -.085], [.6, 0], [.3, .085], [-.55, .085]];
-    extrude(g, H.map(([x, y]) => [x * 1.01, y * 1.06]), 'z', 0, .018, red, red);   // 水線
-    extrude(g, H, 'z', .018, .09, hull, deck);
-    const s1 = box(g, -.02, 0, .09, .26, .13, .07, sup, sup);
-    const s2 = box(g, .02, 0, s1, .14, .11, .05, sup, sup);
-    box(g, .09, 0, s2 - .025, .004, .1, .015, dk, dk);                   // 艦橋窗
-    box(g, .0, 0, s2, .03, .03, .2, dk, dk);                             // 桅杆
-    box(g, .0, 0, s2 + .15, .02, .16, .015, dk, dk);                     // 雷達橫桿
-    ball(g, .0, 0, s2 + .19, .03, lin('#e8ecef'));                       // 雷達罩
-    frustum(g, -.19, 0, .09, .045, .035, .12, 8, lin('#6d767e'), dk);    // 煙囪
-    frustum(g, .36, 0, .09, .045, .04, .035, 10, sup, sup);              // 主砲塔
-    cylX(g, .38, .56, 0, .11, .012, .01, 6, dk);                         // 主砲管
-    for(let i = 0; i < 4; i++) for(const y of [-.03, .03]) box(g, .2 + i*.028 - .04, y, .09, .02, .02, .008, dk, dk);   // 垂直發射器
-    for(let i = 0; i < 3; i++) for(const y of [-.03, .03]) box(g, -.3 + i*.028, y, .09, .02, .02, .008, dk, dk);
-    box(g, -.46, 0, .09, .15, .15, .004, lin('#46505a'), lin('#46505a'));  // 直升機甲板
-    box(g, -.46, -.025, .094, .07, .01, .002, lin('#ffffff'), lin('#ffffff'));
-    box(g, -.46, .025, .094, .07, .01, .002, lin('#ffffff'), lin('#ffffff'));
-    box(g, -.46, 0, .094, .01, .05, .002, lin('#ffffff'), lin('#ffffff'));
-    box(g, -.53, 0, .09, .005, .005, .1, dk, dk); box(g, -.51, 0, .17, .05, .004, .03, lin(TEAM), lin(TEAM, 1.2));   // 旗
-  },
-  /* 軍用卡車車隊:三輛一列 */
-  truck(g){
-    for(const [dx, s] of [[.26, 1], [0, .95], [-.26, .9]]){
-      const c = lin('#56663f'), ct = lin('#6f8250'), cv = lin('#7a7f5a');
-      box(g, dx + .07, 0, .03, .07, .12, .08, c, ct);                    // 駕駛座
-      box(g, dx + .1, 0, .07, .01, .1, .03, lin('#223'), lin('#223'));    // 擋風玻璃
-      box(g, dx - .04, 0, .03, .15, .13, .05, c, ct);                    // 車斗
-      box(g, dx - .04, 0, .08, .15, .13, .05, cv, lin('#949a70'));        // 帆布
-      for(const x of [dx + .08, dx - .02, dx - .09]) for(const y of [-.07, .07]) cylX(g, x - .02, x + .02, y, .025, .025, .025, 8, lin('#1f1f1f'));
-    }
-  },
-  /* 飛彈:白色彈體、紅色彈頭、四片尾翼、橘黃色尾焰 */
-  missile(g){
-    const w = lin('#eef1f4'), r = lin('#c8322a');
-    cylX(g, -.28, .2, 0, 0, .04, .04, 10, w);
-    cylX(g, .2, .34, 0, 0, .04, .005, 10, r);
-    for(const s of [1, -1]){ extrude(g, [[-.28, .04*s], [-.18, .04*s], [-.3, .12*s]], 'z', -.004, .004, r, r);
-                             extrude(g, [[-.28, .04*s], [-.18, .04*s], [-.3, .12*s]], 'y', -.004, .004, r, r); }
-    cylX(g, -.45, -.28, 0, 0, .0, .045, 10, lin('#ffd24a', 1.6), false);   // 尾焰(外)
-    cylX(g, -.38, -.28, 0, 0, .0, .028, 8, lin('#ffffff', 1.6), false);    // 尾焰(內)
-  },
-  jet(g){
-    const c = lin('#6f7a85'), ct = lin('#95a0ab'), dk = lin('#1b2530');
-    cylX(g, -.3, .22, 0, 0, .04, .04, 8, c);
-    cylX(g, .22, .38, 0, 0, .04, .005, 8, c);
-    box(g, .18, 0, .035, .09, .04, .02, dk, dk);                         // 座艙罩
-    for(const s of [1, -1]){ extrude(g, [[.12, .03*s], [-.2, .03*s], [-.22, .32*s], [-.12, .32*s]], 'z', -.005, .005, c, ct);
-                             extrude(g, [[-.2, .02*s], [-.3, .02*s], [-.32, .14*s], [-.27, .14*s]], 'z', 0, .008, c, ct); }
-    extrude(g, [[-.18, .03], [-.3, .03], [-.33, .16], [-.27, .16]], 'y', .03, .042, lin('#c8322a'), lin('#c8322a'));
-    extrude(g, [[-.18, .03], [-.3, .03], [-.33, .16], [-.27, .16]], 'y', -.042, -.03, lin('#c8322a'), lin('#c8322a'));
-    cylX(g, -.36, -.3, 0, 0, .0, .03, 8, lin('#ffb13a', 1.5), false);    // 後燃器
-  },
-  bomb(g){ cylX(g, -.08, .06, 0, 0, .025, .025, 8, lin('#2b2f33')); cylX(g, .06, .11, 0, 0, .025, .004, 8, lin('#2b2f33'));
-           extrude(g, [[-.08, .02], [-.12, .02], [-.13, .05]], 'z', -.003, .003, lin('#444'), lin('#444')); },
-};
-function vehGeo(k){ return geoFor('veh2:' + k, g => VEH[k](g)); }
-
 /* ---- 海上航線 ----
    不做真的航海計算:約六十個航點(海峽、運河、大洋上的轉折點)連成一張網,
    船走最短路徑。每座城市的港口 = 離它最近的航點;內陸城市先開卡車到港口。 */
@@ -1904,15 +1505,14 @@ function routeFor(kind, A, B){
 W3D._route = (A, B) => routeFor('ground', A, B).map(p => p.mode);   // 給測試用
 
 /* 播一趟:沿著路線走,依載具換模型;飛機 / 飛彈 / 戰機有高度曲線。 */
-let ANIMS = [], animOn = false, VMAT = null;
-function vmat(){
-  // 載具用雙面材質:手拼的模型只要有一面繞向算反,單面材質就會破一個洞
-  if(!VMAT){ VMAT = new T.Phong({ vertexColors: true, shininess: 40, side: 2 }); VMAT.emissive && VMAT.emissive.set('#1a1f26'); }
-  return VMAT;
-}
-function spawnVeh(k){
-  const h = patchHost(); if(!h) return null;
-  const m = new T.Mesh(vehGeo(k), vmat());
+let ANIMS = [], animOn = false;
+/* 載具:俯視的像素圖平躺在地上(機頭 +x),orient() 把它轉向前進方向 */
+function spawnVeh(k, tint){
+  const h = patchHost(); if(!h || !hasPX()) return null;
+  const sp = PX.SPR[k] || PX.SPR.truck;
+  const M = pxMat('veh:' + k + ':' + (tint || ''), () => PX.canvas(sp, 1, tint || null));
+  if(!M) return null;
+  const m = new T.Mesh(quadGeo(M.w * VPX * 2, M.h * VPX * 2, true), M.mat);
   m.renderOrder = 3;
   h.add(m); return m;
 }
@@ -1981,7 +1581,7 @@ function animStep(now){
     const u = W3D._tfix != null ? W3D._tfix : clamp((now - a.t0) / a.dur, 0, 1);
     const P = posAt(a, u), Q = posAt(a, Math.min(1, u + .006));
     const mk = a.kind === 'jet' ? 'jet' : a.kind === 'missile' ? 'missile' : a.kind === 'bomb' ? 'bomb' : a.kind === 'plane' ? 'plane' : P.mode;
-    if(mk !== a.mk){ if(a.mesh && a.mesh.parent) a.mesh.parent.remove(a.mesh); a.mesh = spawnVeh(mk); a.mk = mk; }
+    if(mk !== a.mk){ if(a.mesh && a.mesh.parent) a.mesh.parent.remove(a.mesh); a.mesh = spawnVeh(mk, a.tag ? `rgb(${rvRGB(a.tag)})` : null); a.mk = mk; }
     if(a.mesh){
       const p = G.getCoords(P.lat, P.lng, P.alt);
       let q = G.getCoords(Q.lat, Q.lng, Q.alt);
