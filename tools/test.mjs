@@ -1697,6 +1697,101 @@ test('帝國事業等級、金庫、資料頁:升級看得到回本、金庫一�
   await page.__ctx.close();
 });
 
+test('帝國第七輪:捲動不跳頂、對手看得到(駐軍與動態)、勢力拆到國家與城市、建築高度同一把尺', async (browser) => {
+  /* 使用者:「選價格或地區都會跑回最上面」「要可以看到對手的部隊」「我想看到對手做了什麼」
+     「勢力範圍可以分地區,像是縣市或是國家」「建築越高表示事業比其他人大」。 */
+  const page = await freshPage(browser, { seed: SEED, hash: '#/tycoon' });
+  const r = await page.evaluate(async () => {
+    tyStart('heir', 7); TY.cash = 500e8;
+    const out = {};
+    // ① 捲動:資產頁捲下去,換市場之後還在原位
+    TY_MODAL = 'asset'; renderPage();
+    const mb = document.querySelector('.tg-mb');
+    mb.scrollTop = 400; out.scrolled = mb.scrollTop;
+    const sel = document.querySelector('select[data-mkt]');
+    sel.value = sel.options[sel.options.length - 1].value; sel.dispatchEvent(new Event('change'));
+    out.after = document.querySelector('.tg-mb').scrollTop;
+    // 換面板要回到頂端
+    TY_MODAL = 'biz'; renderPage(); out.newTab = document.querySelector('.tg-mb').scrollTop;
+    // 「更多動作」展開後,按別的按鈕不會收起來
+    const d = document.querySelector('details.c-more'); d.open = true; renderPage();
+    out.detailsKept = !!document.querySelector('details.c-more[open]');
+
+    // ② 對手的事件紀錄不能動到種子亂數:同一個種子跑兩次,狀態一模一樣
+    const run = () => { tyStart('heir', 11); TY.cash = 200e8; const ev = []; for (let i = 0; i < 16; i++){ tyNext(); ev.push(...TY_RV_EV.map(e => e.k)); } return { nw: tyNW(), rv: TY.rivals.map(x => Math.round(x.nw)), ev }; };
+    const a = run(), b = run();
+    out.same = JSON.stringify(a) === JSON.stringify(b);
+    out.evKinds = [...new Set(a.ev)];
+    out.logRid = TY.log.filter(l => l.kind === 'rival' && l.rid).length;
+    // 對手面板有動態與駐軍
+    TY_MODAL = 'rival'; renderPage();
+    const rt = document.querySelector('.tg-mb').textContent;
+    out.feed = ['對手動態', '對手駐軍'].filter(k => !rt.includes(k));
+    // 駐軍 = 勢力的畫法:每 25 點一支,最多 3 支;地圖標記裡有
+    const rv = TY.rivals.find(x => x.alive !== false);
+    const reg = Object.keys(TY_REGIONS).find(k => k !== 'off');
+    rv.turf[reg] = 80; TY_PWC = null;
+    const f = tyRivalForces().find(x => x.r.id === rv.id && x.reg === reg);
+    out.force = f && f.units.length;
+    out.forceSite = f && tySite(f.site).reg === reg;
+    rv.turf[reg] = 20; TY_PWC = null;
+    out.forceGone = !tyRivalForces().some(x => x.r.id === rv.id && x.reg === reg);
+    rv.turf[reg] = 60; TY_PWC = null;
+    out.marks = tyTroopMarks().filter(m => m._rvf).length;
+
+    // ③ 勢力拆到國家與城市:同一個經濟圈裡,不同國家可以是不同人領先
+    TY_PWC = null;
+    const eu = TY_SITES.filter(s => s.reg === 'eu');
+    const isos = [...new Set(eu.map(s => s.iso))];
+    const leaders = new Set(isos.map(c => { const P = tyIsoPower(c); return P && P.top ? (P.top.me ? 'me' : P.top.r.id) : '-'; }));
+    out.isos = isos.length; out.leaders = leaders.size;
+    // 大本營所在國家:那個對手權重 1.0
+    const hr = TY.rivals.find(x => x.alive !== false && tySite(x.home).reg === 'eu');
+    if (hr){ const P = tyIsoPower(tySite(hr.home).iso); out.homeW = (P.board.find(x => x.r && x.r.id === hr.id) || {}).w; }
+    // 城市:你在那裡有東西就在榜上
+    const cp = tyCityPower(TY.home);
+    out.cityMe = !!(cp && cp.board.some(x => x.me));
+    TY_LAYER = 'power'; out.cityCol = tyCityColor(TY.home);
+    TY_MODAL = 'power'; TY_PWR = 'eu'; renderPage();
+    const pt = document.querySelector('.tg-mb').textContent;
+    out.power = ['全球', '依經濟圈', '領先'].filter(k => !pt.includes(k));
+    out.powerCities = document.querySelectorAll('.tg-mb .pw-city').length;
+    TY_LAYER = 'mine';
+
+    // ④ 高度同一把尺:最大的那一個滿格;少一千倍以上貼地;你的城與對手大本營可以直接比
+    const hk = tyHeightScale();
+    const top = Math.max(...tyScaleRank().map(x => x.v));
+    out.hTop = hk(top); out.hTiny = hk(top / 5000); out.hMid = hk(top / 31.6);
+    // 據點面板有規模比較
+    TY_MODAL = 'site'; TY_SEL = TY.home; renderPage();
+    out.scale = document.querySelector('.tg-mb').textContent.includes('規模比較');
+    return out;
+  });
+  eq(r.after, r.scrolled, `換市場之後捲動位置要留著(${r.scrolled} → ${r.after})`);
+  eq(r.newTab, 0, '換面板要回到頂端');
+  ok(r.detailsKept, '「更多動作」展開後重畫不能收起來');
+  ok(r.same, '對手的事件紀錄不能改到任何數字或亂數');
+  ok(r.evKinds.includes('expand'), `十六季裡對手至少要擴張過:${r.evKinds}`);
+  ok(r.logRid > 0, '對手的紀錄要帶著是誰做的(rid)');
+  eq(r.feed, [], `對手面板少了:${r.feed}`);
+  eq(r.force, 3, '勢力 80 = 3 支駐軍');
+  ok(r.forceSite, '駐軍要站在那個經濟圈的城市');
+  ok(r.forceGone, '勢力 20 就沒有駐軍');
+  ok(r.marks > 0, '地圖標記裡要有對手的駐軍');
+  ok(r.isos >= 3, '西歐要有好幾個國家');
+  if (r.homeW !== undefined) eq(r.homeW, 1, '對手在自己大本營的國家權重 1.0');
+  ok(r.cityMe, '你在自己大本營的城市要上榜');
+  ok(/^rgba\(41,151,255,/.test(r.cityCol), `你的城市在勢力圖層要是藍的:${r.cityCol}`);
+  eq(r.power, [], `勢力分析頁少了:${r.power}`);
+  ok(r.powerCities > 0, '展開經濟圈要看得到城市');
+  eq(r.hTop, 1, '最大的那一個是滿格');
+  eq(r.hTiny, 0, '小一千倍以上貼地');
+  ok(r.hMid > .3 && r.hMid < .7, `小三十倍大約在中間:${r.hMid}`);
+  ok(r.scale, '據點面板要有規模比較');
+  ok(page.__errors.length === 0, `有 JS 錯誤:\n      ${page.__errors.join('\n      ')}`);
+  await page.__ctx.close();
+});
+
 /* =========================================================================
    跑
    ========================================================================= */

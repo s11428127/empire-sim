@@ -4602,6 +4602,43 @@
   .ty-board .b-b i{display:block;height:100%;border-radius:5px}
   .ty-board .b-v{text-align:right;font-variant-numeric:tabular-nums;color:var(--g-t2)}
   .ty-site .s-n .k-lv{margin-right:6px}
+  .ty-board.wide .b-r{grid-template-columns:minmax(0,12em) 1fr auto}
+  /* 勢力分析 */
+  .tg-c.tg-an{border-color:#7fd4ff;color:#bfe9ff}
+  .ty-pt{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px;margin:6px 0}
+  .ty-pt .pt{padding:7px 9px;border-radius:8px;background:rgba(150,200,235,.06);border-left:4px solid var(--rc)}
+  .ty-pt .pt b{display:block;font-size:13.5px} .ty-pt .pt span{font-size:12.5px;color:var(--g-t2,#b7c7d3)}
+  .ty-pt .pt.me b{color:#7fd4ff}
+  .pw{border:1px solid rgba(150,200,235,.12);border-radius:10px;margin:6px 0;overflow:hidden}
+  .pw-h1{display:grid;grid-template-columns:1fr auto;gap:2px 8px;width:100%;text-align:left;font:inherit;color:inherit;
+    background:rgba(150,200,235,.05);border:0;padding:9px 11px;cursor:pointer}
+  .pw-h1 b{font-size:15px} .pw-h1 em{grid-column:1/-1;font-style:normal;font-size:12px;color:var(--g-t3,#8aa0b2)}
+  .pw-lead{font-size:13px;font-weight:700;padding:1px 8px;border-radius:10px;background:rgba(0,0,0,.25);box-shadow:inset 0 0 0 2px var(--rc)}
+  .pw-in{padding:6px 11px 10px}
+  .pw-h{font-size:12.5px;color:var(--g-t3,#8aa0b2);margin-top:4px}
+  .pw-c{border-top:1px solid rgba(150,200,235,.1);margin-top:8px;padding-top:6px}
+  .pw-ch{display:flex;gap:8px;align-items:center;width:100%;font:inherit;color:inherit;background:none;border:0;padding:2px 0;cursor:pointer;text-align:left}
+  .pw-ch i{font-style:normal;font-size:18px} .pw-ch b{font-size:14.5px}
+  .pw-ch span{margin-left:auto;font-size:12.5px;color:var(--g-t2,#b7c7d3)}
+  .pw-cities{display:flex;flex-wrap:wrap;gap:5px;margin-top:4px}
+  .pw-city{font:inherit;font-size:13px;color:inherit;cursor:pointer;padding:4px 8px;border-radius:8px;
+    background:rgba(0,0,0,.2);border:1px solid var(--rc)}
+  .pw-city em{font-style:normal;font-size:11.5px;color:var(--g-t2,#b7c7d3);margin-left:5px}
+  /* 對手動態 / 駐軍 */
+  .ty-feed{display:flex;flex-direction:column;gap:4px;margin:6px 0}
+  .ty-feed .fd{display:grid;grid-template-columns:5.6em 1.9em 1fr;gap:6px;align-items:start;text-align:left;
+    font:inherit;font-size:13.5px;line-height:1.45;color:var(--g-t,#e6eef5);padding:6px 8px;border-radius:8px;
+    background:rgba(150,200,235,.06);border:1px solid rgba(150,200,235,.1)}
+  button.fd{cursor:pointer} button.fd:hover{border-color:rgba(150,200,235,.35)}
+  .ty-feed .fd.bad{border-color:rgba(255,90,70,.35);background:rgba(255,69,58,.08)}
+  .ty-feed .fd-t{font-size:12px;color:var(--g-t3,#8aa0b2);font-variant-numeric:tabular-nums;padding-top:1px}
+  .ty-feed .fd-ic{font-style:normal;display:inline-grid;place-items:center;width:1.7em;height:1.7em;border-radius:6px;
+    background:rgba(0,0,0,.25);box-shadow:inset 0 0 0 2px var(--rc,#889)}
+  .rv-last{font-size:13px;color:var(--g-t2,#b7c7d3);padding:6px 12px 2px;line-height:1.45}
+  .rv-last em{font-style:normal;color:var(--g-t3,#8aa0b2);font-size:12px;margin-right:4px}
+  .w3d-float.dock{color:#7fd3ff;font-size:12.5px}
+  .w3d-float.enemy{color:#ff8a78}
+  .w3d-tag.rf{opacity:.92}
 
   /* 遠看:3D 棋子收起來,標籤變成參考畫面那種方形兵種圖示(綠 = 你,紅 = 敵人) */
   #tyGlobeHost[data-far="1"] .w3d-tag{display:flex;flex-direction:column;align-items:center;gap:1px;
@@ -5421,9 +5458,13 @@ function tyRegOwner(reg){
   return { r:best, v:bv, me };
 }
 
+/* 這一季對手做了什麼 —— 給畫面層在季末播動畫(不進存檔、不擲骰)。
+   使用者:「我想看到對手做了什麼」。 */
+let TY_RV_EV=[];
 /* ---- 每一季對手自己走一步 ---- */
 function tyRivalTurn(){
   const M=TY.macro;
+  TY_RV_EV=[];
   for(const r of tyRivalsA()){
     const A=TY_ARCH[r.arch]||TY_ARCH.estate;
     /* 成長:基礎 + 流派對景氣的敏感度 + 他勢力所在地區的指數 + 槓桿放大的雜訊。
@@ -5443,7 +5484,8 @@ function tyRivalTurn(){
     /* 危機 + 高槓桿 = 斷掉。這是名次真正會翻的時候。 */
     if((M.reg==='crisis'||M.reg==='recess') && tyRnd() < r.lev*.16){
       r.nw *= .5 + tyRnd()*.2;
-      tyLog('rival', `${r.nm}的槓桿在這一季斷了,身家腰斬。`);
+      tyLog('rival', `${r.nm}的槓桿在這一季斷了,身家腰斬。`, r.id);
+      TY_RV_EV.push({ k:'crash', rid:r.id });
       continue;
     }
     if(TY.t<3) continue;                 // 開局三季讓玩家先站穩
@@ -5461,7 +5503,9 @@ function tyRivalTurn(){
       if(r.pact && r.pact>TY.t && mine.has(pick))
         pick=cand.find(k=>!mine.has(k))||pick;      // 有約就繞開你的地盤
       r.turf=r.turf||{};
+      const was=tyTurf(r,pick);
       r.turf[pick]=tyClamp(tyTurf(r,pick)+6+tyRnd()*8, 0, 100);
+      TY_RV_EV.push({ k:'expand', rid:r.id, reg:pick, mine:mine.has(pick) });
       /* ⚠ 擴張與上市**幾乎不能**直接加淨值。第一版擴張 +2%、上市 +10~22%,
          期望值等於每季多 2.3% —— 對手的成長率整整多一倍,四十季之後
          量測跑出來「首富」這個結局在九種策略裡一次都沒發生過。
@@ -5470,8 +5514,8 @@ function tyRivalTurn(){
       if(mine.has(pick) && !(r.pact&&r.pact>TY.t)){
         TY.reg[pick].comp += 1.2;
         r.rel = tyClamp((r.rel||0)-7, -100, 100);
-        tyLog('rival', `${r.nm}打進${TY_REGIONS[pick].nm} —— 你在那裡的現金流會被壓一段時間。`);
-      }
+        tyLog('rival', `${r.nm}打進${TY_REGIONS[pick].nm} —— 你在那裡的現金流會被壓一段時間。`, r.id);
+      }else tyLog('rival', `${r.nm}往${TY_REGIONS[pick].nm}擴張(勢力 ${was.toFixed(0)} → ${tyTurf(r,pick).toFixed(0)})。`, r.id);
     }else if(roll < .46){
       /* ② 大吃小:併掉一個比自己小很多的對手。勢力相加。 */
       const prey=tyRivalsA().filter(x=>x.id!==r.id && x.nw < r.nw*.45)
@@ -5481,12 +5525,14 @@ function tyRivalTurn(){
         for(const k in (prey.turf||{}))
           r.turf[k]=tyClamp(tyTurf(r,k)+tyTurf(prey,k)*.7, 0, 100);
         prey.alive=false;
-        tyLog('rival', `${r.nm}把${prey.nm}整個買下來了。榜上少一個人,而他多了一塊地盤。`);
+        tyLog('rival', `${r.nm}把${prey.nm}整個買下來了。榜上少一個人,而他多了一塊地盤。`, r.id);
+        TY_RV_EV.push({ k:'eat', rid:r.id, prey:prey.id, at:prey.home });
       }
     }else if(roll < .56){
       /* ③ 上市 / 大額募資:身家跳一段,但關注度也上去 */
       r.nw*=1.03+tyRnd()*.04; r.heat=tyClamp((r.heat||0)+8,0,100);
-      tyLog('rival', `${r.nm}把旗下事業送上市,身家跳了一段。`);
+      tyLog('rival', `${r.nm}把旗下事業送上市,身家跳了一段。`, r.id);
+      TY_RV_EV.push({ k:'ipo', rid:r.id });
     }else if(roll < .66 + r.agg*.12){
       /* ④ 對你出手 —— 只在關係壞、而且他比你大的時候。
          三種手段,對應現實裡真的會發生的三件事。 */
@@ -5503,10 +5549,12 @@ function tyRivalTurn(){
           else TY.reg[g].comp += 1;
         }else if(how===1){
           TY.heat=tyClamp(TY.heat+7,0,120);
-          tyLog('rival', `${r.nm}把你的架構整理成一份簡報,送到了不該送的地方。關注度 +7。`);
+          tyLog('rival', `${r.nm}把你的架構整理成一份簡報,送到了不該送的地方。關注度 +7。`, r.id);
+          TY_RV_EV.push({ k:'leak', rid:r.id });
         }else{
           TY.fame=tyClamp(TY.fame-5,0,100);
-          tyLog('rival', `${r.nm}在媒體上點名你。名氣 −5 —— 他要的就是你解釋。`);
+          tyLog('rival', `${r.nm}在媒體上點名你。名氣 −5 —— 他要的就是你解釋。`, r.id);
+          TY_RV_EV.push({ k:'smear', rid:r.id });
         }
         r.rel=tyClamp((r.rel||0)-4,-100,100);
       }
@@ -5760,7 +5808,8 @@ function tyRivalMarch(r, reg){
   tyThreats().push({ id:TY.unitId++, rid:r.id, reg:tySite(site).reg,
                      site, from:r.home, dep:TY.t, eta:TY.t+n, pow });
   tyNews('bad', `⚠ ${r.nm}出兵`, `他的併購小組往${tySite(site).nm}出發,${n} 季後抵達。把律師團調過去。`);
-  tyLog('rival', `⚠ ${r.nm}派出併購小組往${tySite(site).nm},${n} 季後抵達。`);
+  tyLog('rival', `⚠ ${r.nm}派出併購小組往${tySite(site).nm},${n} 季後抵達。`, r.id);
+  if(typeof TY_RV_EV!=='undefined') TY_RV_EV.push({ k:'march', rid:r.id, from:r.home, to:site });
 }
 
 
@@ -6329,7 +6378,7 @@ let TY_BIZSITE={};           // 同上,但是「這家公司要開在哪」
 let TY_SEL=null;             // 地圖上目前選的地點
 let TY_ISO=null;             // 地圖上目前放大的國家
 
-function tySave(){ try{ localStorage.setItem(TY_KEY, JSON.stringify(TY)); }catch(e){} }
+function tySave(){ TY_PWC=null; try{ localStorage.setItem(TY_KEY, JSON.stringify(TY)); }catch(e){} }
 function tyLoad(){
   try{
     const d=JSON.parse(localStorage.getItem(TY_KEY)||'null');
@@ -6450,9 +6499,9 @@ const tyTaxGap  = () => Math.max(0, tyHomeTax() - tyTaxRate());
    所以你在榜上會比實際窮 —— 這正是很多人做這件事的理由。 */
 const tyShownNW = () => TY.struct.trust ? tyNW()*.7 : tyNW();
 
-function tyLog(kind, txt){
-  TY.log.push({ t:TY.t, kind, txt });
-  if(TY.log.length>240) TY.log.splice(0, TY.log.length-240);
+function tyLog(kind, txt, rid){
+  TY.log.push(rid ? { t:TY.t, kind, txt, rid } : { t:TY.t, kind, txt });
+  if(TY.log.length>400) TY.log.splice(0, TY.log.length-400);
 }
 const tyYear = t => TY_Y0 + Math.floor(t/4);
 const tyQ    = t => (t%4)+1;
@@ -8239,7 +8288,7 @@ function tyBizActs(b){
     more.push(row('ch11','聲請破產保護','warn',id,
       `甩掉 ${tyM(Math.min(TY.debt, val*b.own*1.2))} 負債 · 信用 −24`));
   return `<div class="c-acts">${main.join('')}</div>
-    ${more.length?`<details class="c-more"><summary>更多動作(${more.length})</summary>
+    ${more.length?`<details class="c-more" data-more="${id}"><summary>更多動作(${more.length})</summary>
       <div class="c-acts">${more.join('')}</div></details>`:''}`;
 }
 
@@ -8783,6 +8832,84 @@ function tyDealHTML(k, r){
   </div>`;
 }
 
+/* 勢力分析頁:經濟圈 → 國家 → 城市,一層一層看誰在哪裡最強。
+   打開時自動切到「勢力範圍」圖層,桌機上是側欄(地圖留著,一邊看一邊對)。 */
+let TY_PWR=null;                     // 展開的經濟圈
+function tyPowerTab(){
+  const regs=Object.keys(TY_REGIONS).filter(k=>k!=='off');
+  const bar=(x,mx)=>`<div class="b-r${x.me?' me':''}"><span class="b-n">${x.me?'🔵':x.ic||''} ${escH(x.nm)}</span>
+      <span class="b-b"><i style="width:${Math.max(2,x.v/Math.max(1,mx)*100).toFixed(0)}%;background:rgb(${x.col})"></i></span>
+      <span class="b-v">${x.v.toFixed(0)}</span></div>`;
+  // 全球計數:每個有城市的國家 + 每座城市,誰領先
+  const isos=[...new Set(TY_SITES.map(x=>x.iso))];
+  const cnt={}, cc={};
+  for(const c of isos){ const P=tyIsoPower(c); if(P&&P.top){ const k=P.top.me?'me':P.top.r.id; cnt[k]=(cnt[k]||0)+1; } }
+  for(const x of TY_SITES){ const P=tyCityPower(x.id); if(P){ const k=P.top.me?'me':P.top.r.id; cc[k]=(cc[k]||0)+1; } }
+  const who=[{ k:'me', nm:'你', ic:'🔵', col:'41,151,255' }, ...tyRivalsA().map(r=>({ k:r.id, nm:r.nm, ic:r.ic, col:TY_RVCOL[r.id] }))];
+  const tally=`<div class="ty-pt">${who.filter(w=>cnt[w.k]||cc[w.k]).sort((a,b)=>(cnt[b.k]||0)-(cnt[a.k]||0)).map(w=>`
+      <div class="pt${w.k==='me'?' me':''}" style="--rc:rgb(${w.col})"><b>${w.ic||''} ${escH(w.nm)}</b>
+        <span>${cnt[w.k]||0} 國 · ${cc[w.k]||0} 城</span></div>`).join('')||'<div class="empty">還沒有人在任何地方站穩。</div>'}</div>`;
+  const body=regs.map(g=>{
+    const own=tyRegOwner(g), open=TY_PWR===g;
+    const board=[{ me:true, nm:'你', col:'41,151,255', v:tyMyTurf(g) },
+      ...tyRivalsA().map(r=>({ r, nm:r.nm, ic:r.ic, col:TY_RVCOL[r.id], v:tyTurf(r,g) }))].filter(x=>x.v>.5).sort((a,b)=>b.v-a.v);
+    const lead=own.r?`${own.r.ic||''} ${escH(own.r.nm)}`:own.me>2?'🔵 你':'—';
+    const col=own.r?TY_RVCOL[own.r.id]:own.me>2?'41,151,255':'120,140,160';
+    let inner='';
+    if(open){
+      const cs=[...new Set(TY_SITES.filter(x=>x.reg===g).map(x=>x.iso))];
+      inner=`<div class="pw-in">
+        <div class="pw-h">整個${escH(TY_REGIONS[g].nm)}</div>
+        <div class="ty-board">${board.length?board.map(x=>bar(x,board[0].v)).join(''):'<div class="empty">還沒有人有勢力。</div>'}</div>
+        ${cs.map(c=>{
+          const P=tyIsoPower(c), flag=window.W3D&&W3D.flag?W3D.flag(c):'';
+          const cities=TY_SITES.filter(x=>x.iso===c && x.reg===g);
+          return `<div class="pw-c"><button type="button" class="pw-ch" data-ty="iso" data-k="${c}">
+              <i>${flag}</i><b>${escH(tyIsoName(c))}</b>
+              <span>${P&&P.top?`${P.top.me?'🔵 你':(P.top.ic||'')+' '+escH(P.top.nm)} 領先`:'沒人獨大'}</span></button>
+            <div class="ty-board">${P?P.board.filter(x=>x.v>.5).slice(0,4).map(x=>bar(x,P.board[0].v)).join(''):''}</div>
+            <div class="pw-cities">${cities.map(x=>{ const C=tyCityPower(x.id);
+              return `<button type="button" class="pw-city" data-ty="site" data-k="${x.id}" style="--rc:rgb(${C?C.top.col:'120,140,160'})">
+                ${escH(x.nm)}<em>${C?(C.top.me?'你':escH(C.top.nm))+' · '+tyM(C.top.v):'沒人'}</em></button>`; }).join('')}</div></div>`;
+        }).join('')}</div>`;
+    }
+    return `<div class="pw${open?' open':''}"><button type="button" class="pw-h1" data-ty="pwr" data-k="${g}" aria-expanded="${open}">
+        <b>${escH(TY_REGIONS[g].nm)}</b><span class="pw-lead" style="--rc:rgb(${col})">${lead}${own.v>2?` · ${own.v.toFixed(0)}`:''}</span>
+        <em>${open?'收起':'展開國家與城市'}</em></button>${inner}</div>`;
+  }).join('');
+  return `<div class="expo-note">地圖上的「勢力範圍」分三層上色:<b>經濟圈</b>的勢力是規則裡真正的數字;
+      往下拆到<b>國家</b>(看誰在那國站得最穩)與<b>城市</b>(城市的真實邊界,直接比錢)。
+      點國家或城市會開它的面板。</div>
+    <div class="p-sec">全球<span>領先的國家數 · 城市數</span></div>${tally}
+    <div class="p-sec">依經濟圈<span>點一下展開</span></div>${body}
+    <div class="expo-note">國家的算法:經濟圈的勢力 × 在那國站得多穩(你在那國有資產、對手的大本營或駐軍在那國,權重都比較高)。
+      城市:你在那座城的規模 vs 對手大本營(身家六成)vs 對手駐軍。只是把現有的數字拆開來看,不會改變任何結果。</div>`;
+}
+/* 對手動態:最近四季所有對手做過的事(擴張、上市、併購、出兵、放話、斷頭)。
+   使用者:「我想看到對手做了什麼」。季末地圖上也會播一次(見 world3d 的 W3D.play)。 */
+function tyRivalFeed(){
+  const rows=TY.log.filter(l=>l.kind==='rival' && l.t>=TY.t-4).slice(-14).reverse();
+  const who=l=>{
+    const r=l.rid ? TY.rivals.find(x=>x.id===l.rid) : TY.rivals.find(x=>l.txt.includes(x.nm));
+    return r ? `<i class="fd-ic" style="--rc:rgb(${TY_RVCOL[r.id]||'200,200,210'})">${r.ic||'👤'}</i>` : '<i class="fd-ic">•</i>';
+  };
+  const forces=tyRivalForces();
+  return `<div class="p-sec">對手動態<span>最近四季 · 季末地圖上也會播</span></div>
+    ${rows.length?`<div class="ty-feed">${rows.map(l=>`<div class="fd${/⚠|打進|點名|簡報/.test(l.txt)?' bad':''}">
+      <span class="fd-t">${tyWhen(l.t)}</span>${who(l)}<span class="fd-x">${l.txt}</span></div>`).join('')}</div>`
+      :'<div class="empty">最近四季對手都沒有大動作。</div>'}
+    <div class="p-sec">對手駐軍<span>${forces.reduce((a,f)=>a+f.units.length,0)} 支 · 地圖上看得到</span></div>
+    <div class="ty-feed">${forces.length?forces.sort((a,b)=>b.v-a.v).map(f=>`<button type="button" class="fd" data-ty="site" data-k="${f.site}">
+      <span class="fd-t">${escH(TY_REGIONS[f.reg].nm)}</span>
+      <i class="fd-ic" style="--rc:rgb(${TY_RVCOL[f.r.id]||'200,200,210'})">${f.r.ic||'👤'}</i>
+      <span class="fd-x">${escH(f.r.nm)} · ${f.units.map(u=>TY_UNITS[u.k].ic).join('')} 駐${escH(tySite(f.site).nm)}(勢力 ${f.v.toFixed(0)})</span></button>`).join('')
+      :'<div class="empty">還沒有對手在任何地區站穩(勢力 25 以上才有駐軍)。</div>'}</div>
+    <div class="expo-note">駐軍是對手勢力的畫法:勢力每 25 點一支。用空襲或併購小組削他的勢力,駐軍就會撤。</div>`;
+}
+function tyRivalLast(r){
+  const l=TY.log.slice().reverse().find(x=>x.kind==='rival' && (x.rid===r.id || (!x.rid && x.txt.startsWith(r.nm))));
+  return l ? `<div class="rv-last"><em>${tyWhen(l.t)}</em> ${l.txt}</div>` : '';
+}
 function tyRivalTab(){
   const me={ nm:'你', nw:tyShownNW() };
   const list=[...tyRivalsA()].sort((a,b)=>b.nw-a.nw);
@@ -8807,13 +8934,15 @@ function tyRivalTab(){
         ${(r.pact||0)>TY.t?`<span class="rl-p">🤝 互不侵犯至 ${tyWhen(r.pact)}</span>`:''}
         ${clash.length?`<span class="rl-c">⚔ 跟你在${clash.map(g=>TY_REGIONS[g].nm).join('、')}正面對上</span>`:''}
       </div>
+      ${tyRivalLast(r)}
       ${tyTurfHTML(r)}
       ${open?`<div class="rv-deals">${Object.keys(TY_DEALS).map(k=>tyDealHTML(k,r)).join('')}</div>`
             :`<div class="rv-more">點一下展開七種可以跟他談的條件</div>`}
     </div>`;
   }).join('');
 
-  return `<div class="expo-note">六個人跟你玩同一場遊戲。他們會擴張、會互相併購、
+  return `${tyRivalFeed()}
+    <div class="expo-note">六個人跟你玩同一場遊戲。他們會擴張、會互相併購、
       會在危機那一季斷掉,也會因為你打進他的地盤而記恨。
       <b>關係</b>決定他願不願意跟你談,<b>勢力</b>決定他值不值得你談。</div>
     <div class="ty-cards">${cards}</div>
@@ -8978,13 +9107,13 @@ function tySiteBuildings(id){
     }else{
       const gainy = tyPosVal(p) > p.cb;
       out.push({ c: a.k==='gold'?'gold':a.g==='real'?'real':'paper',
-                 f: tyFloors(v), ref, tag:`${a.nm} ${tyM(v)}`, st: gainy?'earn':'' });
+                 f: tyFloors(v), v, ref, tag:`${a.nm} ${tyM(v)}`, st: gainy?'earn':'' });
     }
   }
   for(const b of t.biz){
     const d=TY_BIZ[b.k], ref=`biz:${b.id}`;
     if(d.shell){ out.push({ c:'shell', f:1, ref, tag:'空殼公司', st:'shell' }); continue; }
-    out.push({ c:'biz', f:tyFloors(tyBizVal(b)*b.own), ref, tag:`${d.nm}${b.pub?'(上市)':''}`,
+    out.push({ c:'biz', f:tyFloors(tyBizVal(b)*b.own), v:tyBizVal(b)*b.own, ref, tag:`${d.nm}${b.pub?'(上市)':''}`,
                st: b.pub?'pub':(b.cf<0?'burn':(b.cf>0?'earn':'')) });
   }
   if(t.cash>0) out.push({ c:'cash', f:1, ref:'cash', tag:`現金 ${tyM(t.cash)}` });
@@ -9052,9 +9181,25 @@ function tyLanes(list){
 /* 光柱高度:用平方根壓縮。線性的話最大的那一根會有一百倍高,
    其他全部貼在地表上看不見 —— 這個網站的持股光柱也是同一個理由。 */
 let TYG_SIG='';
+/* 建築高度的「同一把尺」。使用者:「如果我的建築越高,表示我的事業比其他人的還大」——
+   所以你的據點與對手的大本營用**同一個**刻度:全圖最大的那一個(你的某座城、或某個對手的身家)
+   是滿格,往下每少十倍矮三分之一,小於千分之一就貼地。
+   每座城最高的那一棟代表「你在這座城的總規模」,其餘各棟代表它自己的價值。 */
+function tyHeightScale(){
+  const top=Math.max(1e8, ...tyMySites().map(s=>tySiteStuff(s.id).val), ...tyRivalsA().map(r=>r.nw));
+  const lo=Math.log10(top/1000);
+  return v => Math.round(tyClamp((Math.log10(Math.max(1,v))-lo)/3, 0, 1)*20)/20;
+}
+/* 全圖規模排名(你的每座城 + 每個對手的大本營)。建築卡與圖例用。 */
+function tyScaleRank(){
+  const all=[...tyMySites().map(s=>({ me:true, id:s.id, v:tySiteStuff(s.id).val })),
+             ...tyRivalsA().map(r=>({ r, id:r.home, v:r.nw }))].sort((a,b)=>b.v-a.v);
+  return all;
+}
 function tyGlobeData(){
   if(!TYG) return;
   const mine=tyMySites(), mineSet=new Set(mine.map(s=>s.id));
+  const hk=tyHeightScale();
   const mx=Math.max(1, ...mine.map(s=>tySiteStuff(s.id).val));
   /* 地磚:又扁又寬的圓柱,不是柱子。大小靠面積與顏色分辨,不靠高度。 */
   const pts=mine.map(s=>{
@@ -9062,7 +9207,11 @@ function tyGlobeData(){
     /* 地磚是一塊**扁**的圓柱,不是柱子。半徑是「度」,所以推到貼著地表的時候
        它會跟著放大到蓋掉整座城市 —— 使用者截圖裡那一坨紫色就是它。
        壓小之後遠看還認得出顏色,近看不會擋住站在上面的建築。 */
-    return { ...s, _v:t.val, _cat:cat, _blds:tySiteBuildings(s.id),
+    const blds=tySiteBuildings(s.id).map(b=>({ ...b, h: b.v!=null ? hk(b.v) : null }));
+    // 最高的那一棟 = 你在這座城的總規模(跟對手大本營比的就是它)
+    const tall=blds.filter(b=>b.h!=null).sort((a,b)=>b.h-a.h)[0];
+    if(tall) tall.h=hk(t.val);
+    return { ...s, _v:t.val, _cat:cat, _blds:blds, _hk:hk(t.val),
              _alt: 0.002 + f*0.006,
              _rad: 0.22 + f*0.38,
              _col: TY_CAT[cat].c };
@@ -9077,7 +9226,7 @@ function tyGlobeData(){
      顏色是他自己的顏色,跟勢力圖層與對手卡上的一致。 */
   const rvMax=Math.max(1e8, ...tyRivalsA().map(r=>r.nw));
   const rv=tyRivalsA().map(r=>{ const s=tySite(r.home);
-    return { ...s, _rival:r, _v:r.nw,
+    return { ...s, _rival:r, _v:r.nw, _hk:hk(r.nw),
              _alt:0.002, _rad:0.16+Math.sqrt(r.nw/rvMax)*0.22,
              _col:`rgba(${TY_RVCOL[r.id]||'160,160,170'},.85)` }; });
 
@@ -9090,8 +9239,8 @@ function tyGlobeData(){
      有一大半是這個。簽章只放「畫面上看得出差別」的東西。 */
   const troopsNow=tyTroopMarks();
   const sig=JSON.stringify([TY.t, TY_LAYER, TY_SEL, TY.holdco, (window.W3D&&W3D.ok)?1:0,
-    pts.map(d=>[d.id,d._cat,Math.round(d._v/1e6),d._blds.map(b=>b.c+b.f+(b.st||'')).join()]),
-    rv.map(d=>[d._rival.id,Math.round(d._v/1e7),Math.sign(Math.trunc((d._rival.rel||0)/20))]),
+    pts.map(d=>[d.id,d._cat,Math.round(d._v/1e6),d._blds.map(b=>b.c+b.f+(b.st||'')+b.h).join()]),
+    rv.map(d=>[d._rival.id,Math.round(d._v/1e7),d._hk,Math.sign(Math.trunc((d._rival.rel||0)/20))]),
     troopsNow.map(t=>t._k+':'+(t._mv||'')+':'+(t._units?t._units.map(u=>u.k).join():'')),
     Object.keys(TY.partners||{}), (window.W3D&&W3D.extraArcs||[]).length]);
   if(w3 && sig===TYG_SIG){ W3D.rings(); W3D.repaint(); return; }
@@ -9154,6 +9303,43 @@ function tyGeoLerp(a, b, f){
   const x=A[0]*k1+B[0]*k2, y=A[1]*k1+B[1]*k2, z=A[2]*k1+B[2]*k2;
   return { lat:Math.atan2(z, Math.hypot(x,y))/t, lng:Math.atan2(y,x)/t };
 }
+/* 對手的駐軍 —— 使用者:「也要可以看到對手的部隊」。
+   對手的勢力(turf)本來就是他在那個地區「養著的人」,這裡把它畫成部隊:
+   勢力每 25 點一支(最多 3 支),站在他在那個地區的據點(大本營所在地區就站大本營)。
+   它是**勢力的畫法**,不是新的規則 —— 不擲骰、不進存檔,打掉他的勢力(空襲、併購小組)駐軍就會變少。
+   兵種跟著他的流派:地產、製造偏併購小組;科技、精品偏遊說團;能源、礦業偏律師團。 */
+const TY_RV_KINDS = { estate:['raid','mgr','law'], tech:['lobby','raid','mgr'], energy:['law','raid','lobby'],
+                      mfg:['raid','mgr','law'], mine:['law','raid','mgr'], luxury:['lobby','mgr','raid'] };
+/* 同一輪畫面裡(一次 renderPage + 一次貼圖重畫)這些換算會被叫上千次(每個國家、每座城市各一次),
+   所以算一次就記住,下一個事件迴圈就丟掉 —— 資料一變,下一次畫面自然重算。 */
+let TY_PWC=null;
+function tyPwCache(){
+  if(!TY_PWC){ TY_PWC=Object.create(null); setTimeout(()=>{ TY_PWC=null; },0); }
+  return TY_PWC;
+}
+function tyRivalForces(){
+  if(!TY) return [];
+  const C=tyPwCache();
+  if(C._rf) return C._rf.slice();
+  const out=C._rf=[];
+  for(const r of tyRivalsA()){
+    const home=tySite(r.home);
+    for(const [reg,v] of Object.entries(r.turf||{})){
+      const n=Math.min(3, Math.floor(v/25));
+      if(n<1 || !TY_REGIONS[reg]) continue;
+      let site=home.reg===reg ? home : null;
+      if(!site){
+        const ss=TY_SITES.filter(x=>x.reg===reg && x.reg!=='off');
+        if(!ss.length) continue;
+        const h=[...r.id].reduce((a,c)=>a+c.charCodeAt(0),0);
+        site=ss[h%ss.length];
+      }
+      const ks=TY_RV_KINDS[r.arch]||TY_RV_KINDS.estate;
+      out.push({ r, reg, site:site.id, v, units:ks.slice(0,n).map(k=>({ k })) });
+    }
+  }
+  return out.slice();
+}
 function tyTroopMarks(){
   if(!TY) return [];
   const out=[], at={};
@@ -9168,6 +9354,10 @@ function tyTroopMarks(){
   }
   for(const [id,list] of Object.entries(at)){
     const s=tySite(id); out.push({ lat:s.lat, lng:s.lng, _k:'at:'+id, _units:list, _alt:.02 });
+  }
+  for(const f of tyRivalForces()){
+    const s=tySite(f.site);
+    out.push({ lat:s.lat, lng:s.lng, _k:`rf:${f.r.id}:${f.reg}`, _rvf:f, _r:f.r, _units:f.units, _alt:.02 });
   }
   for(const th of tyThreats()){
     const r=tyRival(th.rid); if(!r) continue;
@@ -9230,19 +9420,80 @@ function tyEconRel(reg){
   return tyRegIdx(reg)/Math.max(.01,avg)-1;
 }
 const tyEconStep = reg => { const d=tyEconRel(reg); return TY_ECON_STEPS.find(x=>d>=x.min); };
+/* =========================================================================
+   勢力分析 —— 三層:經濟圈 → 國家 → 城市
+   -------------------------------------------------------------------------
+   使用者:「勢力範圍可以再分析一點,可以分地區,像是縣市或是國家」。
+   第一版一個經濟圈只有一個顏色(整個歐洲都是同一個人的)。現在往下拆:
+     國家  = 經濟圈的勢力 × 「他在這個國家站得多穩」
+             你:你在這國有東西 → 0.6 + 0.4 × (這國佔你在這個經濟圈的比重);沒有 → 0.3
+             對手:大本營在這國 1.0 · 駐軍在這國 0.8 · 這國有可以進場的城市 0.5 · 其餘 0.3
+     城市  = 直接比錢:你在這座城的規模 vs 對手大本營(身家的六成)vs 對手駐軍(勢力 × 身家的三成)
+   全部是讀現有的數字換算,不擲骰、不改任何規則 —— 經濟圈那一層的勢力仍然是唯一的真相。 */
+function tyIsoPower(code, f){
+  if(!TY) return null;
+  const C=tyPwCache(), ck='i:'+code+(f&&f.properties?f.properties.NAME||'':'');
+  if(ck in C) return C[ck];
+  return (C[ck]=tyIsoPower0(code, f));
+}
+function tyIsoPower0(code, f){
+  const reg=tyIsoReg(code, f); if(!reg) return null;
+  const sites=TY_SITES.filter(x=>x.iso===code);
+  const myHere=tyIsoSites(code).reduce((a,x)=>a+tySiteStuff(x.id).val,0);
+  const myReg=tyMySites().filter(x=>x.reg===reg).reduce((a,x)=>a+tySiteStuff(x.id).val,0);
+  const forces=tyRivalForces();
+  const wMe=myHere>0 ? .6+.4*myHere/Math.max(1,myReg) : .3;
+  const board=[{ me:true, nm:'你', col:'41,151,255', v:tyMyTurf(reg)*wMe, w:wMe }];
+  for(const r of tyRivalsA()){
+    const t=tyTurf(r,reg); if(t<=0) continue;
+    const w = tySite(r.home).iso===code ? 1
+            : forces.some(x=>x.r.id===r.id && tySite(x.site).iso===code) ? .8
+            : sites.length ? .5 : .3;
+    board.push({ r, nm:r.nm, ic:r.ic, col:TY_RVCOL[r.id]||'200,200,210', v:t*w, w });
+  }
+  board.sort((a,b)=>b.v-a.v);
+  const top=board[0];
+  return { reg, board, top: top && top.v>2 ? top : null };
+}
+function tyCityPower(id){
+  if(!TY) return null;
+  const C=tyPwCache();
+  if(('c:'+id) in C) return C['c:'+id];
+  return (C['c:'+id]=tyCityPower0(id));
+}
+function tyCityPower0(id){
+  const s=tySite(id), me=tySiteStuff(id).val;
+  const board=[];
+  if(me>0) board.push({ me:true, nm:'你', col:'41,151,255', v:me });
+  for(const r of tyRivalsA()){
+    let v=0;
+    if(r.home===id) v+=r.nw*.6;
+    const f=tyRivalForces().find(x=>x.r.id===r.id && x.site===id);
+    if(f) v+=r.nw*.3*f.v/100;
+    if(v>0) board.push({ r, nm:r.nm, ic:r.ic, col:TY_RVCOL[r.id]||'200,200,210', v });
+  }
+  board.sort((a,b)=>b.v-a.v);
+  return board.length ? { board, top:board[0], s } : null;
+}
+/* 城市範圍的填色(world3d 在勢力圖層把 cities.json 的真實邊界塗上這個顏色) */
+function tyCityColor(id){
+  if(TY_LAYER!=='power') return '';
+  const c=tyCityPower(id); if(!c) return '';
+  const tot=c.board.reduce((a,x)=>a+x.v,0);
+  const a=(.35+.35*c.top.v/Math.max(1,tot)).toFixed(3);   // 越是一個人獨大越深
+  return `rgba(${c.top.col},${a})`;
+}
 function tyCountryColor(feat){
   const code=iso(feat);
   if(TY_LAYER==='power'){
-    /* 勢力範圍:這個地區現在是誰的天下。你是藍的,對手各有各的顏色。
+    /* 勢力範圍:這個**國家**現在是誰的天下(見上面的 tyIsoPower)。你是藍的,對手各有各的顏色。
        深淺 = 領先者的勢力有多強。 */
-    const reg=tyIsoReg(code, feat);
-    if(!reg) return 'rgba(150,180,205,.05)';
-    const o=tyRegOwner(reg);
+    const P=tyIsoPower(code, feat);
+    if(!P || !P.top) return 'rgba(150,180,205,.05)';
     /* ⚠ 上限 .34 不是隨便挑的:再深一點整片國家會變成實色,
        國界、你自己的建築、地名全部被蓋掉 —— 那就不是地圖了。 */
-    const a=(.07+Math.min(1,o.v/70)*.27).toFixed(3);
-    if(!o.r) return o.v>2 ? `rgba(41,151,255,${a})` : 'rgba(150,180,205,.05)';
-    return `rgba(${TY_RVCOL[o.r.id]||'200,200,210'},${a})`;
+    const a=(.07+Math.min(1,P.top.v/70)*.27).toFixed(3);
+    return `rgba(${P.top.col},${a})`;
   }
   if(TY_LAYER==='econ'){
     const reg=tyIsoReg(code, feat);
@@ -9265,10 +9516,8 @@ function tyIsoAlt(code){
   const base=.004;
   if(!TY || !code) return base;
   if(TY_LAYER==='power'){
-    const site=TY_SITES.find(x=>x.iso===code);
-    if(!site) return base;
-    const o=tyRegOwner(site.reg);
-    return o.v>2 ? .005+Math.min(1,o.v/70)*.009 : base;
+    const P=tyIsoPower(code);
+    return P && P.top ? .005+Math.min(1,P.top.v/70)*.009 : base;
   }
   if(TY_LAYER==='econ') return .005;
   const v=tyIsoSites(code).reduce((s,x)=>s+tySiteStuff(x.id).val,0);
@@ -9328,6 +9577,13 @@ function tyGlobeMount(){
                 el.innerHTML=`<i>${d._r.ic||'⚔'}</i><b>⚔</b><em>${Math.max(0,d._threat.eta-TY.t)}季</em>`;
                 el.title=`${d._r.nm}的併購小組 → ${tySite(d._threat.site).nm},`
                         +`${Math.max(0,d._threat.eta-TY.t)} 季後抵達。防守率 ${(tyThreatBlock(d._threat)*100).toFixed(0)}%`;
+              }else if(d._rvf){
+                el.className='tyu th rf';
+                el.style.setProperty('--rc', `rgb(${TY_RVCOL[d._r.id]||'255,69,58'})`);
+                el.innerHTML=`<i>${d._r.ic||'⚔'}</i><b>${d._units.map(u=>TY_UNITS[u.k].ic).join('')}</b>`;
+                el.title=`${d._r.nm}在${TY_REGIONS[d._rvf.reg].nm}的駐軍(勢力 ${d._rvf.v.toFixed(0)})`;
+                el.onclick=()=>{ TY_MODAL='rival'; TY_RIVAL=d._r.id; renderPage(); };
+                return el;
               }else{
                 const ics=d._units.map(u=>TY_UNITS[u.k].ic).join('');
                 el.innerHTML=`<b>${ics}</b>${d._mv?`<em>${d._mv}季</em>`:(d._units.length>1?`<em>×${d._units.length}</em>`:'')}`;
@@ -9831,6 +10087,25 @@ function tySpecHTML(id){
   }).join('')}</div>`;
 }
 
+/* 規模比較:地圖上建築的高度就是這張表(同一把尺,見 tyHeightScale)。
+   你這座城 vs 全圖前幾名(你的其他城、各對手的大本營)。 */
+function tyScaleHTML(id){
+  const all=tyScaleRank(), me=all.findIndex(x=>x.me && x.id===id);
+  const rvHere=tyRivalsA().filter(r=>r.home===id);
+  if(me<0 && !rvHere.length) return '';
+  const pick=all.slice(0,5);
+  if(me>=5) pick.push(all[me]);
+  const mx=Math.max(1, all[0].v);
+  const nm=x=>x.me ? `🔵 你 · ${escH(tySite(x.id).nm)}` : `${x.r.ic||''} ${escH(x.r.nm)} · ${escH(tySite(x.id).nm)}`;
+  return `<div class="p-sec">規模比較<span>${me>=0?`你在這裡排全圖第 ${me+1} 高`:'對手大本營'}</span></div>
+    <div class="ty-board wide">${pick.map(x=>{
+      const i=all.indexOf(x), col=x.me?'41,151,255':(TY_RVCOL[x.r.id]||'200,200,210');
+      return `<div class="b-r${x.me&&x.id===id?' me':''}"><span class="b-n">${i+1}. ${nm(x)}</span>
+        <span class="b-b"><i style="width:${Math.max(2,x.v/mx*100).toFixed(0)}%;background:rgb(${col})"></i></span>
+        <span class="b-v">${tyM(x.v)}</span></div>`; }).join('')}</div>
+    <div class="expo-note">地圖上的建築高度就是這個數字:你每座城最高的那棟、對手的大本營,用同一把尺畫。
+      越高 = 規模越大。</div>`;
+}
 function tySitePanel(id){
   const s=tySite(id), t=tySiteStuff(id), R=TY_REGIONS[s.reg];
   const par=TY.partners[s.reg];
@@ -9928,6 +10203,7 @@ function tySitePanel(id){
       交易成本、租金與配息。所以同一家公司開在不同城市,結果是不一樣的。</div>
     ${tySpecHTML(id)}
     ${TY_BLD?tyBldCard(id,TY_BLD):''}
+    ${tyScaleHTML(id)}
     ${troops}
     ${stuff.length?`<div class="p-sec">你在這裡有什麼<span>${tyM(t.val)}</span></div>
         <div class="expo-note">點任何一列(或地球上的那一棟)看它自己的資訊與可以做的事。</div>
@@ -10329,7 +10605,7 @@ function tyTicker(){
 
 const TY_MODAL_NM = { asset:'資產', biz:'事業', play:'手法', rank:'富豪榜',
                       rival:'對手', learn:'怎麼玩', log:'大事記', more:'更多', site:'據點',
-                      troop:'資本部隊', vault:'金庫', data:'我的全部資料' };
+                      troop:'資本部隊', vault:'金庫', data:'我的全部資料', power:'勢力分析' };
 
 function tyMoreSheet(){
   return `<div class="tg-more">
@@ -10358,6 +10634,7 @@ function tyModalHTML(){
              : k==='troop' ? tyTroopTab()
              : k==='vault' ? tyVaultTab()
              : k==='data'  ? tyDataTab()
+             : k==='power' ? tyPowerTab()
              : k==='rank'  ? tyRankTab()
              : k==='learn' ? tyLearnTab()
              : k==='log'   ? tyLogTab()
@@ -10403,7 +10680,7 @@ function tyIntro(){
 /* 桌機上,據點 / 國家 / 部隊 / 對手這幾張面板改成右側的側欄,地圖留著 ——
    參考的那款遊戲點國家時地圖不會消失,你要一邊看地圖一邊讀那張卡。
    手機太窄,維持整張蓋上去。 */
-const tySideModal = () => !!TY_MODAL && ['site','troop','rival'].includes(TY_MODAL)
+const tySideModal = () => !!TY_MODAL && ['site','troop','rival','power'].includes(TY_MODAL)
                           && typeof innerWidth==='number' && innerWidth>=900;
 function tycoonPage(){
   if(!TY) return tyIntro();
@@ -10411,7 +10688,7 @@ function tycoonPage(){
   /* data-modal:面板蓋上來的時候要**整層**把地球收起來。
      globe.gl 的 HTML 標記自己算 z-index(會算到比面板高),
      光靠面板的背景色壓不住 —— 那就是使用者看到城市名穿透出來的原因。 */
-  return `<div id="tyRoot" class="tycon"${TY_MODAL?` data-modal="${escH(TY_MODAL)}"`:''}${tySideModal()?' data-side="1"':''}>
+  return `<div id="tyRoot" class="tycon"${TY_MODAL?` data-modal="${escH(TY_MODAL)}"`:''}${TY_MODAL==='site'&&(TY_SEL||TY_ISO)?` data-sel="${escH(TY_SEL||TY_ISO)}"`:''}${tySideModal()?' data-side="1"':''}>
     ${tyTopBar()}
     ${tyResBar()}
     <div class="tg-map">
@@ -10423,17 +10700,18 @@ function tycoonPage(){
         <button type="button" class="tg-c${TY_LAYER==='mine'?' on':''}" data-ty="layer" data-k="mine">我的資產</button>
         <button type="button" class="tg-c${TY_LAYER==='econ'?' on':''}" data-ty="layer" data-k="econ">地區景氣</button>
         <button type="button" class="tg-c${TY_LAYER==='power'?' on':''}" data-ty="layer" data-k="power">勢力範圍</button>
+        <button type="button" class="tg-c tg-an${TY_MODAL==='power'?' on':''}" data-ty="modal:power">📊 勢力分析</button>
         ${TY_LAYER==='econ'
           ? `<span class="lg">${TY_ECON_STEPS.map(x=>`<b class="lg-b" style="background:rgb(${x.c})"></b>${x.nm}`).join('')}
              <span class="lg-s">顏色 = 這個地區的景氣跟全球平均比 · 紅熱綠冷</span></span>`
           : TY_LAYER==='power'
           ? `<span class="lg"><b class="lg-b" style="background:#2997ff"></b>你${
               tyRivalsA().map(r=>`<b class="lg-b" style="background:rgb(${TY_RVCOL[r.id]})"></b>${escH(r.nm)}`).join('')}
-             <span class="lg-s">顏色 = 那個地區現在是誰的天下 · 越深勢力越大</span></span>`
+             <span class="lg-s">國家與城市各自上色:誰在那裡最強 · 越深越穩</span></span>`
           : `<span class="lg"><b class="lg-b c-estate"></b>房地產<b class="lg-b c-biz"></b>事業<b
               class="lg-b c-paper"></b>金融<b class="lg-b c-gold"></b>黃金<b
               class="lg-b c-cash"></b>現金<b class="lg-b c-hold"></b>控股
-              <span class="lg-s">高度 = 價值 · <em>▲</em>賺錢 <em>▼</em>燒錢 <em>◈</em>上市</span></span>`}
+              <span class="lg-s">高度 = 規模(跟對手大本營同一把尺,越高越大)· <em>▲</em>賺錢 <em>▼</em>燒錢 <em>◈</em>上市</span></span>`}
       </div>
       ${tyTicker()}
       ${TY.done?`<div class="tg-end">${tyEndHTML()}</div>`:''}
@@ -10553,6 +10831,11 @@ function bindTycoon(root){
       const k=a.slice(6);
       TY_MODAL = TY_MODAL===k ? null : k;
       if(TY_MODAL==='rank') loadRich();
+      if(TY_MODAL==='power' && TY_LAYER!=='power'){
+        TY_LAYER='power';
+        if(TYG) TYG.polygonCapColor(tyCountryColor).polygonSideColor(tyCountrySide).polygonAltitude(tyCountryAlt);
+        renderPage(); if(window.W3D) W3D.repaint(); return;
+      }
       renderPage(); return;
     }
     if(a==='close'){ TY_MODAL=null; TY_BLD=null; renderPage(); return; }
@@ -10572,6 +10855,7 @@ function bindTycoon(root){
       else TY_RIVAL = TY_RIVAL===b.dataset.k ? null : b.dataset.k;
       TY_DEAL=null; renderPage(); return;
     }
+    if(a==='pwr'){ TY_PWR = TY_PWR===b.dataset.k ? null : b.dataset.k; renderPage(); return; }
     if(a==='dealx'){ TY_DEAL = TY_DEAL===b.dataset.k ? null : b.dataset.k; renderPage(); return; }
     if(a==='iso'){ tyPickIso(b.dataset.k || (TY_ISO||'')); return; }
     if(a==='site'){ tyPickSite(b.dataset.k, b.dataset.r||null); return; }
@@ -10719,11 +11003,35 @@ function typeBrief(text){
      不像壞掉。照原樣包起來,站上所有 CSS 就一條都不用改。
    ═══════════════════════════════════════════════════════════════════════ */
 let PAGE='tycoon';
+/* 重畫前後保住捲動位置。
+   使用者回報「在資產/事業那裡選價格或地區,都會跑回最上面」—— 因為每個操作都是
+   整頁 innerHTML 重畫,捲動容器是新的元素,scrollTop 歸零。
+   所以重畫前記下每個有捲動的容器(用「現在開哪個面板 + 元素的 class」當鑰匙),
+   重畫後找同一個容器還原。換面板時鑰匙不同,自然回到頂端 —— 那是對的。
+   「更多動作」的 <details> 展開狀態同理,不然按一下就收起來。 */
+function tyScrollKey(e, modal){
+  return (modal||'-')+'|'+e.tagName+'.'+[...e.classList].sort().join('.')+(e.id?'#'+e.id:'');
+}
 function renderPage(){
   const host=document.getElementById('page');
   if(!host) return;
+  TY_PWC=null;                          // 勢力換算的快取:重畫前一律丟掉
+  const keep=[], open=new Set();
+  // 鑰匙用「重畫之前開著的是哪個面板」(舊畫面上的 data-modal),不是剛被按鈕改掉的 TY_MODAL
+  const R0=host.querySelector('#tyRoot'), was=R0 ? (R0.dataset.modal||'')+'/'+(R0.dataset.sel||'') : '';
+  host.querySelectorAll('.tg-mb,.tycon,.holds,.news,[data-keep-scroll]').forEach(e=>{
+    if(e.scrollTop>0) keep.push([tyScrollKey(e, was), e.scrollTop]);
+  });
+  host.querySelectorAll('details[data-more][open]').forEach(d=>open.add(d.dataset.more));
   tyParkGlobe();                       // 重畫之前先把 WebGL 搬出去(見上面的註解)
   host.innerHTML=`<div class="pg"><div id="pgBody">${tycoonPage()}</div></div>`;
+  open.forEach(k=>{ const d=host.querySelector(`details[data-more="${CSS.escape(k)}"]`); if(d) d.open=true; });
+  if(keep.length){
+    const m=new Map(keep);
+    host.querySelectorAll('.tg-mb,.tycon,.holds,.news,[data-keep-scroll]').forEach(e=>{
+      const v=m.get(tyScrollKey(e, (TY_MODAL||'')+'/'+(TY_MODAL==='site'?(TY_SEL||TY_ISO||''):''))); if(v!=null) e.scrollTop=v;
+    });
+  }
   bindTycoon(host);
 }
 const goPage = () => renderPage();
