@@ -147,6 +147,14 @@ function ok(cond, what) {
 }
 
 /* ---------- 每個測試拿到的「新分頁」 ---------- */
+/* 打開一張面板:側邊與頂列的直接按;其餘在「總覽」裡(先開總覽再按) */
+async function openPanel(page, k) {
+  const direct = await page.$(`#tyRoot > :not(.tg-map) [data-ty="modal:${k}"], .tg-side [data-ty="modal:${k}"], .tg-hand [data-ty="modal:${k}"]`);
+  if (direct) { await direct.click(); return; }
+  await page.click('.tg-hand [data-ty="modal:more"]');
+  await page.waitForTimeout(120);
+  await page.click(`.tg-mb [data-ty="modal:${k}"]`);
+}
 async function freshPage(browser, { width = 1280, height = 900, seed = null, hash = '#/',
                                     killCdn = false } = {}) {
   const ctx = await browser.newContext({
@@ -339,9 +347,10 @@ test('帝國:每一顆按鈕按下去都要有回應,而且畫面自己會更新
 
   // 五個子分頁都要畫得出東西
   /* 每一張面板都要開得出東西。指揮台的面板分兩組:底部功能列與右側的功能鈕。 */
-  for (const [k, nm] of [['asset','資產'],['biz','事業'],['play','手法'],
-                         ['rank','富豪榜'],['more','更多'],['log','大事記'],['learn','怎麼玩']]) {
-    await page.click(`[data-ty="modal:${k}"]`);
+  /* 第八輪起底部是一手牌:資產、事業、手法…收在「總覽」(modal:more)裡,要先打開總覽 */
+  for (const [k, nm] of [['asset','資產'],['biz','事業'],['play','手法'],['vault','金庫'],['power','勢力分析'],
+                         ['rank','富豪榜'],['more','總覽'],['log','大事記'],['learn','怎麼玩']]) {
+    await openPanel(page, k);
     await page.waitForTimeout(160);
     const len = await page.$eval('.tg-mb', el => el.innerHTML.length);
     ok(len > 200, `「${nm}」這張面板是空的(只有 ${len} 字元)`);
@@ -352,7 +361,7 @@ test('帝國:每一顆按鈕按下去都要有回應,而且畫面自己會更新
   }
 
   // 買一次要真的有部位、有回覆訊息
-  await page.click('[data-ty="modal:asset"]');
+  await openPanel(page, 'asset');
   await page.waitForTimeout(150);
   await page.click('[data-ty="buy"][data-k="tech"]');
   await page.waitForTimeout(150);
@@ -771,7 +780,7 @@ test('帝國:指揮台的外殼不可以撞到站上既有的 class,面板打開
   ok(frame.length === 0, `指揮台的外殼被別的 class 汙染了:\n      ${frame.join('\n      ')}`);
 
   // 面板打開 → 地球那一層必須看不見
-  await page.click('[data-ty="modal:asset"]');
+  await openPanel(page, 'asset');
   await page.waitForTimeout(250);
   const shown = await page.evaluate(() => {
     const root = document.getElementById('tyRoot');
@@ -1427,7 +1436,7 @@ test('帝國部隊:招募有上限、要養、下一季到位,到了才有效果
       if (!b.disabled && blocked) out.bad.push('recruit 可以按但引擎擋');
       if (b.disabled && !blocked) out.bad.push('recruit 是灰的但引擎讓過');
     }
-    out.nav = !!document.querySelector('[data-ty="modal:troop"]');
+    out.nav = !!document.querySelector('.tg-hand [data-card="troop"]');
     return out;
   });
   eq(r.n, 6, '應該招得到六支');
@@ -1446,7 +1455,7 @@ test('帝國部隊:招募有上限、要養、下一季到位,到了才有效果
   near(r.turfCut, 6, .01, '兩支併購小組一季要削掉他 6 點勢力');
   ok(r.panel > 1500, '部隊面板不可以是空的');
   ok(r.bad.length === 0, r.bad.join(' / '));
-  ok(r.nav, '底部要有「部隊」這一格');
+  ok(r.nav, '手牌裡要有「部隊」牌');
   ok(page.__errors.length === 0, `有 JS 錯誤:\n      ${page.__errors.join('\n      ')}`);
   await page.__ctx.close();
 });
@@ -1674,7 +1683,7 @@ test('帝國事業等級、金庫、資料頁:升級看得到回本、金庫一�
     TY_MODAL = 'data'; renderPage();
     const dt = document.querySelector('.tg-mb').textContent;
     out.data = ['身家', '資產', '事業', '部隊', '對手', 'Lv'].filter(k => !dt.includes(k));
-    out.nav = ['vault', 'data'].map(k => !!document.querySelector(`[data-ty="modal:${k}"]`));
+    out.nav = [!!document.querySelector('.tg-hand [data-card="vault"]'), !!document.querySelector('[data-ty="modal:data"]')];
     return out;
   });
   eq(r.lv0, 1, '剛開的公司是 Lv1');
@@ -1692,7 +1701,7 @@ test('帝國事業等級、金庫、資料頁:升級看得到回本、金庫一�
   eq(r.vault, [], `金庫少了:${r.vault}`);
   eq(r.playBorrow, false, '借款已經搬到金庫,手法頁不應該再有');
   eq(r.data, [], `資料頁少了:${r.data}`);
-  eq(r.nav, [true, true], '金庫在底部、資料在右側都要按得到');
+  eq(r.nav, [true, true], '手牌裡要有金庫牌、右側要有資料鈕');
   ok(page.__errors.length === 0, `有 JS 錯誤:\n      ${page.__errors.join('\n      ')}`);
   await page.__ctx.close();
 });
@@ -1788,6 +1797,82 @@ test('帝國第七輪:捲動不跳頂、對手看得到(駐軍與動態)、勢�
   eq(r.hTiny, 0, '小一千倍以上貼地');
   ok(r.hMid > .3 && r.hMid < .7, `小三十倍大約在中間:${r.hMid}`);
   ok(r.scale, '據點面板要有規模比較');
+  ok(page.__errors.length === 0, `有 JS 錯誤:\n      ${page.__errors.join('\n      ')}`);
+  await page.__ctx.close();
+});
+
+test('帝國卡牌:行動點、出牌選項、解鎖;規則函式本身不扣點(重播一致)', async (browser) => {
+  /* 使用者:「把現在有的東西改成卡牌」「更寬鬆」「建築卡拖出去可以選賭場飯店等等,就會多一棟對應的房子」。 */
+  const page = await freshPage(browser, { seed: SEED, hash: '#/tycoon' });
+  const r = await page.evaluate(() => {
+    tyStart('heir', 7); TY.cash = 500e8; TY_MODAL = null; renderPage();
+    const out = {};
+    out.ap0 = TY.ap; out.apMax = tyApMax();
+    out.hand = document.querySelectorAll('.tg-hand [data-card]').length;
+    out.locked = document.querySelectorAll('.tg-hand .pc.lock').length;
+    // 沒有地球(測試的替身)→ 出牌改成列城市;選台北 → 建設選項
+    tyCardGo('build');
+    out.modal1 = TY_MODAL;
+    const city = document.querySelector('.tg-mb [data-ty="pickcity"][data-site="tpe"]');
+    out.hasCity = !!city; city.click();
+    const opts = [...document.querySelectorAll('.tg-mb [data-ty="found"]')].map(b => b.dataset.k);
+    out.opts = opts;
+    out.expect = tyBuildOpts('tpe');
+    // 按「蓋」飯店與賭場 → 扣 2 點、面板收起來、台北多一棟 hotel
+    const n0 = TY.biz.length;
+    document.querySelector('.tg-mb [data-ty="found"][data-k="hotel"]').click();
+    out.built = TY.biz.length - n0; out.apAfter = TY.ap; out.modal2 = TY_MODAL;
+    out.bld = tySiteBuildings('tpe').some(b => b.k === 'hotel');
+    // 點數不夠:硬把點數歸零,按鈕是灰的、畫面動作被擋、規則函式直接呼叫仍然可以(測試與重播要一致)
+    TY.ap = 0; TY_MODAL = 'pick'; TY_PICK = { k:'build', site:'tpe' }; renderPage();
+    const btn = document.querySelector('.tg-mb [data-ty="found"][data-k="tech"]');
+    out.btnOff = btn.disabled;
+    out.doMsg = tyDo('found', () => tyFound('tech', 'tpe'));
+    out.bizAfterBlock = TY.biz.filter(b => b.k === 'tech').length;
+    out.needAp = tyNeeds('found', { k:'tech', site:'tpe' }).some(n => n.lab === '行動點' && !n.ok);
+    // 下一季補滿
+    tyNext(); out.apNext = TY.ap;
+    // 招募到指定城市:下一季到位
+    const u0 = tyUnits().length;
+    tyDo('recruitTo', () => tyRecruitTo('law', 'lon'));
+    const u = tyUnits()[tyUnits().length - 1];
+    out.recruit = [tyUnits().length - u0, u && u.to];
+    // 解鎖:第 3 季起有空襲牌,而且只翻一次
+    TY_NEWCARD = [];
+    tyNext(); tyNext();
+    out.unlocked = tyHasCard('air'); out.newcard = TY_NEWCARD.includes('air');
+    out.cardsSaved = (JSON.parse(localStorage.getItem(TY_KEY)) || {}).cards || [];
+    // 重播一致:同一個種子、同樣的規則呼叫,出不出牌(tyDo)不影響亂數
+    const run = viaDo => { tyStart('heir', 21); TY.cash = 200e8;
+      const f = () => tyFound('media', 'tpe');
+      viaDo ? tyDo('found', f) : f();
+      for (let i = 0; i < 8; i++) tyNext();
+      return JSON.stringify([tyNW(), TY.rivals.map(x => Math.round(x.nw))]); };
+    out.same = run(true) === run(false);
+    return out;
+  });
+  ok(r.apMax >= 6, `行動點基本至少 6 點(寬鬆):${r.apMax}`);
+  eq(r.ap0, r.apMax, '開局行動點是滿的');
+  ok(r.hand >= 12, `手牌要把所有牌列出來(含鎖著的):${r.hand}`);
+  ok(r.locked >= 3, '開局要有幾張鎖著的牌可以解鎖');
+  eq(r.modal1, 'pick', '沒有地球時出牌要改成列城市');
+  ok(r.hasCity, '台北要在可以蓋的城市裡');
+  eq(r.opts, r.expect, '台北的建設選項要跟那座城市的類型一致');
+  ok(r.opts.includes('hotel'), '台北要蓋得了飯店與賭場');
+  eq(r.built, 1, '按「蓋」要真的多一家公司');
+  eq(r.apAfter, r.ap0 - 2, '建設要扣 2 點');
+  eq(r.modal2, null, '做成之後出牌面板要收起來(看得到新的那一棟)');
+  ok(r.bld, '台北的建築裡要多一棟飯店與賭場');
+  ok(r.btnOff, '行動點不夠時按鈕要是灰的');
+  ok(/行動點不夠/.test(r.doMsg), `點數不夠時畫面上的動作要被擋:${r.doMsg}`);
+  eq(r.bizAfterBlock, 0, '被擋的動作不能真的做');
+  ok(r.needAp, '條件清單要列出行動點');
+  eq(r.apNext, r.apMax, '下一季行動點要補滿');
+  eq(r.recruit, [1, 'lon'], '部隊牌:招募一支、下一季到指定城市');
+  ok(r.unlocked, '第 3 季起要有空襲牌');
+  ok(r.newcard, '解鎖時要翻牌給玩家看');
+  ok(r.cardsSaved.includes('air'), '解鎖紀錄要進存檔');
+  ok(r.same, '經由出牌或直接呼叫規則,重播結果要一模一樣');
   ok(page.__errors.length === 0, `有 JS 錯誤:\n      ${page.__errors.join('\n      ')}`);
   await page.__ctx.close();
 });

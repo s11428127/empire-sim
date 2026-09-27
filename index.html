@@ -10,6 +10,7 @@
 <meta name="theme-color" content="#0a0d12">
 <script src="https://unpkg.com/globe.gl"></script>
 <!-- 畫面層(3D 建築、傾斜鏡頭、季間過場)。只讀 TY、不碰規則,見檔頭註解 -->
+<script src="pixel.js"></script>
 <script src="world3d.js"></script>
 
 <style>
@@ -4783,6 +4784,100 @@
   @keyframes w3dShake2{0%,100%{transform:none}10%{transform:translate(-9px,4px)}25%{transform:translate(8px,-6px)}
     40%{transform:translate(-7px,-4px)}55%{transform:translate(6px,5px)}70%{transform:translate(-4px,2px)}85%{transform:translate(2px,-2px)}}
   @media (prefers-reduced-motion:reduce){ .w3d-shake,.w3d-shake2{animation:none} }
+
+  /* ═══════════ 像素風 + 卡牌(使用者:「全部變成像素風格」「把現在有的東西改成卡牌」)═══════════
+     字型是 Fusion Pixel 12px 繁中(SIL OFL,fonts/ 裡附授權),子集化到這個遊戲用得到的字(約 60KB)。
+     子集化的指令見 tools/font-subset.sh —— 加了新文字要重跑,不然新字會退回系統字型。
+     角一律方的、陰影一律「往下一格的實色」:像素遊戲的 UI 沒有圓角也沒有模糊陰影。 */
+  @font-face{ font-family:'EmpirePixel'; src:url(fonts/fusion-pixel-12-tc.woff2) format('woff2');
+    font-display:swap; }
+  .tycon{ --px-font:'EmpirePixel', var(--sans); font-family:var(--px-font) }
+  .tycon button, .tycon input, .tycon select{ font-family:inherit }
+  .tycon, .tycon *{ border-radius:0 !important }
+  .tycon img.px, img.px{ image-rendering:pixelated; image-rendering:crisp-edges }
+  .tycon .ty-b, .tycon .tg-c, .tycon .tg-go, .tycon .tg-sb, .tycon .ty-chip{
+    box-shadow:0 3px 0 rgba(0,0,0,.55) }
+  .tycon .ty-b:active, .tycon .tg-go:active{ transform:translateY(2px); box-shadow:0 1px 0 rgba(0,0,0,.55) }
+  .tycon .tg-modal{ border:3px solid #0b0f15; box-shadow:inset 0 0 0 2px #2b4a66 }
+
+  .tycon .tg-go.pulse{ animation:goPulse 1s steps(2) infinite }
+  @keyframes goPulse{ 50%{ box-shadow:0 3px 0 rgba(0,0,0,.55), 0 0 0 4px #ffd84a } }
+  /* ---- 手牌(取代原本的底部功能列)---- */
+  .tg-hand{ display:flex; align-items:stretch; gap:8px; padding:6px 8px calc(8px + env(safe-area-inset-bottom,0px));
+    background:#0e1a25; border-top:3px solid #0b0f15; box-shadow:inset 0 2px 0 #2b4a66 }
+  .hd-ov{ flex:0 0 60px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px;
+    font:inherit; color:#e8f1f8; background:#1b3348; border:2px solid #0b0f15; box-shadow:0 3px 0 #000, inset 0 0 0 2px #2b4a66;
+    cursor:pointer; position:relative }
+  .hd-ov i{ font-style:normal; font-size:20px } .hd-ov span{ font-size:13px }
+  .hd-ov.on{ background:#25455f; box-shadow:0 3px 0 #000, inset 0 0 0 2px #4fc3f7 }
+  .hd-ov .dot{ position:absolute; top:-6px; right:-6px; min-width:18px; height:18px; background:#e05252; color:#fff;
+    font-size:12px; display:flex; align-items:center; justify-content:center; text-decoration:none; border:2px solid #000 }
+  .hd-mid{ flex:1; min-width:0; display:flex; flex-direction:column; gap:5px }
+  .hd-ap{ display:flex; align-items:center; gap:8px; font-size:12px; color:#9db4c8; line-height:1 }
+  .hd-ap b{ color:#e8f1f8; font-weight:400 }
+  .hd-ap .pips{ display:flex; gap:3px }
+  .hd-ap .pips i{ width:12px; height:12px; background:#1a2a38; border:2px solid #000 }
+  .hd-ap .pips i.on{ background:#ffd84a; box-shadow:inset -2px -2px 0 #c49a1c }
+  .hd-ap em{ font-style:normal; color:#ffd84a; font-variant-numeric:tabular-nums }
+  .hd-cards{ display:flex; gap:8px; overflow-x:auto; overflow-y:visible; padding:6px 2px 6px;
+    scrollbar-width:none; -webkit-overflow-scrolling:touch }
+  .hd-cards::-webkit-scrollbar{ display:none }
+  .pc{ flex:0 0 78px; height:104px; position:relative; display:flex; flex-direction:column; align-items:center;
+    justify-content:flex-end; gap:2px; padding:16px 3px 5px; font:inherit; color:#e8f1f8; cursor:grab;
+    background:linear-gradient(180deg,#1f3346 0,#132231 60%,#0e1a25 100%);
+    border:3px solid var(--cc,#4fc3f7); box-shadow:0 4px 0 #000, inset 0 0 0 2px rgba(0,0,0,.45);
+    touch-action:pan-x; user-select:none; -webkit-user-select:none; transition:transform .12s }
+  .pc:hover{ transform:translateY(-4px) }
+  .pc:active{ cursor:grabbing }
+  .pc-ap{ position:absolute; left:-3px; top:-3px; width:22px; height:22px; display:flex; align-items:center; justify-content:center;
+    font-style:normal; font-size:13px; color:#1a1300; background:#ffd84a; border:3px solid #000; box-shadow:inset -2px -2px 0 #c49a1c }
+  .pc-art{ flex:1; min-height:0; display:flex; align-items:flex-end; justify-content:center; overflow:hidden }
+  .pc{ width:78px; min-width:0 }
+  .pc-nm{ font-size:13px; font-weight:400; white-space:nowrap; text-shadow:0 2px 0 #000 }
+  .pc-h{ font-size:11px; font-style:normal; color:#9db4c8; white-space:nowrap; max-width:100%; overflow:hidden; text-overflow:ellipsis }
+  .pc.dis{ opacity:.55 } .pc.dis .pc-h{ color:#ff9b8c }
+  .pc.lock{ filter:grayscale(1); opacity:.45 } .pc.lock .pc-h{ color:#e8f1f8 }
+  .pc.big{ flex:none; width:150px; height:200px; padding-top:24px; cursor:default }
+  .pc.big .pc-nm{ font-size:18px }
+  .pc.big .pc-ap{ width:30px; height:30px; font-size:17px }
+  .pc-ghost{ position:fixed; left:0; top:0; z-index:10000; pointer-events:none; display:flex; flex-direction:column; align-items:center;
+    padding:6px 8px; background:#132231; border:3px solid #ffd84a; box-shadow:0 5px 0 #000; color:#fff; font-family:'EmpirePixel',var(--sans) }
+  .pc-ghost img{ image-rendering:pixelated }
+  .pc-ghost b{ font-weight:400; font-size:13px }
+
+  /* ---- 出牌的選項 ---- */
+  .pk-h{ display:flex; gap:12px; align-items:flex-start; margin-bottom:10px }
+  .pk-h .pc{ flex:0 0 78px; cursor:default } .pk-h .pc:hover{ transform:none }
+  .pk-h > div{ min-width:0 } .pk-h > div > b{ font-size:18px; font-weight:400 }
+  .pk-h p{ margin:4px 0; font-size:13.5px; color:var(--g-t2); line-height:1.5 }
+  .pk-ap{ font-size:12.5px; color:var(--g-t3) } .pk-ap b{ color:#ffd84a; font-weight:400 }
+  .pk-list{ display:flex; flex-direction:column; gap:8px }
+  .pk-o{ display:grid; grid-template-columns:auto 1fr auto; gap:10px; align-items:center; padding:8px;
+    background:#132231; border:2px solid #0b0f15; box-shadow:inset 0 0 0 2px #22405a }
+  .pk-img{ width:56px; display:flex; justify-content:center; align-items:flex-end }
+
+  .pk-t{ min-width:0; display:flex; flex-direction:column; gap:2px }
+  .pk-t b{ font-size:15px; font-weight:400 } .pk-t > span{ font-size:12.5px; color:var(--g-t2); line-height:1.45 }
+  .pk-d{ font-size:12px; font-style:normal; color:var(--g-t3); line-height:1.45 }
+  .pk-b .ty-b{ min-width:64px }
+  .pk-cities{ display:flex; flex-wrap:wrap; gap:6px }
+  @media (max-width:480px){
+    .pk-o{ grid-template-columns:auto 1fr } .pk-b{ grid-column:1/-1 } .pk-b .ty-b{ width:100% }
+  }
+
+  /* ---- 新牌解鎖 ---- */
+  .tg-newcard{ position:absolute; inset:0; z-index:420; display:flex; align-items:center; justify-content:center;
+    background:rgba(4,10,16,.72) }
+  .nc-in{ display:flex; flex-direction:column; align-items:center; gap:10px; padding:18px 18px 16px; max-width:min(320px,calc(100% - 32px));
+    background:#132231; border:3px solid #ffd84a; box-shadow:0 6px 0 #000; text-align:center; animation:ncIn .6s steps(6) both }
+  .nc-in > em{ font-style:normal; font-size:18px; color:#ffd84a }
+  .nc-in p{ margin:0; font-size:13.5px; line-height:1.5; color:var(--g-t2) }
+  @keyframes ncIn{ from{ transform:scale(.3) rotateY(90deg); opacity:0 } to{ transform:none; opacity:1 } }
+
+  /* ---- 總覽清單 ---- */
+  .tg-ovl{ display:grid; grid-template-columns:repeat(auto-fill,minmax(210px,1fr)); gap:8px; margin-bottom:14px }
+  .tg-ml.ov{ display:grid; grid-template-columns:34px 1fr; grid-template-rows:auto auto; gap:0 8px; text-align:left }
+  .tg-ml.ov i{ grid-row:1/3; font-style:normal; font-size:24px; display:flex; align-items:center; justify-content:center }
 </style>
 </head>
 <body data-route="tycoon">
@@ -6378,7 +6473,7 @@ let TY_BIZSITE={};           // 同上,但是「這家公司要開在哪」
 let TY_SEL=null;             // 地圖上目前選的地點
 let TY_ISO=null;             // 地圖上目前放大的國家
 
-function tySave(){ TY_PWC=null; try{ localStorage.setItem(TY_KEY, JSON.stringify(TY)); }catch(e){} }
+function tySave(){ TY_PWC=null; TY_SAVES++; try{ localStorage.setItem(TY_KEY, JSON.stringify(TY)); }catch(e){} }
 function tyLoad(){
   try{
     const d=JSON.parse(localStorage.getItem(TY_KEY)||'null');
@@ -6418,6 +6513,8 @@ function tyStart(scnK, seed){
   TY.nw=[tyNW()];
   tyLog('start', `${s.nm}:${s.sub}。人在${tySite(s.home).nm},手上 ${tyM(TY.cash)} 現金`
         + (TY.debt? `,以及 ${tyM(TY.debt)} 的負債。` : '。'));
+  TY.ap=tyApMax();
+  TY.cards=null; tyCardsSync(); TY_NEWCARD=[];   // 開局的牌不用翻給你看
   tySave();
 }
 
@@ -6676,6 +6773,8 @@ function tyNext(){
   /* t 是「第幾季」的索引:t=0 是 2026 Q1。所以第 40 季是 t=39,不是 t=40 ——
      寫成 >=TY_QN 的話畫面上會出現「第 41 / 40 季 · 2036 Q1」,多跑了一季。 */
   if(!TY.done && TY.t>=TY_QN-1) tyEnd('done','');
+  TY.ap=tyApMax();                     // 新的一季:行動點補滿(卡牌那一段)
+  tyCardsSync();
   tySave();
 }
 
@@ -7315,7 +7414,14 @@ const tyBuyPts = (amt, base, unit, cap) =>
   Math.min(cap, unit * Math.pow(Math.max(amt,1)/Math.max(base,1), .6));
 
 /* ---- 門檻表 ---- */
+/* 條件清單 + 行動點(卡牌):畫面上的每一顆按鈕都會多一條「行動點 N」 */
 function tyNeeds(act, arg){
+  const list=tyNeeds0(act, arg);
+  const c=tyApCost(act);
+  if(c>0 && TY) list.push(tyNd('行動點', tyApNow(), c, v=>String(Math.round(v))));
+  return list;
+}
+function tyNeeds0(act, arg){
   const biz = ['upgrade','expand','ipo','reverse','sellbiz','strip','ch11'].includes(act)
     ? (arg && typeof arg==='object' ? arg : TY.biz.find(x=>x.id===+arg)) : null;
   const d = biz ? TY_BIZ[biz.k] : null;
@@ -8772,7 +8878,7 @@ function tyAimUnits(units){
     },
     pick: id=>{
       const msgs=[];
-      for(const u of units){ TY_LAST_MOVE=null; const m=tyDeploy(u.id, id); msgs.push(m); tyPlayLast(); }
+      for(const u of units){ TY_LAST_MOVE=null; const m=tyDo('deploy', ()=>tyDeploy(u.id, id)); msgs.push(m); tyPlayLast(); }
       TY_MSG=msgs.join('<br>'); renderPage();
     } });
 }
@@ -8783,7 +8889,7 @@ function tyAimStrike(k){
   W3D.aim({ from:tySite(TY.home), strike:k, label:`${d.ic} ${d.nm}的目標?`,
     valid: id=>!!tyStrikeTarget(k, id),
     hint: id=>{ const r=tyStrikeTarget(k, id); return r ? `打擊 ${r.ic||''} ${r.nm}` : (k==='missile'?'這裡沒有對手的大本營':'這個地區沒有對手的勢力'); },
-    pick: id=>{ TY_LAST_STRIKE=null; TY_MSG=tyStrike(k, id); renderPage(); tyPlayLast(); } });
+    pick: id=>{ TY_LAST_STRIKE=null; TY_MSG=tyDo('strike', ()=>tyStrike(k, id)); renderPage(); tyPlayLast(); } });
 }
 
 function tyRelTxt(v){
@@ -9101,24 +9207,24 @@ function tySiteBuildings(id){
       // 大富翁的規矩:五棟房子換一間旅館
       const n=Math.max(1,Math.round(tyUnitCount(p)));
       const hotel=Math.floor(n/5), house=n%5;
-      for(let i=0;i<Math.min(2,hotel);i++) out.push({ c:'estate', f:5, ref, tag:'旅館(5 棟)' });
-      for(let i=0;i<Math.min(3,house);i++) out.push({ c:'estate', f:1, ref, tag:'房子' });
-      if(!hotel && !house) out.push({ c:'estate', f:1, ref, tag:'房子' });
+      for(let i=0;i<Math.min(2,hotel);i++) out.push({ c:'estate', k:'estate', f:5, ref, tag:'旅館(5 棟)' });
+      for(let i=0;i<Math.min(3,house);i++) out.push({ c:'estate', k:'estate', f:1, ref, tag:'房子' });
+      if(!hotel && !house) out.push({ c:'estate', k:'estate', f:1, ref, tag:'房子' });
     }else{
       const gainy = tyPosVal(p) > p.cb;
-      out.push({ c: a.k==='gold'?'gold':a.g==='real'?'real':'paper',
+      out.push({ c: a.k==='gold'?'gold':a.g==='real'?'real':'paper', k:p.k,
                  f: tyFloors(v), v, ref, tag:`${a.nm} ${tyM(v)}`, st: gainy?'earn':'' });
     }
   }
   for(const b of t.biz){
     const d=TY_BIZ[b.k], ref=`biz:${b.id}`;
-    if(d.shell){ out.push({ c:'shell', f:1, ref, tag:'空殼公司', st:'shell' }); continue; }
-    out.push({ c:'biz', f:tyFloors(tyBizVal(b)*b.own), v:tyBizVal(b)*b.own, ref, tag:`${d.nm}${b.pub?'(上市)':''}`,
+    if(d.shell){ out.push({ c:'shell', k:'shell', f:1, ref, tag:'空殼公司', st:'shell' }); continue; }
+    out.push({ c:'biz', k:b.k, f:tyFloors(tyBizVal(b)*b.own), v:tyBizVal(b)*b.own, ref, tag:`${d.nm}${b.pub?'(上市)':''}`,
                st: b.pub?'pub':(b.cf<0?'burn':(b.cf>0?'earn':'')) });
   }
   if(t.cash>0) out.push({ c:'cash', f:1, ref:'cash', tag:`現金 ${tyM(t.cash)}` });
   if(t.holdco) out.push({ c:'hold', f:2, ref:'hold', tag:'控股層', st:'hold' });
-  return out.slice(0,5);
+  return out.slice(0,6);
 }
 /* 一棟 CSS 等角方塊:三個面用 clip-path 切出來。
    為什麼不用真的 3D:globe.gl 的 UMD 版沒有把 THREE 匯出來,要畫真的網格
@@ -9239,7 +9345,7 @@ function tyGlobeData(){
      有一大半是這個。簽章只放「畫面上看得出差別」的東西。 */
   const troopsNow=tyTroopMarks();
   const sig=JSON.stringify([TY.t, TY_LAYER, TY_SEL, TY.holdco, (window.W3D&&W3D.ok)?1:0,
-    pts.map(d=>[d.id,d._cat,Math.round(d._v/1e6),d._blds.map(b=>b.c+b.f+(b.st||'')+b.h).join()]),
+    pts.map(d=>[d.id,d._cat,Math.round(d._v/1e6),d._blds.map(b=>b.c+(b.k||'')+b.f+(b.st||'')+b.h).join()]),
     rv.map(d=>[d._rival.id,Math.round(d._v/1e7),d._hk,Math.sign(Math.trunc((d._rival.rel||0)/20))]),
     troopsNow.map(t=>t._k+':'+(t._mv||'')+':'+(t._units?t._units.map(u=>u.k).join():'')),
     Object.keys(TY.partners||{}), (window.W3D&&W3D.extraArcs||[]).length]);
@@ -10530,7 +10636,8 @@ function tyTopBar(){
       <button type="button" class="tg-nwp" data-ty="modal:rank"
         title="淨值 ${tyM(nw)} · 富豪榜第 ${rank} 名 —— 點開看你跟別人的距離">
         ${tyTopSpark()}<em>#${rank}</em><b>${tyM(nw)}</b></button>
-      ${TY.done?'':`<button type="button" class="tg-go" data-ty="next">
+      ${TY.done?'':`<button type="button" class="tg-go${tyApNow()===0?' pulse':''}" data-ty="next"
+        title="${tyApNow()===0?'這一季的行動點用完了 —— 按這裡進下一季,行動點會補滿':'進下一季'}">
         <b>▶ 下一季</b><em>${tyWhen(TY.t+1)}</em></button>`}
     </div>`;
 }
@@ -10576,23 +10683,6 @@ function tySideBtns(){
     </div>`;
 }
 
-/* 底部功能列。每一格開一張蓋在地圖上的面板。 */
-/* 富豪榜不在這一列:頂列金色的淨值鈕點下去就是富豪榜。空出來的位置給「金庫」。 */
-const TY_NAV = [
-  ['asset','資產','▤'], ['biz','事業','▥'], ['vault','金庫','🏦'], ['play','手法','♟'],
-  ['troop','部隊','🎖'], ['rival','對手','⚔'], ['more','更多','☰'],
-];
-function tyNavBar(){
-  return `<div class="tg-nav">${TY_NAV.map(([k,nm,ic])=>
-    `<button type="button" class="tg-nb${TY_MODAL===k?' on':''}" data-ty="modal:${k}">
-      <i>${ic}</i><span>${nm}</span>
-      ${k==='play'&&tyTaxGap()>0&&TY.heat>60?'<u class="dot">!</u>':''}
-      ${k==='troop'&&tyThreats().length?`<u class="dot">${tyThreats().length}</u>`:''}
-      ${k==='biz'&&TY.biz.some(b=>!TY_BIZ[b.k].shell&&!b.pub&&b.cap>=20e8&&TY.fame>=35)
-        ?'<u class="dot">1</u>':''}
-    </button>`).join('')}</div>`;
-}
-
 /* 本季快訊:貼在地圖下緣的跑馬燈。點一下開大事記。 */
 function tyTicker(){
   const n=TY.news;
@@ -10604,11 +10694,23 @@ function tyTicker(){
 }
 
 const TY_MODAL_NM = { asset:'資產', biz:'事業', play:'手法', rank:'富豪榜',
-                      rival:'對手', learn:'怎麼玩', log:'大事記', more:'更多', site:'據點',
-                      troop:'資本部隊', vault:'金庫', data:'我的全部資料', power:'勢力分析' };
+                      rival:'對手', learn:'怎麼玩', log:'大事記', more:'總覽', site:'據點',
+                      troop:'資本部隊', vault:'金庫', data:'我的全部資料', power:'勢力分析', pick:'出牌' };
 
+/* 總覽:原本底部那一排分頁(資產、事業、金庫…)現在都收在這裡 —— 手牌是「做事」,總覽是「看清單」 */
+const TY_OVERVIEW = [
+  ['asset','▤','資產','每一筆部位、價格走勢、在哪個市場'],
+  ['biz','▥','事業','每一家公司的等級、現金流、升級與上市'],
+  ['vault','🏦','金庫','借款、質押、槓桿儀表、控股層、信託'],
+  ['troop','🎖','部隊','你的部隊、來襲的敵軍、武器冷卻'],
+  ['rival','⚔','對手','對手動態、駐軍、關係與七種條件'],
+  ['power','📊','勢力分析','經濟圈 → 國家 → 城市,誰在哪裡最強'],
+  ['play','♟','手法','稅務居住地、在地夥伴、影響力'],
+];
 function tyMoreSheet(){
-  return `<div class="tg-more">
+  return `<div class="tg-ovl">${TY_OVERVIEW.map(([k,ic,nm,sub])=>`<button type="button" class="tg-ml ov" data-ty="modal:${k}">
+        <i>${ic}</i><b>${nm}</b><span>${sub}</span></button>`).join('')}</div>
+    <div class="tg-more">
       <button type="button" class="tg-ml" data-ty="modal:data"><b>我的全部資料</b>
         <span>身家組成、每一筆資產與事業、部隊、對手 —— 一頁看完</span></button>
       <button type="button" class="tg-ml" data-ty="modal:rank"><b>富豪榜</b>
@@ -10635,6 +10737,7 @@ function tyModalHTML(){
              : k==='vault' ? tyVaultTab()
              : k==='data'  ? tyDataTab()
              : k==='power' ? tyPowerTab()
+             : k==='pick'  ? tyPickHTML()
              : k==='rank'  ? tyRankTab()
              : k==='learn' ? tyLearnTab()
              : k==='log'   ? tyLogTab()
@@ -10680,7 +10783,7 @@ function tyIntro(){
 /* 桌機上,據點 / 國家 / 部隊 / 對手這幾張面板改成右側的側欄,地圖留著 ——
    參考的那款遊戲點國家時地圖不會消失,你要一邊看地圖一邊讀那張卡。
    手機太窄,維持整張蓋上去。 */
-const tySideModal = () => !!TY_MODAL && ['site','troop','rival','power'].includes(TY_MODAL)
+const tySideModal = () => !!TY_MODAL && ['site','troop','rival','power','pick'].includes(TY_MODAL)
                           && typeof innerWidth==='number' && innerWidth>=900;
 function tycoonPage(){
   if(!TY) return tyIntro();
@@ -10716,9 +10819,305 @@ function tycoonPage(){
       ${tyTicker()}
       ${TY.done?`<div class="tg-end">${tyEndHTML()}</div>`:''}
       ${tyModalHTML()}
+      ${tyNewCardHTML()}
     </div>
-    ${tyNavBar()}
+    ${tyHand()}
   </div>`;
+}
+
+/* =========================================================================
+   卡牌 —— 使用者:「把現在有的東西改成卡牌類型」
+   -------------------------------------------------------------------------
+   底部功能列換成一手牌。每一季有**行動點**(基本 6 點,人脈每 25 點多 1 點,最多 9 點),
+   每張牌寫著要幾點。把牌拖到地球上的城市(或點一下牌、再點城市)→ 跳出那座城市
+   能做的選項:建設牌可以選「賭場飯店、科技公司…」,選了那裡就多一棟對應的像素建築。
+
+   ⚠ 行動點只管**畫面上的操作**(tyDo):按鈕、出牌、拉線。規則函式(tyFound、tyBuy…)本身
+     不扣點 —— 測試與重播直接呼叫它們,扣點會讓「同一個種子跑兩次」不一樣。
+   ⚠ 卡牌解鎖(使用者要的「放一點牌組構築的元素」):一開始只有基本幾張,
+     達成條件就解鎖新牌、跳一張翻牌動畫。解鎖紀錄存在 TY.cards,不擲骰。
+   ========================================================================= */
+const TY_AP_COST = { found:2, upgrade:1, expand:1, ipo:1, reverse:1, buy:1, short:1,
+  recruit:1, recruitTo:1, deploy:1, strike:2, partner:1, movehome:1, lobby:1, media:1,
+  charity:1, trust:1, holdco:1 };
+const tyApCost = act => String(act).startsWith('deal:') ? 1 : (TY_AP_COST[act] || 0);
+const tyApMax  = () => Math.min(9, 6 + Math.floor((TY && TY.infl || 0) / 25));
+function tyApNow(){ if(TY && typeof TY.ap !== 'number') TY.ap = tyApMax(); return TY ? TY.ap : 0; }
+let TY_SAVES = 0;                 // tySave 被呼叫的次數:動作有沒有真的做成,看它有沒有存檔
+/* 經由畫面做一個動作:點數夠才做,做成了才扣 */
+function tyDo(act, fn){
+  const c = tyApCost(act), have = tyApNow();
+  if(c > have) return `<b>行動點不夠</b> —— 這個動作要 ${c} 點,這一季只剩 ${have} 點。按「下一季」就會補滿。`;
+  const s0 = TY_SAVES;
+  const msg = fn();
+  if(TY_SAVES > s0){
+    if(c){ TY.ap = Math.max(0, TY.ap - c); }
+    tyCardsSync(); tySave();
+  }
+  return msg;
+}
+
+/* ---- 牌 ----
+   tgt:'city' = 拖到城市;'none' = 點一下就出
+   pick(site) = 拖到那座城市之後的選項;ok(site) = 這座城市能不能出這張牌(拉線時綠 / 紅) */
+const TY_TEAM = '#2f8fe0';
+const TY_CARDS = [
+  { k:'build', nm:'建設', col:'#bf5af2', ap:2, tgt:'city', art:()=>PX.bizTower('hotel',.45),
+    dsc:'拖到城市:選一種事業開在那裡(賭場飯店、科技公司、銀行…),地圖上就多一棟那種建築。',
+    ok:id=>tyBuildOpts(id).length>0 },
+  { k:'invest', nm:'投資', col:'#2997ff', ap:1, tgt:'city', art:()=>PX.SPR.stock,
+    dsc:'拖到城市:在那裡的市場買進資產(股票、房地產、黃金…),每一種都是地圖上一棟不同的建築。',
+    ok:id=>tyInvestOpts(id).length>0 },
+  { k:'upgrade', nm:'升級', col:'#ffd84a', ap:1, tgt:'city', art:()=>PX.SPR.arrow,
+    dsc:'拖到你有公司的城市:升一級、加碼或上市。樓會長高 —— 高度就是規模。',
+    ok:id=>TY.biz.some(b=>b.site===id && !TY_BIZ[b.k].shell),
+    unlock:()=>TY.biz.some(b=>!TY_BIZ[b.k].shell), why:'有一家營運中的公司' },
+  { k:'sell', nm:'變現', col:'#30d158', ap:0, tgt:'city', art:()=>PX.SPR.cash,
+    dsc:'拖到你有東西的城市:賣掉那裡的資產或公司。不花行動點。',
+    ok:id=>{ const t=tySiteStuff(id); return t.pos.some(p=>p.q>0) || t.biz.length>0; } },
+  { k:'troop', nm:'部隊', col:'#4fc3f7', ap:1, tgt:'city', art:()=>PX.SPR.raid, tint:TY_TEAM,
+    dsc:'拖到城市:招募一支部隊(併購小組、律師團、遊說團、經理人),下一季在那裡就位。',
+    ok:()=>true },
+  { k:'deal', nm:'談判', col:'#f0b429', ap:1, tgt:'city', art:()=>PX.SPR.contract,
+    dsc:'拖到對手的大本營:互不侵犯、合資、買他的事業、敵意收購…七種條件,成功率寫在上面。',
+    ok:id=>tyRivalsA().some(r=>r.home===id) },
+  { k:'air', nm:'輿論空襲', col:'#ff9f0a', ap:2, tgt:'city', art:()=>PX.SPR.jet, cd:'air',
+    dsc:'拖到城市:對那個地區勢力最大的對手媒體轟炸,他在那裡的勢力 −12。冷卻 3 季。',
+    ok:id=>tyStrikeReady('air') && !!tyStrikeTarget('air', id),
+    unlock:()=>TY.t>=2, why:'第 3 季' },
+  { k:'missile', nm:'做空飛彈', col:'#e5484d', ap:2, tgt:'city', art:()=>PX.SPR.missile, cd:'missile',
+    dsc:'拖到對手的大本營:放空狙擊他的控股公司,身家 −4~8%,你賺回兩成。冷卻 4 季。',
+    ok:id=>tyStrikeReady('missile') && !!tyStrikeTarget('missile', id),
+    unlock:()=>TY.t>=4 || tyThreats().length>0, why:'第 5 季,或有人出兵打你' },
+  { k:'lobby', nm:'遊說', col:'#5fd0b0', ap:1, tgt:'none', art:()=>PX.SPR.bond,
+    dsc:'政治獻金:人脈上去(人脈高,每季行動點也多)。關注度也會跟著上去。' },
+  { k:'media', nm:'媒體曝光', col:'#7fd8ff', ap:1, tgt:'none', art:()=>PX.bizTower('media',.3),
+    dsc:'專訪、封面、一本書:名氣上去。名氣夠高才開得了品牌授權、避險基金。' },
+  { k:'charity', nm:'慈善', col:'#ff8fb8', ap:1, tgt:'none', art:()=>PX.SPR.heart,
+    dsc:'成立基金會:關注度下降、名氣上升。最貴、但最乾淨的降溫方式。',
+    unlock:()=>TY.heat>=30 || TY.t>=6, why:'關注度 30 以上,或第 7 季' },
+  { k:'move', nm:'移居', col:'#a0703f', ap:1, tgt:'city', art:()=>PX.SPR.suitcase,
+    dsc:'拖到城市:把稅務居住地遷過去。證券的資本利得稅照你住哪裡算。',
+    ok:id=>id!==TY.home, unlock:()=>TY.t>=1, why:'第 2 季' },
+  { k:'partner', nm:'在地夥伴', col:'#46c46a', ap:1, tgt:'city', art:()=>PX.SPR.flag, tint:'#46c46a',
+    dsc:'拖到政策風險高的地區:找當地夥伴合資。政策風險減半,也買得到原本買不到的東西。',
+    ok:id=>!!TY_PARTNERS[tySite(id).reg] && !TY.partners[tySite(id).reg],
+    unlock:()=>TY.t>=1, why:'第 2 季' },
+  { k:'shell', nm:'空殼與控股', col:'#ff453a', ap:1, tgt:'city', art:()=>PX.SPR.hold,
+    dsc:'拖到離岸金融中心(開曼、BVI、百慕達…):開空殼公司,或把它設成控股層、壓低集團稅率。',
+    ok:id=>tyCan(id,'shell'),
+    unlock:()=>TY.t>=3 || TY.biz.some(b=>TY_BIZ[b.k].shell), why:'第 4 季' },
+  { k:'vault', nm:'金庫', col:'#9aa5b8', ap:0, tgt:'none', art:()=>PX.SPR.safe,
+    dsc:'借款、還款、質押、信託、搬現金。財務操作不花行動點。' },
+];
+const tyCard = k => TY_CARDS.find(c=>c.k===k);
+/* 解鎖:有 unlock 的牌要達成條件;達成過一次就永遠在手上 */
+let TY_NEWCARD = [];              // 剛解鎖、還沒翻給玩家看的牌(畫面狀態,不存檔)
+function tyCardsSync(){
+  if(!TY) return;
+  TY.cards = TY.cards || TY_CARDS.filter(c=>!c.unlock).map(c=>c.k);
+  for(const c of TY_CARDS){
+    if(TY.cards.includes(c.k) || !c.unlock) continue;
+    let ok=false; try{ ok=!!c.unlock(); }catch(e){}
+    if(ok){ TY.cards.push(c.k); TY_NEWCARD.push(c.k); }
+  }
+}
+const tyHasCard = k => { const c=tyCard(k); return !!c && (!c.unlock || (TY.cards||[]).includes(k)); };
+
+/* 這座城市建得了哪些事業、買得到哪些資產 */
+function tyBuildOpts(id){
+  const s=tySite(id);
+  return Object.keys(TY_BIZ).filter(k=>s.kind.includes(TY_BIZ_KIND[k]||'hq'));
+}
+function tyInvestOpts(id){
+  const s=tySite(id);
+  return TY_ASSETS.filter(a=>s.kind.includes(TY_ASSET_KIND[a.k]||'ex'));
+}
+/* 招募到指定城市:在大本營成軍,下一季到位(同一張牌、一個動作、1 點) */
+function tyRecruitTo(k, site){
+  const n0=tyUnits().length;
+  const msg=tyRecruit(k);
+  if(tyUnits().length===n0 || !site || site===TY.home) return msg;
+  const u=tyUnits()[tyUnits().length-1];
+  TY_LAST_MOVE=null;
+  return msg+'<br>'+tyDeploy(u.id, site);
+}
+
+/* ---- 牌的長相(像素卡面) ---- */
+function tyCardArt(c, z){
+  if(typeof PX==='undefined') return '';
+  let sp=null; try{ sp=c.art(); }catch(e){}
+  return sp ? PX.img('card:'+c.k, sp, { fit: z===4 ? [130,120] : z===3 ? [90,80] : [68,54], tint: c.tint }) : '';
+}
+function tyCardHTML(c, opt){
+  opt=opt||{};
+  const lock=!tyHasCard(c.k);
+  const cd=c.cd && !tyStrikeReady(c.cd) ? TY.cd[c.cd]-TY.t : 0;
+  const poor=!lock && c.ap>tyApNow();
+  const hint = lock ? `🔒 ${c.why}` : cd ? `冷卻 ${cd} 季` : poor ? '行動點不夠'
+             : c.tgt==='city' ? '拖到城市' : '點一下';
+  return `<button type="button" class="pc${lock?' lock':''}${cd||poor?' dis':''}${opt.big?' big':''}"
+      data-card="${c.k}" style="--cc:${c.col}" title="${escH(c.dsc)}">
+      <i class="pc-ap">${c.ap}</i>
+      <span class="pc-art">${tyCardArt(c, opt.big?4:2)}</span>
+      <b class="pc-nm">${escH(c.nm)}</b>
+      <em class="pc-h">${escH(hint)}</em>
+    </button>`;
+}
+/* 底部:總覽 + 行動點 + 一手牌(鎖著的排最後,讓你知道還有什麼牌可以拿) */
+function tyHand(){
+  tyCardsSync();
+  const ap=tyApNow(), mx=tyApMax();
+  const cards=[...TY_CARDS.filter(c=>tyHasCard(c.k)), ...TY_CARDS.filter(c=>!tyHasCard(c.k))];
+  return `<div class="tg-nav tg-hand">
+      <button type="button" class="hd-ov${TY_MODAL==='more'?' on':''}" data-ty="modal:more"><i>☰</i><span>總覽</span>
+        ${tyThreats().length?`<u class="dot">${tyThreats().length}</u>`:''}</button>
+      <div class="hd-mid">
+        <div class="hd-ap" title="每一季補滿 ${mx} 點(人脈每 25 點多 1 點,最多 9 點)">
+          <b>行動點</b><span class="pips">${Array.from({length:mx},(_,i)=>`<i class="${i<ap?'on':''}"></i>`).join('')}</span>
+          <em>${ap} / ${mx}</em></div>
+        <div class="hd-cards">${cards.map(c=>tyCardHTML(c)).join('')}</div>
+      </div>
+    </div>`;
+}
+/* 新牌解鎖的翻牌 */
+function tyNewCardHTML(){
+  if(!TY_NEWCARD.length) return '';
+  const c=tyCard(TY_NEWCARD[0]);
+  return `<div class="tg-newcard" data-ty="newcard-ok">
+      <div class="nc-in"><em>🎉 新牌解鎖</em>${tyCardHTML(c,{big:true})}
+        <p>${escH(c.dsc)}</p><button type="button" class="ty-b" data-ty="newcard-ok">收進手牌</button></div>
+    </div>`;
+}
+
+/* ---- 出牌 ---- */
+let TY_PICK=null;                 // { k:牌, site:城市 } —— 拖到城市之後的選項面板
+function tyCardGo(k){
+  const c=tyCard(k); if(!c || !TY || TY.done) return;
+  if(!tyHasCard(k)){ TY_MSG=`🔒 <b>${c.nm}</b>還沒解鎖 —— 條件:${c.why}。`; renderPage(); return; }
+  if(c.k==='vault'){ TY_MODAL='vault'; renderPage(); return; }
+  if(c.tgt==='none'){ TY_PICK={ k }; TY_MODAL='pick'; renderPage(); return; }
+  if(!(window.W3D && W3D.ok)){ TY_PICK={ k, site:null }; TY_MODAL='pick'; renderPage(); return; }  // 沒有地球:改成清單選城市
+  if(tySideModal() || TY_MODAL){ TY_MODAL=null; renderPage(); }
+  W3D.aim({ from:tySite(TY.home), label:`${c.nm}:拖到 / 點一座城市`,
+    valid:id=>{ try{ return !!c.ok(id); }catch(e){ return false; } },
+    hint:id=>tyCardHint(c, id),
+    pick:id=>{ TY_PICK={ k, site:id }; TY_MODAL='pick'; renderPage(); } });
+}
+function tyCardHint(c, id){
+  const s=tySite(id);
+  if(c.k==='build'){ const o=tyBuildOpts(id); return o.length?`可以開:${o.map(k=>TY_BIZ[k].nm).join('、')}`:'這裡不能開公司'; }
+  if(c.k==='invest'){ const o=tyInvestOpts(id); return o.length?`市場:${o.slice(0,5).map(a=>a.nm).join('、')}${o.length>5?'…':''}`:'這裡沒有市場'; }
+  if(c.k==='deal'){ const r=tyRivalsA().find(x=>x.home===id); return r?`跟 ${r.ic||''} ${r.nm} 談`:'這裡不是對手的大本營'; }
+  if(c.k==='missile'||c.k==='air'){ const r=tyStrikeTarget(c.k, id); if(!tyStrikeReady(c.k)) return '冷卻中'; return r?`打擊 ${r.ic||''} ${r.nm}`:(c.k==='missile'?'這裡沒有對手的大本營':'這個地區沒有對手的勢力'); }
+  if(c.k==='partner'){ const P=TY_PARTNERS[s.reg]; return P?(TY.partners[s.reg]?'已經有夥伴':`${P.nm}`):'這個地區不需要夥伴'; }
+  if(c.k==='shell') return tyCan(id,'shell')?'離岸金融中心':'這裡不是離岸金融中心';
+  if(c.k==='sell'){ const t=tySiteStuff(id); return t.val>0?`你在這裡有 ${tyM(t.val)}`:'你在這裡沒有東西'; }
+  if(c.k==='upgrade'){ const n=TY.biz.filter(b=>b.site===id && !TY_BIZ[b.k].shell).length; return n?`${n} 家公司`:'你在這裡沒有公司'; }
+  return '';
+}
+
+/* ---- 拖到城市之後的選項 ---- */
+function tyPickHTML(){
+  const P=TY_PICK; if(!P) return '<div class="empty">沒有選牌。</div>';
+  const c=tyCard(P.k); if(!c) return '';
+  const head=`<div class="pk-h">${tyCardHTML(c)}<div><b>${escH(c.nm)}</b>${P.site?` → ${escH(tySite(P.site).nm)}`:''}
+      <p>${escH(c.dsc)}</p><span class="pk-ap">這一季還有 <b>${tyApNow()}</b> 點行動點 · 這張牌 ${c.ap} 點</span></div></div>`;
+  if(c.tgt==='city' && !P.site){
+    // 沒有地球的退回模式:直接列出可以出的城市
+    const ok=TY_SITES.filter(s=>{ try{ return c.ok(s.id); }catch(e){ return false; } });
+    return head+`<div class="pk-cities">${ok.map(s=>`<button type="button" class="ty-b alt" data-ty="pickcity" data-site="${s.id}">${escH(s.nm)}</button>`).join('')||'<div class="empty">現在沒有可以出這張牌的城市。</div>'}</div>`;
+  }
+  const id=P.site, s=id?tySite(id):null;
+  const row=(img,nm,sub,btn,need,extra)=>`<div class="pk-o">${img?`<span class="pk-img">${img}</span>`:''}
+      <div class="pk-t"><b>${nm}</b><span>${sub||''}</span>${extra||''}${need||''}</div><div class="pk-b">${btn}</div></div>`;
+  let body='';
+  switch(c.k){
+    case 'build': {
+      const opts=tyBuildOpts(id);
+      body=opts.map(k=>{
+        const d=TY_BIZ[k], cost=tyBizCost(k,id);
+        const cf=d.shell?0:cost*(d.fameCf ? .015+TY.fame/100*.20 : d.cf)*tySpecMul(id,'biz',k,'cf')*tyClamp(tyRegIdx(s.reg),.3,2.2);
+        const img=PX.img('pk:biz:'+k, k==='shell'?PX.SPR.shell:PX.bizTower(k,.35), { fit:[56,64] });
+        return row(img, `${d.ic} ${escH(d.nm)}`, `${tyM(cost)}${d.shell?'':` · 第一季現金流約 <b class="${cf>=0?'up':'down'}">${tySgn(cf)}</b>`}`,
+          tyActBtn('found',{k,site:id},'蓋',` data-k="${k}" data-site="${id}"`), tyNeedHTML(tyNeeds('found',{k,site:id}),'tight'),
+          `<em class="pk-d">${escH(d.dsc)}</em>`);
+      }).join('');
+      const no=Object.keys(TY_BIZ).filter(k=>!opts.includes(k));
+      if(no.length) body+=`<div class="expo-note">${escH(s.nm)}開不了:${no.map(k=>`${TY_BIZ[k].nm}(要去${
+        tyBizSites(k).slice(0,2).map(x=>x.nm).join('、')||'—'})`).join('、')}。</div>`;
+      break; }
+    case 'invest': {
+      const chips=[['.1','10%'],['.25','25%'],['.5','50%'],['1','全部']].map(([v,t])=>
+        `<button type="button" class="ty-chip${TY_AMT==null&&Math.abs(TY_SIZE-+v)<1e-9?' on':''}" data-ty="size" data-v="${v}">${t}</button>`).join('');
+      body=`<div class="ty-sizebar"><span>每次下多少現金</span>${chips}</div>`+tyInvestOpts(id).map(a=>{
+        const img=PX.img('pk:as:'+a.k, PX.assetSprite(a.k), { fit:[56,64] });
+        const p=TY.pos.find(x=>x.k===a.k && x.site===id);
+        return row(img, `${a.ic} ${escH(a.nm)}`, tyBuyPreview(a.k, id),
+          tyActBtn('buy', null, '買', ` data-k="${a.k}" data-site="${id}"`),
+          p&&p.q>0?`<em class="pk-d">已持有 ${tyM(tyPosVal(p))}</em>`:'', '');
+      }).join('');
+      break; }
+    case 'upgrade':
+      body=TY.biz.filter(b=>b.site===id && !TY_BIZ[b.k].shell).map(b=>{
+        const d=TY_BIZ[b.k];
+        return `<div class="ty-card"><div class="c-hd"><b>${d.ic} ${escH(d.nm)} · Lv${tyBizLv(b)}</b>
+          <span>估值 ${tyM(tyBizVal(b)*b.own)} · 每季 ${tySgn(b.cf*b.own)}</span></div>${tyBizActs(b)}</div>`;
+      }).join('');
+      break;
+    case 'sell': {
+      const t=tySiteStuff(id);
+      body=t.pos.filter(p=>p.q>0).map(p=>{ const a=tyAsset(p.k);
+        return row(PX.img('pk:as:'+a.k, PX.assetSprite(a.k), { fit:[56,64] }), `${a.ic} ${escH(a.nm)}`,
+          `${tyM(tyPosVal(p))} · 成本 ${tyM(p.cb)} · 賣 ${Math.round(TY_SIZE*100)}%`,
+          tyActBtn('sell', null, '賣', ` data-k="${p.k}" data-site="${id}"`), '');
+      }).join('') + t.biz.map(b=>{ const d=TY_BIZ[b.k];
+        return row(PX.img('pk:biz:'+b.k, d.shell?PX.SPR.shell:PX.bizTower(b.k,.35), { fit:[56,64] }), `${d.ic} ${escH(d.nm)}`,
+          d.shell?'空殼公司':`估值 ${tyM(tyBizVal(b)*b.own)} · 交易成本 6%`,
+          tyActBtn('sellbiz', b.id, d.shell?'註銷':'賣掉', ` data-id="${b.id}"`, 'warn'), '');
+      }).join('') || '<div class="empty">你在這裡沒有東西可以賣。</div>';
+      break; }
+    case 'troop':
+      body=Object.entries(TY_UNITS).map(([k,d])=>row(PX.img('pk:u:'+k, PX.SPR[k], { fit:[56,64], tint:TY_TEAM }),
+        `${d.ic} ${escH(d.nm)}`, `招募 ${tyM(tyUnitCost(k))} · 每季維持 ${tyM(tyUnitCost(k)*TY_UNIT_UP)}${id!==TY.home?' · 下一季到位':''}`,
+        tyActBtn('recruitTo', k, '招募', ` data-k="${k}" data-site="${id}"`), tyNeedHTML(tyNeeds('recruit', k),'tight'),
+        `<em class="pk-d">${escH(d.dsc)}</em>`)).join('');
+      break;
+    case 'deal': {
+      const r=tyRivalsA().find(x=>x.home===id);
+      body=r?`<div class="expo-note">${r.ic||''} <b>${escH(r.nm)}</b> · 身家 ${tyM(r.nw)} · 關係 ${tyRelTxt(r.rel||0)}(${(r.rel||0).toFixed(0)})</div>
+        <div class="rv-deals">${Object.keys(TY_DEALS).map(k=>tyDealHTML(k,r)).join('')}</div>`:'<div class="empty">這裡不是對手的大本營。</div>';
+      break; }
+    case 'missile': case 'air': {
+      const d=TY_STRIKES[c.k], r=tyStrikeTarget(c.k, id);
+      body=row(PX.img('pk:w:'+c.k, c.art(), { fit:[56,64] }), `${d.ic} ${escH(d.nm)} → ${r?`${r.ic||''} ${escH(r.nm)}`:'—'}`,
+        `花費 ${tyM(tyStrikeCost(c.k))} · 冷卻 ${d.cd} 季`, tyActBtn('strike', { k:c.k, site:id }, '發射', ` data-k="${c.k}" data-site="${id}"`, 'warn'),
+        tyNeedHTML(tyNeeds('strike', { k:c.k, site:id }),'tight'), `<em class="pk-d">${escH(d.dsc)}</em>`);
+      break; }
+    case 'move':
+      body=row('', `遷到 ${escH(s.nm)}`, `證券資本利得 ${(tyCg(id,1)*100).toFixed(1)}% · 一般所得 ${(s.tax*100).toFixed(1)}% · 費用 ${tyM(tyMoveCost())} · 人脈 −10`,
+        tyActBtn('movehome', id, '遷過去', ` data-site="${id}"`, 'alt'), tyNeedHTML(tyNeeds('movehome', id),'tight'), `<em class="pk-d">${escH(s.note||'')}</em>`);
+      break;
+    case 'partner': {
+      const P=TY_PARTNERS[s.reg];
+      body=P?row('', `${escH(P.nm)}`, `${escH(P.tag)} · 抽當地事業現金流 ${(P.cut*100).toFixed(0)}% · 合資 ${tyM(tyPartnerCost())}`,
+        tyActBtn('partner', s.reg, '合資', ` data-reg="${s.reg}"`, 'alt'), tyNeedHTML(tyNeeds('partner', s.reg),'tight')):'<div class="empty">這個地區不需要在地夥伴。</div>';
+      break; }
+    case 'shell': {
+      const has=TY.biz.some(b=>TY_BIZ[b.k].shell && b.site===id);
+      body=row(PX.img('pk:shell', PX.SPR.shell, { fit:[56,64] }), '開空殼公司', `${tyM(tyBizCost('shell',id))} · 當地稅率 ${(s.tax*100).toFixed(1)}%`,
+          tyActBtn('found', {k:'shell',site:id}, '開', ` data-k="shell" data-site="${id}"`, 'alt'), tyNeedHTML(tyNeeds('found',{k:'shell',site:id}),'tight'))
+        + (has && TY.holdco!==id ? row(PX.img('pk:hold', PX.SPR.hold, { fit:[56,64] }), '設為控股層', `集團利潤掛在這裡,稅率 ${(s.tax*100).toFixed(1)}%`,
+          tyActBtn('holdco', id, '設定', ` data-site="${id}"`, 'warn'), tyNeedHTML(tyNeeds('holdco', id),'tight')) : '');
+      break; }
+    case 'lobby':
+      body=tyPlayCard('lobby','政治獻金與遊說','人脈 +9 起跳 · 關注度也會跟著上去','基建標案、紓困名單、法規過渡期 —— 這些東西不看財報。',{label:'送出獻金'}); break;
+    case 'media':
+      body=tyPlayCard('media','買一波媒體曝光',`名氣 +7 起跳${TY.scn==='self'?'(白手起家加倍)':''}`,'專訪、封面、一本掛你名字的書。',{label:'買曝光'}); break;
+    case 'charity':
+      body=tyPlayCard('charity','成立慈善基金會','關注 −16 起跳 · 名氣 +5 起跳','一個正在蓋醫院的人,比較不像一個要被查的人。',{label:'捐出去'}); break;
+  }
+  return head+`<div class="pk-list">${body}</div>`;
 }
 
 /* 一顆按鈕 = 一支函式。這張表存在的理由是不要在事件處理裡寫一長串 if/else ——
@@ -10748,6 +11147,7 @@ const TY_ACT = {
   media:  ()=>tyPlayMedia(),
   charity:()=>tyPlayCharity(),
   recruit:e=>tyRecruit(e.dataset.k),
+  recruitTo:e=>tyRecruitTo(e.dataset.k, e.dataset.site),
   deploy: e=>tyDeploy(+e.dataset.id, e.dataset.site || TY_DEP[e.dataset.id]),
   disband:e=>tyDisband(+e.dataset.id),
   strike: e=>tyStrike(e.dataset.k, e.dataset.site || TY_STRK[e.dataset.k]),
@@ -10761,12 +11161,52 @@ const TY_ACT = {
   'deal:hostile':e=>tyDeal('hostile', e.dataset.r),
 };
 
+/* 手牌的操作:
+     · 往上拖(拖到地圖上)→ 進入拉線,放開在城市上就出牌
+     · 點一下 → 進入拉線,再點一座城市(手機上最好按)
+     · 左右滑 → 捲動手牌(交給瀏覽器,所以牌的 touch-action 是 pan-x) */
+function tyArmCard(btn){
+  btn.addEventListener('pointerdown', ev=>{
+    if(ev.button>0) return;
+    const k=btn.dataset.card, c=tyCard(k); if(!c) return;
+    const x0=ev.clientX, y0=ev.clientY;
+    let drag=false, gone=false, ghost=null;
+    const stop=()=>{ removeEventListener('pointermove', mv); removeEventListener('pointerup', up); removeEventListener('pointercancel', cancel); };
+    const cancel=()=>{ gone=true; stop(); if(ghost) ghost.remove(); if(drag && window.W3D) W3D.aimCancel(); };
+    const mv=e=>{
+      const dx=e.clientX-x0, dy=e.clientY-y0;
+      if(!drag){
+        if(Math.hypot(dx,dy)<10) return;
+        if(Math.abs(dx)>Math.abs(dy)*2.2){ gone=true; stop(); return; }      // 幾乎水平 = 捲手牌;斜著往上 = 拖牌
+        if(c.tgt!=='city' || !tyHasCard(k) || !(window.W3D && W3D.ok)){ gone=true; stop(); return; }
+        drag=true;
+        tyCardGo(k);
+        ghost=document.createElement('div'); ghost.className='pc-ghost';
+        ghost.innerHTML=tyCardArt(c, 3)+`<b>${escH(c.nm)}</b>`;
+        document.body.appendChild(ghost);
+      }
+      e.preventDefault();
+      ghost.style.transform=`translate(${e.clientX}px,${e.clientY}px) translate(-50%,-115%)`;
+      W3D.aimAt(e.clientX, e.clientY);
+    };
+    const up=e=>{
+      stop();
+      if(gone) return;
+      if(drag){ if(ghost) ghost.remove(); if(!W3D.aimDrop(e.clientX, e.clientY)) W3D.aimCancel(); }
+      else tyCardGo(k);
+    };
+    addEventListener('pointermove', mv, { passive:false });
+    addEventListener('pointerup', up);
+    addEventListener('pointercancel', cancel);
+  });
+}
 function bindTycoon(root){
   const el=root.querySelector('#tyRoot');
   if(!el) return;
   // 地圖是底層,永遠在 —— 只要在這一頁就把地球掛進去
   // 面板蓋上來的時候地球是看不到的(見 .tycon[data-modal]),那就別再燒 60fps。
   if(TY){ tyGlobeMount(); tyGlobeAwake(!TY_MODAL || tySideModal()); } else tyParkGlobe();
+  el.querySelectorAll('.hd-cards [data-card]').forEach(tyArmCard);
   // 市場下拉是 <select>,它發的是 change 不是 click
   el.querySelectorAll('select[data-mkt]').forEach(sel=>{
     sel.onchange=()=>{ TY_MKT[sel.dataset.mkt]=sel.value; renderPage(); };
@@ -10856,6 +11296,8 @@ function bindTycoon(root){
       TY_DEAL=null; renderPage(); return;
     }
     if(a==='pwr'){ TY_PWR = TY_PWR===b.dataset.k ? null : b.dataset.k; renderPage(); return; }
+    if(a==='newcard-ok'){ TY_NEWCARD.shift(); renderPage(); return; }
+    if(a==='pickcity'){ if(TY_PICK) TY_PICK.site=b.dataset.site; renderPage(); return; }
     if(a==='dealx'){ TY_DEAL = TY_DEAL===b.dataset.k ? null : b.dataset.k; renderPage(); return; }
     if(a==='iso'){ tyPickIso(b.dataset.k || (TY_ISO||'')); return; }
     if(a==='site'){ tyPickSite(b.dataset.k, b.dataset.r||null); return; }
@@ -10896,7 +11338,10 @@ function bindTycoon(root){
     const fn=TY_ACT[a];
     if(!fn) return;
     TY_LAST_MOVE=null; TY_LAST_STRIKE=null;
-    TY_MSG = fn(b) || '';
+    const s0=TY_SAVES;
+    TY_MSG = tyDo(a, ()=>fn(b)) || '';
+    /* 出牌的選項面板:做成了就收起來,讓你看到地圖上多出來的那一棟(或飛出去的那一架) */
+    if(TY_MODAL==='pick' && TY_SAVES>s0) TY_MODAL=null;
     renderPage();
     tyPlayLast();
   });
