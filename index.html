@@ -12,6 +12,7 @@
 <!-- 畫面層(3D 建築、傾斜鏡頭、季間過場)。只讀 TY、不碰規則,見檔頭註解 -->
 <script src="pixel.js"></script>
 <script src="terrain.js"></script>
+<script src="sfx.js"></script>
 <script src="world3d.js"></script>
 
 <style>
@@ -4875,6 +4876,22 @@
   .pc-ghost img{ image-rendering:pixelated }
   .pc-ghost b{ font-weight:400; font-size:13px }
 
+  /* ---- 所有動作的回饋 ---- */
+  .px-burst{ position:fixed; z-index:10002; pointer-events:none; width:5px; height:5px; background:var(--c); box-shadow:0 0 0 1px #141821;
+    animation:pxBurst .6s steps(6) forwards }
+  @keyframes pxBurst{ from{ transform:translate(-50%,-50%) } to{ transform:translate(calc(-50% + var(--dx)), calc(-50% + var(--dy))); opacity:0 } }
+  .tg-ticker.deny{ animation:denyShake .36s steps(6) }
+  @keyframes denyShake{ 0%,100%{ transform:none } 20%,60%{ transform:translateX(-6px) } 40%,80%{ transform:translateX(6px) } }
+  .px-wipe{ position:absolute; inset:0; z-index:410; display:grid; pointer-events:none }
+  .px-wipe i{ background:#0b1620; animation:pxWipe .5s steps(4) both }
+  @keyframes pxWipe{ 0%{ transform:scale(1) } 100%{ transform:scale(0) } }
+  #tyGlobeHost.w3d-impact{ animation:w3dImpact .24s steps(3) }
+  #tyGlobeHost.w3d-impact2{ animation:w3dImpact2 .36s steps(4) }
+  @keyframes w3dImpact{ 50%{ transform:scale(1.018) } }
+  @keyframes w3dImpact2{ 25%{ transform:scale(1.035); filter:brightness(1.8) } 60%{ transform:scale(.99) } }
+  .tg-snd{ font:inherit; font-size:16px; line-height:1; padding:6px 8px; margin-right:6px; cursor:pointer; color:#e8f1f8; background:#1b3348;
+    border:2px solid #0b0f15; box-shadow:inset 2px 2px 0 rgba(255,255,255,.15), 0 3px 0 #000 }
+  @media (prefers-reduced-motion:reduce){ .px-wipe, .tg-ticker.deny, #tyGlobeHost.w3d-impact, #tyGlobeHost.w3d-impact2{ animation:none } }
   /* ---- 出牌回饋、發牌、行動點 ---- */
   .pc-fly{ position:fixed; z-index:10001; pointer-events:none; font-family:'EmpirePixel',var(--sans) }
   .pc-fly .pc{ transform:none !important }
@@ -5818,13 +5835,24 @@ function tyDisband(id){
    也都會讓你被盯、讓對手記恨 —— 打出去的每一發都會讓他更想派兵回來打你。
    ⚠ 賺回的那一部分有上限(花費的 1.5 倍),不然打大對手變成穩賺的印鈔機。
    ========================================================================= */
+/* 冷卻縮短(使用者:「空襲和飛彈的效果很好,但冷卻太久,又怕破壞平衡」)。
+   平衡不再只靠「不能用」,改成三道**越用越不划算**的閘:
+     ① 冷卻:飛彈 2 季、空襲 1 季(原本 4 季 / 3 季)
+     ② 連發加價:同一種武器在最近 4 季內每用過一次,下一發貴 40%(1 → 1.4 → 1.96 → 2.74…)
+     ③ 同一個對手的疲乏:最近 4 季內他每被打過一次(飛彈或空襲都算),這一發效果打 6 折
+        —— 市場已經反應過了、他的公關也準備好了。連打同一個人很快就沒有意義
+   再加上原本就有的關注度(+8 / +4)與記恨(對手會派兵回來打你),狂轟一個人是可以的,但很貴、很醒目、效果遞減。 */
 const TY_STRIKES = {
-  missile: { nm:'做空飛彈', ic:'🚀', cd:4, pct:.02, min:2e8,
-    dsc:'對一個對手的控股公司放空狙擊:他的身家 −4~8%,你賺回其中兩成(最多花費的 1.5 倍)。關注 +8、他對你 −30。冷卻 4 季。' },
-  air:     { nm:'輿論空襲', ic:'✈', cd:3, pct:.015, min:1.5e8,
-    dsc:'在一個城市所在的地區對一個對手發動媒體轟炸:他在那個地區的勢力 −12、對你 −15。名氣 −2、關注 +4。冷卻 3 季。' },
+  missile: { nm:'做空飛彈', ic:'🚀', cd:2, pct:.02, min:2e8,
+    dsc:'對一個對手的控股公司放空狙擊:他的身家 −4~8%,你賺回其中兩成(最多花費的 1.5 倍)。關注 +8、他對你 −30。冷卻 2 季;連發會加價、連打同一個人效果遞減。' },
+  air:     { nm:'輿論空襲', ic:'✈', cd:1, pct:.015, min:1.5e8,
+    dsc:'在一個城市所在的地區對一個對手發動媒體轟炸:他在那個地區的勢力 −12、對你 −15。名氣 −2、關注 +4。冷卻 1 季;連發會加價、連打同一個人效果遞減。' },
 };
-const tyStrikeCost = k => Math.max(TY_STRIKES[k].min, tyNW()*TY_STRIKES[k].pct);
+const TY_STRIKE_WIN = 4;                                   // 「最近」= 4 季
+const tyStrikeLog = () => (TY.strikes = TY.strikes || []);
+const tyStrikeUses = k => tyStrikeLog().filter(x=>x.k===k && x.t > TY.t-TY_STRIKE_WIN).length;
+const tyStrikeFatigue = rid => Math.pow(.6, tyStrikeLog().filter(x=>x.rid===rid && x.t > TY.t-TY_STRIKE_WIN).length);
+const tyStrikeCost = k => Math.max(TY_STRIKES[k].min, tyNW()*TY_STRIKES[k].pct) * Math.pow(1.4, tyStrikeUses(k));
 const tyStrikeReady = k => ((TY.cd||{})[k]||0) <= TY.t;
 /* 打哪一個對手:飛彈打他本人(目標城市 = 他的大本營);空襲打那個地區勢力最大的對手 */
 function tyStrikeTarget(k, site){
@@ -5840,23 +5868,27 @@ function tyStrike(k, site){
   TY.cash-=cost;
   TY.cd=TY.cd||{}; TY.cd[k]=TY.t+d.cd;
   let txt='';
+  const fat=tyStrikeFatigue(r.id);                       // 最近被打過幾次 → 這一發打幾折
+  tyStrikeLog().push({ k, rid:r.id, t:TY.t });
+  if(TY.strikes.length>40) TY.strikes.splice(0, TY.strikes.length-40);
+  const fatTxt = fat<.999 ? `(他最近被打過,效果只剩 ${(fat*100).toFixed(0)}%)` : '';
   if(k==='missile'){
-    const hit=r.nw*(.04+tyRnd()*.04);
+    const hit=r.nw*(.04+tyRnd()*.04)*fat;
     const gain=Math.min(hit*.2, cost*1.5);
     r.nw-=hit; TY.cash+=gain;
     r.rel=tyClamp((r.rel||0)-30,-100,100);
     TY.heat=tyClamp(TY.heat+8,0,120);
-    txt=`${r.nm}的身家被打掉 <b>${tyM(hit)}</b>,你的空單賺回 ${tyM(gain)}(花費 ${tyM(cost)})。`
+    txt=`${r.nm}的身家被打掉 <b>${tyM(hit)}</b>${fatTxt},你的空單賺回 ${tyM(gain)}(花費 ${tyM(cost)})。`
        +`他現在很想報復(關係 ${r.rel.toFixed(0)}),關注 +8。`;
     tyLog('strike', `🚀 做空飛彈命中${r.nm}(${S.nm}):他的身家 −${tyM(hit)},你賺回 ${tyM(gain)}。`);
   }else{
     const before=tyTurf(r,S.reg);
-    r.turf[S.reg]=tyClamp(before-12,0,100);
+    r.turf[S.reg]=tyClamp(before-12*fat,0,100);
     r.rel=tyClamp((r.rel||0)-15,-100,100);
     TY.fame=tyClamp(TY.fame-2,0,100); TY.heat=tyClamp(TY.heat+4,0,120);
-    txt=`${r.nm}在${TY_REGIONS[S.reg].nm}的勢力 ${before.toFixed(0)} → <b>${tyTurf(r,S.reg).toFixed(0)}</b>(花費 ${tyM(cost)})。`
+    txt=`${r.nm}在${TY_REGIONS[S.reg].nm}的勢力 ${before.toFixed(0)} → <b>${tyTurf(r,S.reg).toFixed(0)}</b>${fatTxt}(花費 ${tyM(cost)})。`
        +`名氣 −2、關注 +4,他對你 −15。`;
-    tyLog('strike', `✈ 輿論空襲${TY_REGIONS[S.reg].nm}:${r.nm}的勢力 −12。`);
+    tyLog('strike', `✈ 輿論空襲${TY_REGIONS[S.reg].nm}:${r.nm}的勢力 −${(12*fat).toFixed(0)}。`);
   }
   TY_LAST_STRIKE={ k, from:TY.home, to:site, rid:r.id };
   tySave();
@@ -10716,6 +10748,7 @@ function tySideBtns(){
       ${b('overview','🌐','總覽')}
       ${b('modal:log','📋','大事記')}
       ${b('modal:learn','🎓','怎麼玩')}
+      ${b('sfx', window.SFX&&SFX.on?'🔊':'🔇', window.SFX&&SFX.on?'音效':'靜音')}
       ${b('zoomin','＋','拉近')}
       ${b('zoomout','－','拉遠')}
     </div>`;
@@ -10920,11 +10953,11 @@ const TY_CARDS = [
     dsc:'拖到對手的大本營:互不侵犯、合資、買他的事業、敵意收購…七種條件,成功率寫在上面。',
     ok:id=>tyRivalsA().some(r=>r.home===id) },
   { k:'air', nm:'輿論空襲', col:'#ff9f0a', ap:2, tgt:'city', art:()=>PX.SPR.jet, cd:'air',
-    dsc:'拖到城市:對那個地區勢力最大的對手媒體轟炸,他在那裡的勢力 −12。冷卻 3 季。',
+    dsc:'拖到城市:對那個地區勢力最大的對手媒體轟炸,他在那裡的勢力 −12。冷卻 1 季,連發加價、連打同一人效果遞減。',
     ok:id=>tyStrikeReady('air') && !!tyStrikeTarget('air', id),
     unlock:()=>TY.t>=2, why:'第 3 季' },
   { k:'missile', nm:'做空飛彈', col:'#e5484d', ap:2, tgt:'city', art:()=>PX.SPR.missile, cd:'missile',
-    dsc:'拖到對手的大本營:放空狙擊他的控股公司,身家 −4~8%,你賺回兩成。冷卻 4 季。',
+    dsc:'拖到對手的大本營:放空狙擊他的控股公司,身家 −4~8%,你賺回兩成。冷卻 2 季,連發加價、連打同一人效果遞減。',
     ok:id=>tyStrikeReady('missile') && !!tyStrikeTarget('missile', id),
     unlock:()=>TY.t>=4 || tyThreats().length>0, why:'第 5 季,或有人出兵打你' },
   { k:'lobby', nm:'遊說', col:'#5fd0b0', ap:1, tgt:'none', art:()=>PX.SPR.bond,
@@ -11024,9 +11057,11 @@ function tyHand(){
     </div>`;
 }
 /* 新牌解鎖的翻牌 */
+let TY_NC_PLAYED=null;
 function tyNewCardHTML(){
   if(!TY_NEWCARD.length) return '';
   const c=tyCard(TY_NEWCARD[0]);
+  if(TY_NC_PLAYED!==c.k){ TY_NC_PLAYED=c.k; setTimeout(()=>tySfx('unlock','next'), 120); }
   return `<div class="tg-newcard" data-ty="newcard-ok">
       <div class="nc-in"><em>🎉 新牌解鎖</em>${tyCardHTML(c,{big:true})}
         <p>${escH(c.dsc)}</p><button type="button" class="ty-b" data-ty="newcard-ok">收進手牌</button></div>
@@ -11038,6 +11073,36 @@ function tyNewCardHTML(){
    做成之後:手上那張牌翻滾著飛到目標城市(一格一格的 steps,像素遊戲的手感)→ 落地爆出星星、
    閃光、衝擊圈、輕震 → 依牌的種類加料(蓋房子揚起塵土、投資與變現噴金幣)→ 浮出「+飯店與賭場」。
    沒有目標的牌(遊說、媒體、慈善)飛到上面那一格數字(人脈 / 名氣 / 關注),那一格閃一下。 */
+/* ---- 所有動作的回饋(使用者:「所有卡牌和東西都要和炸彈一樣的回饋感」)----
+   · 按鈕做成了:按鈕那裡迸出一圈像素火花 + 嗶一聲(買賣是金幣聲)+ 手機短震
+   · 被擋下來:訊息列左右抖、低音「噗噗」兩聲、手機震兩下
+   · 下一季:整個地圖一格一格溶解重組(像素轉場)+ 三個音的號角
+   · 新牌解鎖:一串往上的琶音 */
+const tySfx=(snd, buzz)=>{ try{ if(window.SFX) SFX.fx(snd, buzz); }catch(e){} };
+function tyBurst(x, y, cols){
+  if(matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  const C=cols||['#ffd84a','#ffe9a8','#4fc3f7','#eef2f7','#f59f3a'];
+  for(let i=0;i<10;i++){
+    const e=document.createElement('i'); e.className='px-burst';
+    const a=i/10*Math.PI*2, d=22+Math.random()*22;           // 純畫面效果,不碰遊戲亂數
+    e.style.cssText=`left:${x}px;top:${y}px;--dx:${(Math.cos(a)*d).toFixed(0)}px;--dy:${(Math.sin(a)*d).toFixed(0)}px;--c:${C[i%C.length]}`;
+    document.body.appendChild(e);
+    setTimeout(()=>e.remove(), 650);
+  }
+}
+function tyDenyShake(){
+  const t=document.querySelector('.tg-ticker'); if(!t) return;
+  t.classList.remove('deny'); void t.offsetWidth; t.classList.add('deny');
+}
+function tyWipe(){
+  const host=document.querySelector('.tg-map'); if(!host || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  const w=document.createElement('div'); w.className='px-wipe';
+  const cols=12, rows=8, n=cols*rows, order=[...Array(n).keys()].sort(()=>Math.random()-.5);
+  w.style.gridTemplateColumns=`repeat(${cols},1fr)`;
+  for(let i=0;i<n;i++){ const c=document.createElement('i'); c.style.animationDelay=`${order.indexOf(i)*6}ms`; w.appendChild(c); }
+  host.appendChild(w);
+  setTimeout(()=>w.remove(), 1300);
+}
 function tyCardLabel(k, b){
   const d=b&&b.dataset||{};
   if(k==='build' || k==='shell') return d.k && TY_BIZ[d.k] ? `${TY_BIZ[d.k].ic} +${TY_BIZ[d.k].nm}` : (k==='shell'?'📄 控股':'');
@@ -11062,7 +11127,8 @@ function tyCardFly(k, site, label){
   }
   const land=()=>{
     if(site && window.W3D) W3D.cardHit(site, k, label);
-    if(res){ res.classList.remove('hit'); void res.offsetWidth; res.classList.add('hit'); }
+    if(res){ res.classList.remove('hit'); void res.offsetWidth; res.classList.add('hit');
+      const r=res.getBoundingClientRect(); tyBurst(r.left+r.width/2, r.top+r.height/2); tySfx(k==='charity'?'deal':'upgrade','land'); }
   };
   if(!r0 || !to || !src.animate || matchMedia('(prefers-reduced-motion: reduce)').matches){ land(); return; }
   const el=document.createElement('div'); el.className='pc-fly';
@@ -11075,6 +11141,7 @@ function tyCardFly(k, site, label){
     { transform:`translate(${dx*.45}px,${dy*.45-90}px) rotate(200deg) scale(.85)`, offset:.5 },
     { transform:`translate(${dx}px,${dy}px) rotate(360deg) scale(.22)` }],
     { duration:560, easing:'steps(14, end)', fill:'forwards' });
+  tySfx('launch');
   a.onfinish=()=>{ el.remove(); land(); };
 }
 
@@ -11179,7 +11246,8 @@ function tyPickHTML(){
     case 'missile': case 'air': {
       const d=TY_STRIKES[c.k], r=tyStrikeTarget(c.k, id);
       body=row(PX.img('pk:w:'+c.k, c.art(), { fit:[56,64] }), `${d.ic} ${escH(d.nm)} → ${r?`${r.ic||''} ${escH(r.nm)}`:'—'}`,
-        `花費 ${tyM(tyStrikeCost(c.k))} · 冷卻 ${d.cd} 季`, tyActBtn('strike', { k:c.k, site:id }, '發射', ` data-k="${c.k}" data-site="${id}"`, 'warn'),
+        `花費 ${tyM(tyStrikeCost(c.k))}${tyStrikeUses(c.k)?`(最近 4 季發過 ${tyStrikeUses(c.k)} 次,加價中)`:''} · 冷卻 ${d.cd} 季`
+          + (r && tyStrikeFatigue(r.id)<.999 ? ` · <b class="down">對他的效果只剩 ${(tyStrikeFatigue(r.id)*100).toFixed(0)}%</b>` : ''), tyActBtn('strike', { k:c.k, site:id }, '發射', ` data-k="${c.k}" data-site="${id}"`, 'warn'),
         tyNeedHTML(tyNeeds('strike', { k:c.k, site:id }),'tight'), `<em class="pk-d">${escH(d.dsc)}</em>`);
       break; }
     case 'move':
@@ -11268,6 +11336,7 @@ function tyArmCard(btn){
         if(Math.abs(dx)>Math.abs(dy)*2.2){ gone=true; stop(); return; }      // 幾乎水平 = 捲手牌;斜著往上 = 拖牌
         if(c.tgt!=='city' || !tyHasCard(k) || !(window.W3D && W3D.ok)){ gone=true; stop(); return; }
         drag=true;
+        tySfx('pick','tap');
         tyCardGo(k);
         ghost=document.createElement('div'); ghost.className='pc-ghost';
         ghost.innerHTML=tyCardArt(c, 3)+`<b>${escH(c.nm)}</b>`;
@@ -11281,7 +11350,7 @@ function tyArmCard(btn){
       stop();
       if(gone) return;
       if(drag){ if(ghost) ghost.remove(); if(!W3D.aimDrop(e.clientX, e.clientY)) W3D.aimCancel(); }
-      else tyCardGo(k);
+      else { tySfx('pick','tap'); tyCardGo(k); }
     };
     addEventListener('pointermove', mv, { passive:false });
     addEventListener('pointerup', up);
@@ -11400,9 +11469,11 @@ function bindTycoon(root){
       TY_MSG='';
       const snap=window.W3D ? W3D.snap() : null;
       tyNext(); renderPage();
+      tyWipe(); tySfx('next','next');
       if(snap) W3D.play(snap);
       return;
     }
+    if(a==='sfx'){ if(window.SFX) SFX.toggle(); renderPage(); return; }
     if(a==='restart'||a==='quit'){
       /* 放棄要確認 —— 這是這一頁唯一一個「按下去就回不去」的動作。
          用瀏覽器原生的 confirm,跟站上刪除持倉那裡同一種作法。 */
@@ -11431,9 +11502,12 @@ function bindTycoon(root){
     TY_MSG = tyDo(a, ()=>fn(b)) || '';
     /* 出牌的選項面板:做成了就收起來,讓你看到地圖上多出來的那一棟(或飛出去的那一架) */
     const done = TY_SAVES>s0;
+    const br=b.getBoundingClientRect();
     if(TY_MODAL==='pick' && done) TY_MODAL=null;
     renderPage();
     if(play && done) tyCardFly(play.k, play.site, play.label);
+    else if(done){ tyBurst(br.left+br.width/2, br.top+br.height/2); tySfx(/buy|found|expand|upgrade|ipo/.test(a)?'coin':'hit','tap'); }
+    else if(TY_MSG){ tySfx('deny','deny'); tyDenyShake(); }
     tyPlayLast();
   });
 }

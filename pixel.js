@@ -731,6 +731,8 @@ def('💥', ['y...o...y','.y.ooo.y.','..ooyoo..','.ooyyyoo.','ooyywyyoo','.ooyyy
 def('✓', ['.......nn','......nn.','.....nn..','nn..nn...','.nnnn....','..nn.....']);
 def('✕✗', ['rr...rr','.rr.rr.','..rrr..','.rr.rr.','rr...rr']);
 def('✦', ['...y...','...y...','..yyy..','yyywyyy','..yyy..','...y...','...y...']);
+def('🔊', ['...w.....','..ww..w..','wwgw.w.w.','wggw..w.w','wggw..w.w','wwgw.w.w.','..ww..w..','...w.....']);
+def('🔇', ['...w.....','..ww.....','wwgw.r..r','wggw..rr.','wggw..rr.','wwgw.r..r','..ww.....','...w.....']);
 def('🌍🌎', ['..kkkkk..','.kbnnbbk.','kbnnnbbbk','kbbnnbbbk','kbbbnnbbk','kbbbnnbbk','.kbbbnbk.','..kkkkk..']);
 
 /* 國旗:只有 44 座城市所在的國家(加上幾個常見的)各給三條色帶;其餘用灰色。

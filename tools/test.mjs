@@ -1612,16 +1612,20 @@ test('帝國打擊:飛彈與空襲有效果、有冷卻、打錯目標會被擋'
     const out = { nw0: r1.nw, cash0: TY.cash };
     // 目標不對:要在冷卻之前檢查,不然訊息會被「冷卻中」蓋掉
     out.wrongLon = tyBlock('strike', { k: 'missile', site: 'lon' });
+    out.cost = tyStrikeCost('missile');
     out.m1 = tyStrike('missile', 'hkg');
-    out.nw1 = r1.nw; out.rel1 = r1.rel; out.cash1 = TY.cash; out.cost = tyStrikeCost('missile');
+    out.nw1 = r1.nw; out.rel1 = r1.rel; out.cash1 = TY.cash; out.costNext = tyStrikeCost('missile') / Math.max(TY_STRIKES.missile.min, tyNW() * TY_STRIKES.missile.pct);
     out.m2 = tyStrike('missile', 'hkg');            // 冷卻中
     out.nw2 = r1.nw;
     const t0 = tyTurf(r1, 'cn');
     out.a1 = tyStrike('air', 'sha');
     out.turfCut = t0 - tyTurf(r1, 'cn');
     out.airBlocked = tyBlock('strike', { k: 'air', site: 'sha' });
-    for (let i = 0; i < 4; i++) tyNext();
-    out.readyAgain = tyStrikeReady('missile');
+    tyNext(); out.airReady1 = tyStrikeReady('air');        // 空襲冷卻 1 季
+    tyNext(); out.readyAgain = tyStrikeReady('missile');   // 飛彈冷卻 2 季
+    for (let i = 0; i < 3; i++) tyNext();
+    out.costCooled = tyStrikeCost('missile') / (Math.max(TY_STRIKES.missile.min, tyNW() * TY_STRIKES.missile.pct));
+    out.fatCooled = tyStrikeFatigue('r1');
     // 面板上的武器卡要畫得出來,按鈕狀態與引擎一致
     TY_MODAL = 'troop'; TY_STRK = { missile: 'hkg' }; renderPage();
     const btn = document.querySelector('[data-ty="strike"][data-k="missile"]');
@@ -1634,9 +1638,14 @@ test('帝國打擊:飛彈與空襲有效果、有冷卻、打錯目標會被擋'
   ok(r.cash1 - (r.cash0 - r.cost) <= r.cost * 1.5 + 1, '賺回的錢不可以超過花費的 1.5 倍(不然變成印鈔機)');
   ok(/冷卻/.test(r.m2) && r.nw2 === r.nw1, `冷卻中要被擋下,而且對手的身家不能再變:${r.m2}`);
   ok(r.wrongLon && /大本營/.test(r.wrongLon), `打在沒有對手大本營的城市要說清楚:${r.wrongLon}`);
-  near(r.turfCut, 12, .01, '空襲要削掉他 12 點勢力');
+  /* 同一季剛被飛彈打過的對手,空襲效果打 6 折(疲乏),12 × 0.6 = 7.2 */
+  near(r.turfCut, 12 * .6, .01, '剛被打過的對手,空襲只削 6 折(12 → 7.2)');
+  near(r.costNext, 1.4, .001, '4 季內連發,下一發要貴 40%(身家變了,所以跟當下的原價比)');
+  ok(r.airReady1, '空襲冷卻 1 季');
+  eq(r.costCooled, 1, '超過 4 季沒發,價格回到原價');
+  eq(r.fatCooled, 1, '超過 4 季沒被打,效果恢復 100%');
   ok(r.airBlocked && /冷卻/.test(r.airBlocked), '空襲打完也要冷卻');
-  ok(r.readyAgain, '四季之後飛彈要冷卻完');
+  ok(r.readyAgain, '兩季之後飛彈要冷卻完');
   ok(r.btnOk, '武器按鈕的狀態要跟引擎一致');
   ok(r.panel, '部隊面板要列出兩種武器');
   ok(page.__errors.length === 0, `有 JS 錯誤:\n      ${page.__errors.join('\n      ')}`);
@@ -1940,6 +1949,48 @@ test('帝國像素化:表情符號換像素圖示、像素地形、特效序列�
   eq(r.hkIn, 3, '標記上要知道有幾支下季到位');
   eq(r.hkN, 3, '標記裡要有全部三支');
   ok(r.flag, '國旗要是像素色帶');
+  ok(page.__errors.length === 0, `有 JS 錯誤:\n      ${page.__errors.join('\n      ')}`);
+  await page.__ctx.close();
+});
+
+test('帝國第十輪:立體地形的高程、音效模組不會壞、所有按鈕都有回饋', async (browser) => {
+  const page = await freshPage(browser, { seed: SEED, hash: '#/tycoon' });
+  const r = await page.evaluate(() => {
+    tyStart('heir', 7); TY.cash = 900e8; TY_MODAL = null; renderPage();
+    const out = {};
+    // 高程:喜馬拉雅最高、西藏是高原、平原與海是 0;同一個點每次一樣
+    out.everest = TERRAIN.elev(86.9, 28);
+    out.tibet = TERRAIN.levelOf(TERRAIN.elev(88, 33));
+    out.plain = TERRAIN.elev(-90, 40);                     // 美國中部大平原
+    out.stable = TERRAIN.elev(121, 23.5) === TERRAIN.elev(121, 23.5);
+    out.taiwanMtn = TERRAIN.levelOf(TERRAIN.elev(121.1, 23.6)) >= 1;
+    // 音效:在沒有使用者手勢的環境裡(瀏覽器擋自動播放)呼叫也不能丟例外
+    let err = null;
+    try { ['click','pick','launch','drop','coin','build','upgrade','deal','unit','unlock','deny','next','jet','boom','boomBig','hit'].forEach(n => SFX.play(n)); SFX.buzz('land'); } catch (e) { err = e.message; }
+    out.sfxErr = err;
+    const was = SFX.on; SFX.toggle(); out.toggled = SFX.on !== was; SFX.toggle();
+    // 被擋的動作:訊息列要抖(deny),做成的動作:要迸出像素火花
+    TY.ap = 0; renderPage();
+    TY_MODAL = 'pick'; TY_PICK = { k: 'build', site: 'tpe' }; renderPage();
+    const btn = document.querySelector('.tg-mb [data-ty="found"]');
+    btn.disabled = false; btn.click();                   // 硬按(畫面上是灰的)
+    out.deny = !!document.querySelector('.tg-ticker.deny');
+    TY.ap = 9; TY_MODAL = 'asset'; renderPage();
+    document.querySelector('.tg-mb [data-ty="buy"]').click();
+    out.burst = document.querySelectorAll('.px-burst').length;
+    out.sideSfx = !!document.querySelector('.tg-side [data-ty="sfx"]');
+    return out;
+  });
+  ok(r.everest > .85, `喜馬拉雅要是最高的地方:${r.everest}`);
+  ok(r.tibet >= 2, `西藏要是高原(梯田至少兩階):${r.tibet}`);
+  ok(r.plain < .15, `大平原要是平的:${r.plain}`);
+  ok(r.stable, '高程不能用亂數');
+  ok(r.taiwanMtn, '台灣中央山脈要凸起來');
+  eq(r.sfxErr, null, '音效在瀏覽器擋播放時也不能丟例外');
+  ok(r.toggled, '靜音鈕要切得動');
+  ok(r.deny, '被擋下的動作,訊息列要抖一下');
+  ok(r.burst > 0, '做成的動作要迸出像素火花');
+  ok(r.sideSfx, '右側要有音效開關');
   ok(page.__errors.length === 0, `有 JS 錯誤:\n      ${page.__errors.join('\n      ')}`);
   await page.__ctx.close();
 });
