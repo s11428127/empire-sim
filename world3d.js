@@ -1057,6 +1057,7 @@ W3D.attach = function(globe){
     installTilt();
     setupPaths();
     W3D.ok = true;
+    spaceInit();
     const host = document.getElementById('tyGlobeHost');
     if(host) host.dataset.w3d = '1';
   }catch(e){ W3D.ok = false; }
@@ -2033,6 +2034,9 @@ W3D.onZoom = function(pov){
 let FAR = null;
 function farMode(){
   const far = W3D.alt > FAR_ALT;
+  // 太空視角(看月球、火星):地面上的標籤全部收起來,只留星球
+  const hs = document.getElementById('tyGlobeHost');
+  if(hs){ const sp = W3D.alt > 4.5 ? '1' : ''; if(hs.dataset.space !== sp) hs.dataset.space = sp; }
   if(far === FAR) return;
   FAR = far;
   const host = document.getElementById('tyGlobeHost');
@@ -2244,5 +2248,451 @@ W3D.play = function(snap){
     if(TYG && typeof tyGlobeData === 'function') tyGlobeData();
   }, 3600);
 };
+
+
+/* =============================================================================
+   城市全景 —— 使用者:「連續點兩下一個城市,整個畫面都是這個地區,把裡面所有的建設立體列出來。
+   建設依照它是哪一種,像城市裡的建築一樣排列;要有道路、鐵路、行人。」
+   -----------------------------------------------------------------------------
+   另開一個小的 3D 場景(自己的畫布、自己的鏡頭),不動地球那一個:
+     · 建構子一樣從 globe.gl 身上撿(Scene / 鏡頭 / 渲染器 / 燈光),不另外載 three.js
+     · 3×3 個街區、中間是道路(黃色虛線)與人行道,北邊一條鐵路,火車來回跑
+     · 每一種東西一個區:中央商業區(事業)、西邊金融區、東邊住宅區(大富翁的房子/旅館)、
+       南邊你的駐軍、北邊地標公園、東北角對手的地盤;空的街區是公園(樹)
+     · 行人沿著人行道繞街區走、車子在路上跑 —— 只是畫面,不碰遊戲狀態、不用種子亂數
+     · 用低解析度渲染再放大(image-rendering: pixelated),整個畫面是一顆一顆的像素
+   資料由 index.html 的 tyCityData() 整理好傳進來,這裡只負責畫。
+   ============================================================================= */
+const CV = { on: false };
+W3D.cityOn = () => CV.on;
+/* 任意長方體(體素的「一塊」):車子、樹、行人、鐵軌都是它 */
+function vbox(B, x0, y0, z0, w, d, h, rgb){
+  const x1 = x0 + w, y1 = y0 + d, z1 = z0 + h;
+  vquad(B, [x0,y0,z1], [x1,y0,z1], [x1,y1,z1], [x0,y1,z1], [0,0,1], rgb, 1.08);
+  vquad(B, [x0,y0,z0], [x1,y0,z0], [x1,y0,z1], [x0,y0,z1], [0,-1,0], rgb, .82);
+  vquad(B, [x1,y0,z0], [x1,y1,z0], [x1,y1,z1], [x1,y0,z1], [1,0,0], rgb, .9);
+  vquad(B, [x0,y1,z0], [x0,y0,z0], [x0,y0,z1], [x0,y1,z1], [-1,0,0], rgb, .72);
+  vquad(B, [x1,y1,z0], [x0,y1,z0], [x0,y1,z1], [x1,y1,z1], [0,1,0], rgb, .66);
+}
+/* 固定的「亂數」:同一座城每次打開長得一樣,也不吃遊戲的種子 */
+function hrand(seed){ let s = 0; for(const ch of String(seed)) s = (s * 31 + ch.charCodeAt(0)) >>> 0;
+  return () => { s = (s * 1103515245 + 12345) >>> 0; return (s >>> 8) / 16777216; }; }
+const CVC = {
+  grass: [86,150,72], grass2: [70,128,60], road: [58,63,74], dash: [255,216,74], walk: [176,182,194],
+  ballast: [120,104,92], sleeper: [94,59,28], rail: [206,212,222], plat: [150,156,168],
+  trunk: [110,72,40], leaf: [60,150,70], leaf2: [44,118,58], skin: [240,199,154],
+};
+const ZONE_LOT = { biz: [150,130,190], fin: [120,150,200], estate: [140,190,120], army: [120,140,100],
+                   lm: [170,190,150], rival: [180,140,140], park: [96,168,80], ind: [160,150,130] };
+/* 格局:3×3 街區,(列, 行) 由西往東、由南往北(鏡頭在南邊) */
+const BLK = 20, RD = 5, SPAN = 3 * BLK + 4 * RD, HALF = SPAN / 2;
+const blkX = i => -HALF + RD + i * (BLK + RD);
+const ZONE_AT = { biz: [1, 1], fin: [0, 1], estate: [2, 1], army: [1, 0], lm: [1, 2], rival: [2, 2], ind: [0, 2] };
+
+function cvItemSprite(it){
+  if(it.t === 'bld') return { sp: bldSprite(it.b) };
+  if(it.t === 'unit') return { sp: PX.SPR[it.k] || PX.SPR.raid, tint: it.col ? `rgb(${it.col})` : TEAM, dep: 6 };
+  if(it.t === 'hq') return { sp: PX.rivalTower(it.h || 0), tint: `rgb(${it.col})` };
+  if(it.t === 'lm'){ const L = LANDMARK[it.id]; return { sp: (L && PX.LMS[L[0]]) || PX.LMS.skyline, dep: 10 }; }
+  if(it.t === 'flag') return { sp: PX.SPR.flag, tint: it.col ? `rgb(${it.col})` : TEAM, dep: 1 };
+  return { sp: PX.SPR.shell };
+}
+
+W3D.cityOpen = function(host, data){
+  W3D.cityClose();
+  if(!W3D.ok || !G || !T || !hasPX() || !host) return false;
+  let rd, scene, cam;
+  try{
+    const RC = G.renderer().constructor, SC = G.scene().constructor, CC = G.camera().constructor;
+    rd = new RC({ antialias: false, alpha: true, powerPreference: 'low-power', preserveDrawingBuffer: !!W3D._fxHold });
+    const gr = G.renderer();
+    if('outputColorSpace' in gr) rd.outputColorSpace = gr.outputColorSpace;
+    if('outputEncoding' in gr) rd.outputEncoding = gr.outputEncoding;
+    scene = new SC();
+    cam = new CC(38, 1, .5, 2000);
+    cam.up.set(0, 0, 1);
+    // 燈光:照抄地球那一組的種類與強度(不同版本的 three 強度單位不一樣,抄過來最保險)
+    let L = [];
+    try{ L = G.lights() || []; }catch(e){}
+    if(!L.length) G.scene().traverse(o => { if(o.isLight) L.push(o); });
+    for(const l of L){
+      const n = new l.constructor();
+      n.color && l.color && n.color.copy(l.color);
+      n.intensity = l.intensity * (l.isAmbientLight ? 1.15 : 1);
+      if(n.position && !l.isAmbientLight) n.position.set(-40, -70, 110);
+      scene.add(n);
+    }
+  }catch(e){ try{ rd && rd.dispose(); }catch(_){} return false; }
+
+  const geos = [];
+  const mat = new T.Phong({ vertexColors: true, shininess: 4, side: 2 });
+  mat.emissive && mat.emissive.set('#1e2630');
+  const mesh = (B, parent) => { const g = vgeo(B); geos.push(g); const m = new T.Mesh(g, mat); (parent || scene).add(m); return m; };
+  const rnd = hrand(data.id);
+  const used = new Set(Object.values(data.zones || {}).length ? Object.keys(data.zones).filter(k => (data.zones[k] || []).length) : []);
+  if(data.lm) used.add('lm');
+
+  /* ---- 地面、道路、人行道、鐵路(全部併成一個網格) ---- */
+  const G0 = VB();
+  vbox(G0, -HALF - 8, -HALF - 8, -3, SPAN + 16, SPAN + 22, 3, CVC.grass2);
+  for(let i = 0; i < 4; i++){
+    const x = -HALF + i * (BLK + RD);
+    vbox(G0, x, -HALF, 0, RD, SPAN, .25, CVC.road);          // 南北向
+    vbox(G0, -HALF, x, 0, SPAN, RD, .26, CVC.road);          // 東西向
+    for(let k = 0; k < 3; k++){                                // 虛線:只畫在兩個路口之間
+      const a = blkX(k);
+      for(let s = a + 1.5; s < a + BLK - 1; s += 4){
+        vbox(G0, x + RD / 2 - .2, s, .25, .4, 2, .06, CVC.dash);
+        vbox(G0, s, x + RD / 2 - .2, .26, 2, .4, .06, CVC.dash);
+      }
+    }
+  }
+  // 鐵路:城市北邊一條,碎石道床 + 枕木 + 兩條鋼軌,中間一座月台
+  const RY = HALF + 5;
+  vbox(G0, -HALF - 8, RY - 2.5, 0, SPAN + 16, 5, .4, CVC.ballast);
+  for(let x = -HALF - 7.5; x < HALF + 8; x += 1.6) vbox(G0, x, RY - 1.8, .4, .7, 3.6, .25, CVC.sleeper);
+  vbox(G0, -HALF - 8, RY - 1.3, .65, SPAN + 16, .35, .35, CVC.rail);
+  vbox(G0, -HALF - 8, RY + .95, .65, SPAN + 16, .35, .35, CVC.rail);
+  vbox(G0, -10, RY - 5.5, 0, 20, 2.6, 1, CVC.plat);
+  vbox(G0, -8, RY - 5.2, 1, 16, 1.6, 3, [200,120,80]);         // 車站
+  vbox(G0, -8.5, RY - 5.7, 4, 17, 2.6, .6, [120,70,50]);
+  /* 街區:人行道一圈 + 地塊(顏色依用途) */
+  const blocks = [];
+  for(let i = 0; i < 3; i++) for(let j = 0; j < 3; j++){
+    const zone = Object.keys(ZONE_AT).find(k => ZONE_AT[k][0] === i && ZONE_AT[k][1] === j && used.has(k)) || 'park';
+    const x0 = blkX(i), y0 = blkX(j);
+    vbox(G0, x0, y0, 0, BLK, BLK, .5, CVC.walk);
+    vbox(G0, x0 + 1.2, y0 + 1.2, .5, BLK - 2.4, BLK - 2.4, .2, ZONE_LOT[zone]);
+    blocks.push({ i, j, zone, x0, y0 });
+    if(zone === 'park' || zone === 'lm'){
+      const n = zone === 'park' ? 7 : 4;
+      for(let t = 0; t < n; t++){
+        const tx = x0 + 2.5 + rnd() * (BLK - 6), ty = y0 + 2.5 + rnd() * (BLK - 6);
+        if(zone === 'lm' && Math.abs(tx - x0 - BLK / 2) < 6 && Math.abs(ty - y0 - BLK / 2) < 6) continue;
+        vbox(G0, tx + .6, ty + .6, .7, .8, .8, 1.8, CVC.trunk);
+        vbox(G0, tx, ty, 2.5, 2, 2, 2, t & 1 ? CVC.leaf : CVC.leaf2);
+        vbox(G0, tx + .5, ty + .5, 4.5, 1, 1, .8, CVC.leaf);
+      }
+    }
+  }
+  mesh(G0);
+
+  /* ---- 各區的建築:照類型排進自己的街區,高的放後排(鏡頭在南邊才不會被擋) ---- */
+  const picks = [], labels = [];
+  const fill = (zone, items) => {
+    const at = ZONE_AT[zone]; if(!at || !items.length) return;
+    const x0 = blkX(at[0]) + 1.2, y0 = blkX(at[1]) + 1.2, W = BLK - 2.4;
+    const list = items.map(it => ({ it, ...cvItemSprite(it) })).sort((a, b) => b.sp.h - a.sp.h);
+    const cols = Math.ceil(Math.sqrt(list.length)), rows = Math.ceil(list.length / cols);
+    const cw = W / cols, cd = W / rows;
+    let top = 0;
+    list.forEach((p, n) => {
+      const r = rows - 1 - Math.floor(n / cols), c = n % cols;
+      const dep = p.dep || Math.max(4, Math.min(p.sp.w, 10));
+      const s = Math.min(.8, (cw - .6) / p.sp.w, (cd - .6) / Math.max(dep, 3));        // 只有一棟時不要大到蓋掉整個畫面
+      const B = VB();
+      voxAdd(B, p.sp, p.tint, { x: -p.sp.w / 2, y: -dep / 2, z: 0 }, dep, false);
+      const m = mesh(B);
+      m.scale.setScalar(Math.max(.05, s));
+      const cx = x0 + (c + .5) * cw, cy = y0 + (r + .5) * cd;
+      m.position.set(cx, cy, .7);
+      m.userData.grow = 0;
+      top = Math.max(top, p.sp.h * s);
+      picks.push({ x: cx, y: cy, z: .7 + p.sp.h * s * .55, tag: p.it.tag || '', zone, m, h: p.sp.h * s });
+    });
+    return top;
+  };
+  const Z = data.zones || {};
+  for(const k of Object.keys(ZONE_AT)) if(k !== 'lm' && Z[k] && Z[k].length) fill(k, Z[k]);
+  if(data.lm) fill('lm', [{ t: 'lm', id: data.id, tag: W3D.landmarkName(data.id) }]);
+  for(const b of blocks){
+    const nm = (data.names || {})[b.zone]; if(!nm) continue;
+    const n = b.zone === 'lm' ? 0 : (Z[b.zone] || []).length;
+    labels.push({ x: b.x0 + BLK / 2, y: b.y0 + .2, z: .8, html: nm + (n ? `<b>${n}</b>` : ''), zone: b.zone });
+  }
+  if(!picks.length) labels.push({ x: 0, y: 0, z: 3, html: data.empty || '', zone: 'empty' });
+
+  /* ---- 會動的:車、行人、火車 ---- */
+  const movers = [];
+  const carCols = [[229,72,77], [58,123,213], [255,216,74], [238,242,247], [70,196,106], [245,159,58]];
+  const carGeo = col => { const B = VB(); vbox(B, -1, -1.7, .3, 2, 3.4, 1, col); vbox(B, -.8, -1, 1.3, 1.6, 1.8, .7, col.map(v => v * .8));
+    vbox(B, -.9, -1.5, 0, .5, .8, .6, [30,30,36]); vbox(B, .4, -1.5, 0, .5, .8, .6, [30,30,36]);
+    vbox(B, -.9, .7, 0, .5, .8, .6, [30,30,36]); vbox(B, .4, .7, 0, .5, .8, .6, [30,30,36]); return B; };
+  for(let n = 0; n < 12; n++){
+    const road = n % 4, vert = n % 2 === 0, dir = (n >> 1) % 2 ? 1 : -1;
+    const lane = -HALF + road * (BLK + RD) + RD / 2 + dir * 1.2;
+    const m = mesh(carGeo(carCols[n % carCols.length]));
+    m.rotation.z = vert ? (dir > 0 ? 0 : Math.PI) : (dir > 0 ? -Math.PI / 2 : Math.PI / 2);
+    movers.push({ m, kind: 'car', vert, dir, lane, p: rnd() * SPAN, v: 7 + rnd() * 6 });
+  }
+  const shirt = [[229,72,77], [58,123,213], [255,216,74], [179,107,255], [70,196,106], [238,242,247], [245,159,58]];
+  for(const b of blocks){
+    const k = b.zone === 'park' ? 2 : 3;
+    for(let n = 0; n < k; n++){
+      const B = VB(); const c = shirt[Math.floor(rnd() * shirt.length)];
+      vbox(B, -.35, -.25, 0, .3, .5, .8, [50,56,70]); vbox(B, .05, -.25, 0, .3, .5, .8, [50,56,70]);
+      vbox(B, -.4, -.3, .8, .8, .6, 1, c); vbox(B, -.3, -.25, 1.8, .6, .5, .6, CVC.skin);
+      const m = mesh(B);
+      movers.push({ m, kind: 'ped', b, p: rnd() * 4, v: (.04 + rnd() * .05) * (rnd() < .5 ? 1 : -1), ph: rnd() * 6 });
+    }
+  }
+  // 火車:車頭 + 三節車廂,一起沿著鐵軌走
+  const TB = VB();
+  vbox(TB, 0, -1.3, .7, 6, 2.6, 2.6, [229,72,77]); vbox(TB, 4, -1.1, 3.3, 1.6, 2.2, 1.2, [143,35,40]); vbox(TB, 1, -1.35, 2, 2, 2.7, .7, [127,216,255]);
+  for(let c = 0; c < 3; c++){ const x = -7.2 * (c + 1);
+    vbox(TB, x, -1.3, .7, 6.6, 2.6, 2.4, [217,221,230]); vbox(TB, x + .5, -1.35, 1.9, 5.6, 2.7, .7, [58,123,213]); }
+  const train = mesh(TB);
+  movers.push({ m: train, kind: 'train', p: 0, v: 14 });
+
+  /* ---- 畫布、鏡頭、操作 ---- */
+  const cvs = rd.domElement;
+  cvs.className = 'cv-canvas';
+  host.appendChild(cvs);
+  const lab = document.createElement('div'); lab.className = 'cv-labels'; host.appendChild(lab);
+  const labEls = labels.map(l => { const e = document.createElement('span'); e.className = 'cv-zl z-' + l.zone; e.innerHTML = l.html; lab.appendChild(e); return e; });
+  const tip = document.createElement('div'); tip.className = 'cv-tip'; tip.hidden = true; host.appendChild(tip);
+  let az = -.35, el = .78, dist = 150, idleT = performance.now(), W = 1, H = 1;
+  const fit = () => {
+    W = Math.max(1, host.clientWidth); H = Math.max(1, host.clientHeight);
+    cam.aspect = W / H; cam.updateProjectionMatrix();
+    rd.setPixelRatio(clamp(560 / W, .38, 1) * Math.min(1, window.devicePixelRatio || 1) * (W < 600 ? 1.15 : 1));
+    rd.setSize(W, H, false);
+    const tan = Math.tan(19 * Math.PI / 180);
+    dist = clamp(58 / (tan * Math.min(1.25, cam.aspect)), 115, 185);      // 直式手機左右會切掉一點,自動繞圈會轉到
+  };
+  fit();
+  const V3 = cam.position.constructor, tmp = new V3();
+  const place = () => {
+    cam.position.set(Math.sin(az) * Math.cos(el) * dist, -Math.cos(az) * Math.cos(el) * dist, Math.sin(el) * dist + 4);
+    cam.lookAt(0, 4, 4);
+  };
+  const ptrs = new Map(); let pinch = 0, moved = 0;
+  const onDown = e => { ptrs.set(e.pointerId, [e.clientX, e.clientY]); moved = 0; idleT = performance.now(); try{ cvs.setPointerCapture(e.pointerId); }catch(_){}
+    if(ptrs.size === 2){ const [a, b] = [...ptrs.values()]; pinch = Math.hypot(a[0] - b[0], a[1] - b[1]); } };
+  const onMove = e => {
+    const p = ptrs.get(e.pointerId); if(!p) return;
+    const dx = e.clientX - p[0], dy = e.clientY - p[1];
+    ptrs.set(e.pointerId, [e.clientX, e.clientY]);
+    idleT = performance.now();
+    if(ptrs.size === 2){ const [a, b] = [...ptrs.values()]; const d = Math.hypot(a[0] - b[0], a[1] - b[1]);
+      if(pinch) dist = clamp(dist * pinch / Math.max(1, d), 45, 260); pinch = d; moved += 10; return; }
+    moved += Math.abs(dx) + Math.abs(dy);
+    az -= dx * .008; el = clamp(el + dy * .006, .32, 1.38);
+  };
+  const onUp = e => {
+    ptrs.delete(e.pointerId); pinch = 0;
+    if(moved < 8 && e.target === cvs) pickAt(e.clientX, e.clientY);
+  };
+  const onWheel = e => { e.preventDefault(); idleT = performance.now(); dist = clamp(dist * Math.exp(e.deltaY * .0012), 45, 260); };
+  cvs.addEventListener('pointerdown', onDown); cvs.addEventListener('pointermove', onMove);
+  cvs.addEventListener('pointerup', onUp); cvs.addEventListener('pointercancel', onUp);
+  cvs.addEventListener('wheel', onWheel, { passive: false });
+  const proj = (x, y, z) => { tmp.set(x, y, z).project(cam); return [(tmp.x + 1) / 2 * W, (1 - tmp.y) / 2 * H, tmp.z]; };
+  function pickAt(cx, cy){
+    const r = host.getBoundingClientRect(); const x = cx - r.left, y = cy - r.top;
+    let best = null, bd = 44;
+    for(const p of picks){ const s = proj(p.x, p.y, p.z); const d = Math.hypot(s[0] - x, s[1] - y); if(s[2] < 1 && d < bd){ bd = d; best = p; } }
+    if(!best || !best.tag){ tip.hidden = true; CV.sel = null; return; }
+    CV.sel = best; tip.hidden = false; tip.innerHTML = best.tag;
+    best.m.userData.grow = performance.now();
+    sfx('pick', 'tap');
+  }
+  const ro = typeof ResizeObserver === 'function' ? new ResizeObserver(fit) : null;
+  if(ro) ro.observe(host);
+
+  let last = performance.now(), raf = 0;
+  const t0 = last;
+  const frame = now => {
+    raf = requestAnimationFrame(frame);
+    if(document.hidden) return;
+    const dt = Math.min(.1, (now - last) / 1000); last = now;
+    if(now - idleT > 3500 && !reduced()) az += dt * .07;       // 放著不動就慢慢繞城一圈
+    place();
+    for(const o of movers){
+      if(o.kind === 'car'){
+        o.p = (o.p + o.v * dt * o.dir + SPAN * 10) % SPAN;
+        const s = -HALF + o.p;
+        if(o.vert) o.m.position.set(o.lane, s, .26); else o.m.position.set(s, o.lane, .27);
+      }else if(o.kind === 'ped'){
+        o.p = (o.p + o.v * dt + 4) % 4;
+        const side = Math.floor(o.p), f = o.p - side, a = .6, L = BLK - 1.2;
+        const x = side === 0 ? a + f * L : side === 1 ? a + L : side === 2 ? a + L - f * L : a;
+        const y = side === 0 ? a : side === 1 ? a + f * L : side === 2 ? a + L : a + L - f * L;
+        o.m.position.set(o.b.x0 + x, o.b.y0 + y, .5 + (Math.sin(now / 90 + o.ph) > 0 ? .15 : 0));
+        o.m.rotation.z = [-Math.PI / 2, 0, Math.PI / 2, Math.PI][side] * (o.v > 0 ? 1 : 1) + (o.v > 0 ? 0 : Math.PI);
+      }else{
+        o.p = (o.p + o.v * dt) % (SPAN + 60);
+        o.m.position.set(-HALF - 30 + o.p, RY, 0);
+        o.m.visible = o.p > 8 && o.p < SPAN + 52;
+      }
+    }
+    // 點到的那一棟:跳一下(像素遊戲那種一格一格的彈)
+    for(const p of picks){
+      const g = p.m.userData.grow;
+      p.m.position.z = .7 + (g && now - g < 600 ? Math.round(Math.sin((now - g) / 600 * Math.PI) * 3) * .5 : 0);
+      if(p.m.userData.base == null) p.m.userData.base = p.m.scale.x;
+      // 打開時一棟一棟從地上長出來
+      const k = smooth((now - t0 - (p.x + HALF) * 6) / 500);
+      p.m.scale.set(p.m.userData.base, p.m.userData.base, p.m.userData.base * Math.max(.02, k));
+    }
+    rd.render(scene, cam);
+    labels.forEach((l, n) => { const s = proj(l.x, l.y, l.z), e = labEls[n];
+      e.style.transform = `translate(${Math.round(s[0])}px,${Math.round(s[1])}px) translate(-50%,-50%)`; e.hidden = s[2] > 1; });
+    if(CV.sel && !tip.hidden){ const s = proj(CV.sel.x, CV.sel.y, .7 + CV.sel.h + 1.5);
+      tip.style.transform = `translate(${Math.round(s[0])}px,${Math.round(s[1])}px) translate(-50%,-100%)`; }
+  };
+  raf = requestAnimationFrame(frame);
+  if(W3D._tfix != null) frame(t0 + 4000);
+  CV.on = true;
+  CV.stat = { picks: picks.map(p => ({ zone: p.zone, tag: p.tag })), movers: movers.map(m => m.kind), zones: blocks.map(b => b.zone), labels: labels.map(l => l.zone) };
+  CV.close = () => {
+    cancelAnimationFrame(raf);
+    if(ro) ro.disconnect();
+    cvs.removeEventListener('wheel', onWheel);
+    for(const g of geos) g.dispose();
+    mat.dispose();
+    try{ rd.dispose(); rd.forceContextLoss && rd.forceContextLoss(); }catch(e){}
+    cvs.remove(); lab.remove(); tip.remove();
+  };
+  return true;
+};
+W3D.cityStat = () => CV.on ? CV.stat : null;
+W3D.cityClose = function(){
+  if(!CV.on) return;
+  CV.on = false; CV.sel = null;
+  try{ CV.close(); }catch(e){}
+  CV.close = null;
+};
+
+/* =============================================================================
+   外太空 —— 使用者:「想要加上外太空:衛星、月球、火星,先幫我做模型」
+   -----------------------------------------------------------------------------
+   · 星鏈式的低軌星座:三個軌道面(傾角 53°)、每面 10 顆,扁平的一片太陽能板
+   · 太空站一座(低軌)、兩顆導航衛星(中軌)
+   · 月球、火星:體素球(一顆一顆方塊堆成的球),各自自轉、繞著地球慢慢走
+   · 拉近地球(高度 < 0.9)時衛星收起來 —— 那時候它們只會擋住城市
+   月球在 520、火星在 650(地球半徑 100):比平常的鏡頭距離遠,所以它們不會擋在你跟地球中間;
+   把地球整個拉遠就看得到。只是畫面,不碰遊戲狀態、不用種子亂數。
+   ============================================================================= */
+const SAT_SP = {
+  star: ['kek.cbcbcbcb', 'eee.bbbbbbbb', 'kek.cbcbcbcb'],
+  nav:  ['bcb.kkk.bcb', 'bbbkeeekbbb', 'bcbkeyekbcb', 'bbbkeeekbbb', 'bcb.kkk.bcb'],
+  iss:  ['bbbb.......bbbb', 'cbcb.......cbcb', 'bbbbkkkkkkkbbbb', '....keeeeek....', 'kkkkkeyryekkkkk',
+         '....keeeeek....', 'bbbbkkkkkkkbbbb', 'cbcb.......cbcb', 'bbbb.......bbbb'],
+};
+/* 體素球:半徑 rad 格,只畫露在外面的面 */
+function vsphere(B, rad, col){
+  const inS = (x, y, z) => (x + .5) ** 2 + (y + .5) ** 2 + (z + .5) ** 2 <= rad * rad;
+  for(let x = -rad; x < rad; x++) for(let y = -rad; y < rad; y++) for(let z = -rad; z < rad; z++){
+    if(!inS(x, y, z)) continue;
+    const c = col(x + .5, y + .5, z + .5), X = x + 1, Y = y + 1, Zz = z + 1;
+    if(!inS(x + 1, y, z)) vquad(B, [X,y,z], [X,Y,z], [X,Y,Zz], [X,y,Zz], [1,0,0], c, 1);
+    if(!inS(x - 1, y, z)) vquad(B, [x,Y,z], [x,y,z], [x,y,Zz], [x,Y,Zz], [-1,0,0], c, 1);
+    if(!inS(x, y + 1, z)) vquad(B, [X,Y,z], [x,Y,z], [x,Y,Zz], [X,Y,Zz], [0,1,0], c, 1);
+    if(!inS(x, y - 1, z)) vquad(B, [x,y,z], [X,y,z], [X,y,Zz], [x,y,Zz], [0,-1,0], c, 1);
+    if(!inS(x, y, z + 1)) vquad(B, [x,y,Zz], [X,y,Zz], [X,Y,Zz], [x,Y,Zz], [0,0,1], c, 1);
+    if(!inS(x, y, z - 1)) vquad(B, [x,Y,z], [X,Y,z], [X,y,z], [x,y,z], [0,0,-1], c, 1);
+  }
+}
+const vnoise = (x, y, z, s) => { const h = Math.sin(x * 12.99 + y * 78.23 + z * 37.71 + (s || 0)) * 43758.55; return h - Math.floor(h); };
+function moonCol(x, y, z){
+  const l = Math.hypot(x, y, z) || 1, u = [x / l, y / l, z / l];
+  const craters = [[.6,.5,.62,.35], [-.7,.2,.68,.28], [.1,-.8,.58,.3], [-.2,.6,-.77,.4], [.8,-.3,-.5,.25], [-.5,-.6,-.6,.22]];
+  for(const c of craters){ const d = Math.acos(clamp(u[0]*c[0] + u[1]*c[1] + u[2]*c[2], -1, 1)); if(d < c[3]) return d > c[3] * .7 ? [200,204,210] : [112,116,124]; }
+  if(u[0] * .3 + u[2] * .9 > .55) return [128,132,140];            // 一片「月海」
+  return vnoise(Math.round(x), Math.round(y), Math.round(z)) < .18 ? [150,154,162] : [176,180,188];
+}
+function marsCol(x, y, z){
+  const l = Math.hypot(x, y, z) || 1, u = [x / l, y / l, z / l];
+  if(Math.abs(u[2]) > .84) return [240,240,245];                    // 極冠
+  const n = vnoise(Math.round(x * .5), Math.round(y * .5), Math.round(z * .5), 3);
+  if(Math.abs(u[2] + .1 - .25 * Math.sin(Math.atan2(u[1], u[0]) * 2)) < .14) return [122,50,32];   // 水手號峽谷那一條暗帶
+  return n < .3 ? [156,68,40] : n < .75 ? [196,92,54] : [214,120,72];
+}
+const SPACE = { on: false };
+W3D.spaceStat = () => SPACE.on ? { sats: SPACE.sats.length, moon: !!SPACE.moon, mars: !!SPACE.mars, satsVisible: SPACE.satG.visible } : null;
+function spaceInit(){
+  if(SPACE.on || !W3D.ok || !T || !hasPX()) return;
+  try{
+    const root = new T.O3(), satG = new T.O3();
+    root.add(satG);
+    const mk = (B, s) => { const m = new T.Mesh(vgeo(B), vmat()); m.scale.setScalar(s); return m; };
+    const sats = [];
+    const satGeo = k => { const sp = PX.S(SAT_SP[k]); const B = VB(); voxAdd(B, sp, null, { x: -sp.w / 2, y: -sp.h / 2, z: -.5 }, 1, true); return vgeo(B); };
+    const gS = satGeo('star'), gN = satGeo('nav'), gI = satGeo('iss');
+    const add = (g, s, r, inc, raan, ph, w) => { const m = new T.Mesh(g, vmat()); m.scale.setScalar(s); satG.add(m); sats.push({ m, r, inc, raan, ph, w }); };
+    for(let p = 0; p < 3; p++) for(let n = 0; n < 10; n++) add(gS, .42, 132, 53 * Math.PI / 180, p * 2.094, n * .628 + p * .2, .09);
+    add(gI, .5, 142, 51.6 * Math.PI / 180, 1.1, 0, .075);
+    add(gN, .6, 196, 55 * Math.PI / 180, .4, 0, .03); add(gN, .6, 196, 55 * Math.PI / 180, 2.5, 2.2, .03);
+    const MB = VB(); vsphere(MB, 9, moonCol);
+    const moon = mk(MB, 3); root.add(moon);
+    const RB = VB(); vsphere(RB, 8, marsCol);
+    const mars = mk(RB, 2.6); root.add(mars);
+    G.scene().add(root);
+    Object.assign(SPACE, { on: true, root, satG, sats, moon, mars });
+    let lastT = 0;
+    const tick = now => {
+      requestAnimationFrame(tick);
+      if(document.hidden || CV.on || now - lastT < 33) return;
+      lastT = now;
+      spaceStep(now / 1000);
+    };
+    spaceStep(0);
+    requestAnimationFrame(tick);
+  }catch(e){ SPACE.on = false; }
+}
+/* 軌道:在赤道面上轉一圈,再依傾角與升交點轉過去(globe.gl 的 y 軸朝北) */
+function orbitPos(r, inc, raan, a){
+  const x0 = Math.cos(a) * r, z0 = Math.sin(a) * r;
+  const y1 = z0 * Math.sin(inc), z1 = z0 * Math.cos(inc);
+  return [x0 * Math.cos(raan) + z1 * Math.sin(raan), y1, -x0 * Math.sin(raan) + z1 * Math.cos(raan)];
+}
+function spaceStep(t){
+  if(!SPACE.on) return;
+  SPACE.satG.visible = (W3D.alt || 2) >= .9;
+  if(SPACE.satG.visible) for(const s of SPACE.sats){
+    const p = orbitPos(s.r, s.inc, s.raan, s.ph + t * s.w);
+    s.m.position.set(p[0], p[1], p[2]);
+    s.m.quaternion.copy(G.camera().quaternion);      // 太陽能板正對鏡頭:不然在地球邊緣只剩一條線
+  }
+  const mp = orbitPos(520, 5 * Math.PI / 180, .6, .9 + t * .003);
+  SPACE.moon.position.set(mp[0], mp[1], mp[2]); SPACE.moon.rotation.y = t * .003;
+  const rp = orbitPos(650, 2 * Math.PI / 180, 2.2, 5 + t * .0015);
+  SPACE.mars.position.set(rp[0], rp[1], rp[2]); SPACE.mars.rotation.y = t * .05;
+}
+W3D._space = t => spaceStep(t);          // 給截圖用:手動推到某個時間
+W3D._spaceObj = () => SPACE;
+/* 「看月球 / 看火星」的鏡頭:站在它外側、往旁邊偏一點,讓地球跟它同框 */
+W3D.spacePov = function(k){
+  if(!SPACE.on || !G || typeof G.toGeoCoords !== 'function') return null;
+  const o = SPACE[k]; if(!o) return null;
+  const g = G.toGeoCoords({ x: o.position.x, y: o.position.y, z: o.position.z });
+  const off = k === 'moon' ? 12 : 7;
+  // 直式手機:左右太窄,改成上下同框(鏡頭往下偏 → 星球在地球上方)
+  let asp = 1; try{ asp = G.camera().aspect || 1; }catch(e){}
+  if(asp < .95) return { lat: clamp(g.lat - off * (k === 'moon' ? 1 : .85), -75, 75), lng: g.lng, altitude: 8 };
+  return { lat: clamp(g.lat, -60, 60), lng: g.lng + off, altitude: 8 };
+};
+W3D.spaceInit = spaceInit;
+
+/* 星空改成像素星星(方的、一格一格,少數亮星有十字光) */
+(function(){
+  try{
+    const c = document.createElement('canvas'); c.width = c.height = 192;
+    const x = c.getContext('2d'); if(!x) return;
+    let s = 7;
+    const r = () => { s = (s * 1103515245 + 12345) >>> 0; return (s >>> 8) / 16777216; };
+    for(let i = 0; i < 70; i++){
+      const px = Math.floor(r() * 192), py = Math.floor(r() * 192), b = r();
+      x.fillStyle = b < .7 ? 'rgba(200,215,240,.55)' : b < .9 ? 'rgba(255,240,200,.8)' : '#ffffff';
+      x.fillRect(px, py, 1, 1);
+      if(b > .95){ x.fillStyle = 'rgba(255,255,255,.55)'; x.fillRect(px - 1, py, 1, 1); x.fillRect(px + 1, py, 1, 1); x.fillRect(px, py - 1, 1, 1); x.fillRect(px, py + 1, 1, 1); }
+    }
+    const st = document.createElement('style');
+    st.textContent = `.tg-map{background-image:url(${c.toDataURL()}),url(${c.toDataURL()}),radial-gradient(ellipse at 50% 42%,#0f2a40 0%,#08131c 60%,#040a10 100%);
+      background-size:192px 192px,384px 384px,100% 100%;background-position:0 0,77px 51px,0 0;image-rendering:pixelated}`;
+    document.head.appendChild(st);
+  }catch(e){}
+})();
 
 })();

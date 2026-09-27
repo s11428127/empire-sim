@@ -734,6 +734,8 @@ def('🔒🔐', ['..kkkkk..','.kk...kk.','.k.....k.','kkkkkkkkk','kyyyyyyyk','ky
 def('💰', ['...kkk...','....k....','..kkkkk..','.kYYYYYk.','kYYyyyYYk','kYYyYYYYk','kYYYyyYYk','kYYyyyYYk','.kkkkkkk.']);
 def('💻', ['.kkkkkkk.','.kccccck.','.kccccck.','.kccccck.','.kkkkkkk.','kgggggggk','kkkkkkkkk']);
 def('⛽', ['.kkkkk...','.kwwwk...','.kkkkkk..','.krrrk.k.','.krrrk.k.','.krrrkk..','.krrrk...','kkkkkkk..']);
+def('🏨', ['.kkkkkkk.','.kyryryk.','.kkkkkkk.','.kolollk.','.koooook.','.kolollk.','.koooook.','.kolkllk.','kkkkMkkkk']);
+def('🛰', ['kbk......','bcbk.....','kbkbk....','..kkek...','...kyek..','....kekbk','.....kbcb','......kbk','.........']);
 def('🏠🏘', ['....k....','...krk...','..krrrk..','.krrrrrk.','kkkkkkkkk','.kwwwwwk.','.kwbwMwk.','.kwwwMwk.','.kkkkkkk.']);
 def('🏚', ['....k....','...kGk...','..kGGGk..','.kGG.GGk.','kkkk.kkkk','.kggggGk.','.kg.gMgk.','.kgggMgk.','.kkkkkkk.']);
 def('🏗', ['kyyyyyyyk','..y....k.','..y....k.','..y....G.','..y......','..y......','.kyk.....','.kyk.....','kkkkk....']);
