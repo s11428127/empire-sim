@@ -4800,6 +4800,8 @@
   .tycon .ty-b:active, .tycon .tg-go:active{ transform:translateY(2px); box-shadow:0 1px 0 rgba(0,0,0,.55) }
   .tycon .tg-modal{ border:3px solid #0b0f15; box-shadow:inset 0 0 0 2px #2b4a66 }
 
+  .tycon .tg-go.pulse{ animation:goPulse 1s steps(2) infinite }
+  @keyframes goPulse{ 50%{ box-shadow:0 3px 0 rgba(0,0,0,.55), 0 0 0 4px #ffd84a } }
   /* ---- 手牌(取代原本的底部功能列)---- */
   .tg-hand{ display:flex; align-items:stretch; gap:8px; padding:6px 8px calc(8px + env(safe-area-inset-bottom,0px));
     background:#0e1a25; border-top:3px solid #0b0f15; box-shadow:inset 0 2px 0 #2b4a66 }
@@ -10634,7 +10636,8 @@ function tyTopBar(){
       <button type="button" class="tg-nwp" data-ty="modal:rank"
         title="淨值 ${tyM(nw)} · 富豪榜第 ${rank} 名 —— 點開看你跟別人的距離">
         ${tyTopSpark()}<em>#${rank}</em><b>${tyM(nw)}</b></button>
-      ${TY.done?'':`<button type="button" class="tg-go" data-ty="next">
+      ${TY.done?'':`<button type="button" class="tg-go${tyApNow()===0?' pulse':''}" data-ty="next"
+        title="${tyApNow()===0?'這一季的行動點用完了 —— 按這裡進下一季,行動點會補滿':'進下一季'}">
         <b>▶ 下一季</b><em>${tyWhen(TY.t+1)}</em></button>`}
     </div>`;
 }

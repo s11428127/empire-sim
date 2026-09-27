@@ -750,7 +750,7 @@ W3D.landmarkName = id => (LANDMARK[id] || [])[1] || '';
    ⚠ Texture 的建構子要等地球貼圖掛好(mountTex)才撿得到;在那之前先回傳空物件,
      掛好之後 W3D.sites 用上一次的資料重蓋一次。
    ============================================================================= */
-const PXU = .04;                  // 看板:一個像素 = 幾個地磚單位
+const PXU = .065;                 // 看板:一個像素 = 幾個地磚單位
 const VPX = .025;                 // 載具:一個像素 = 幾個單位(之後還會乘上 animStep 的倍率)
 const TEXC = new Map(), QGEO = new Map();
 const hasPX = () => typeof PX !== 'undefined' && PX && PX.canvas;
