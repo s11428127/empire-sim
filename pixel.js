@@ -332,49 +332,83 @@ const SPR = PX.SPR = {
     'kwwwwwwwwwwwwkw',
     'kwkkkkkkkkkkwkw',
     'kkkkkkkkkkkkkkk']),
-  /* ---- 軍事(正面,朝右,T = 隊伍色) ---- */
-  raid: S([
-    '.....kkkk.......',
-    '....kTTTTk......',
-    '....kTTTTkkkkkkk',
-    '..kkkTTTTTkk....',
-    '.kTTTTTTTTTTTk..',
-    'kttttttttttttttk',
-    'kGkGkGkGkGkGkGkk',
-    '.kGGGGGGGGGGGGk.',
-    '..kkkkkkkkkkkk..']),
-  law: S([
-    '..kkkkkkkkkk....',
-    '.kTTTTTTTTTTkk..',
-    '.kTccTTTccTTTTk.',
-    'kTTTTTTwTTTTTTTk',
-    'kTTTTTwwwTTTTTTk',
-    'kttttttwttttttttk',
-    '.kkGkkkkkkkGkk..',
-    '..kGk.....kGk...',
-    '...k.......k....']),
-  lobby: S([
-    '.......kk.......',
-    '......kwwk......',
-    '.......kk.......',
-    '.......kk.......',
-    '..kkkkkkkkkkk...',
-    '.kTTTTTTTTTTTkk.',
-    '.kTTTTTTTTTcckTk',
-    'kttttttttttttttk',
-    '.kkGkkkkkkkkGkk.',
-    '..kGk......kGk..',
-    '...k........k...']),
-  mgr: S([
-    '.kkkkkkkkk......',
-    '.kmmmmmmmmk.....',
-    '.kmMmMmMmmkkkkk.',
-    '.kmmmmmmmmkTTcTk',
-    '.kmmmmmmmmkTTTTk',
-    'kttttttttttttttk',
-    '.kkGkkkkkkkkGkk.',
-    '..kGk......kGk..',
-    '...k........k...']),
+  /* ---- 軍事(側面,朝右,T = 隊伍色、t = 隊伍色暗面)----
+     使用者:「軍隊我要改成坦克、步兵、火炮等等,好看一點」。
+     每一種都看得出輪廓:坦克有砲塔與履帶、步兵是三個拿槍的兵、火炮是仰起來的長砲管、補給是軍用卡車。 */
+  raid: S([                                   // 坦克(原 併購小組)
+    '.........kkkkk........',
+    '........kTTTTTk.......',
+    '.......kTTwTTTTkkkkkkk',
+    '.......kTTTTTTTkgggggk',
+    '....kkkkttttttttkkkkkk',
+    '...kTTTTTTTTTTTTTTk...',
+    '..kTTTTTTTTTTTTTTTTk..',
+    '.kttttttttttttttttttk.',
+    'kGkkGkkGkkGkkGkkGkkGk.',
+    'kgGgGgGgGgGgGgGgGgGgk.',
+    '.kkkkkkkkkkkkkkkkkkk..']),
+  law: S([                                    // 步兵(原 律師團):三個兵,鋼盔、步槍
+    '.kkk.....kkk.....kkk..',
+    'kTTTk...kTTTk...kTTTk.',
+    '.ksk.....ksk.....ksk..',
+    '.kTkkkk..kTkkkk..kTkkkk',
+    'kTTTGGk.kTTTGGk.kTTTGGk',
+    'kTTTk...kTTTk...kTTTk..',
+    '.ktk.....ktk.....ktk...',
+    '.kTk.....kTk.....kTk...',
+    '.k.k.....k.k.....k.k...',
+    'kk.kk...kk.kk...kk.kk..']),
+  lobby: S([                                  // 火炮(原 遊說團):仰角長砲管 + 大輪子
+    '...................kk.',
+    '.................kkgk.',
+    '...............kkggk..',
+    '.............kkggk....',
+    '...........kkggk......',
+    '.......kkkkTTkk.......',
+    '.....kkTTTTTTTk.......',
+    '....kTTTTTTTTTTk......',
+    '...kttttttttttttk.....',
+    '..kGGk......kGGk......',
+    '.kGgGGk....kGgGGk.....',
+    '.kGGgGk....kGGgGk.....',
+    '..kGGk......kGGk......']),
+  mgr: S([                                    // 補給車(原 經理人):帆布車斗 + 駕駛室
+    '..kkkkkkkkkkkk........',
+    '.kTTTTTTTTTTTTk.......',
+    '.kTtTtTtTtTtTTkkkkkk..',
+    '.kTTTTTTTTTTTTkTTccTk.',
+    '.kTTTTTTTTTTTTkTTccTTk',
+    '.kkkkkkkkkkkkkkTTTTTTk',
+    'kttttttttttttttttttttk',
+    'kkkGGGkkkkkkkkkkGGGkk.',
+    '..kGgGk........kGgGk..',
+    '...kkk..........kkk...']),
+  /* 偵察機(側面,卡面用) */
+  recon: S([
+    '..k.....................',
+    '..kk..........kkk.......',
+    '..kTk.......kkwwTk......',
+    '..kTTkkkkkkkTTTTTTkk....',
+    '.kTTTTTTTTTTTTTTTTTTkkk.',
+    '..kttttttttttttttttttkck',
+    '....kkkkkkkTTTTkkkkkkk..',
+    '..........kTTTTk........',
+    '...........kkkk.........']),
+  /* 偵察機(俯視,機頭朝右,飛行動畫用):長直翼 + 螺旋槳 */
+  reconTop: S([
+    '........kk........',
+    '........kgk.......',
+    '........kgk.......',
+    '........kgk.......',
+    '.kk.....kgk.......',
+    'kggk.kkkkgkkkkkkk.',
+    'kgggkggggggggccggk',
+    'kggk.kkkkgkkkkkkk.',
+    '.kk.....kgk.......',
+    '........kgk.......',
+    '........kgk.......',
+    '........kgk.......',
+    '........kk........']),
   /* ---- 載具(俯視,機頭朝右)---- */
   plane: S([
     '.........kk.........',
@@ -733,31 +767,122 @@ def('✕✗', ['rr...rr','.rr.rr.','..rrr..','.rr.rr.','rr...rr']);
 def('✦', ['...y...','...y...','..yyy..','yyywyyy','..yyy..','...y...','...y...']);
 def('🔊', ['...w.....','..ww..w..','wwgw.w.w.','wggw..w.w','wggw..w.w','wwgw.w.w.','..ww..w..','...w.....']);
 def('🔇', ['...w.....','..ww.....','wwgw.r..r','wggw..rr.','wggw..rr.','wwgw.r..r','..ww.....','...w.....']);
+def('🚜', ['.........','...kkk...','..kgggkkk','..kgggk..','kkkkkkkk.','kgggggggk','kkkkkkkkk','kGkGkGkGk','.kkkkkkk.']);   // 坦克
+def('🪖', ['..kkkkk..','.kNNNNNk.','kNNnNNNNk','kNNNNNNNk','kkkkkkkkk','..ksssk..','..kssk...']);                 // 步兵(鋼盔)
+def('💣', ['.......kk','......kgk','.....kgk.','....kgk..','..kkgk...','.kNNNk...','kNNNNNk..','kGk.kGk..','.k...k...']);   // 火炮
+def('🚚', ['kkkkkk...','kmmmmkkk.','kmMmmkcck','kmmmmkkkk','kkkkkkkkk','.kGk..kGk','..k....k.']);                  // 補給車
+def('🛩', ['...k.....','...kk....','kkkkkkkkk','.kgggggck','kkkkkkkkk','...kk....','...k.....']);                  // 偵察機
 def('🌍🌎', ['..kkkkk..','.kbnnbbk.','kbnnnbbbk','kbbnnbbbk','kbbbnnbbk','kbbbnnbbk','.kbbbnbk.','..kkkkk..']);
 
-/* 國旗:只有 44 座城市所在的國家(加上幾個常見的)各給三條色帶;其餘用灰色。
-   不是每一面國旗都畫得出來 —— 像素旗求的是「一眼認得出是哪一國的顏色」。 */
-const FLAG = {
-  US:['h','#b22234','#ffffff','#3c3b6e'], CA:['v','#d52b1e','#ffffff','#d52b1e'], GB:['h','#012169','#c8102e','#012169'],
-  CH:['v','#d52b1e','#ffffff','#d52b1e'], DE:['h','#000000','#dd0000','#ffce00'], FR:['v','#0055a4','#ffffff','#ef4135'],
-  IE:['v','#169b62','#ffffff','#ff883e'], LU:['h','#ed2939','#ffffff','#00a1de'], MC:['h','#ce1126','#ffffff','#ffffff'],
-  HK:['h','#de2910','#ffffff','#de2910'], CN:['h','#de2910','#ffde00','#de2910'], TW:['v','#000095','#fe0000','#fe0000'],
-  JP:['h','#ffffff','#bc002d','#ffffff'], KR:['h','#ffffff','#cd2e3a','#0047a0'], SG:['h','#ef3340','#ffffff','#ffffff'],
-  TH:['h','#a51931','#2d2a4a','#a51931'], ID:['h','#ce1126','#ffffff','#ffffff'], VN:['h','#da251d','#ffff00','#da251d'],
-  AU:['h','#012169','#012169','#ffffff'], AE:['h','#00732f','#ffffff','#000000'], SA:['h','#006c35','#ffffff','#006c35'],
-  QA:['v','#ffffff','#8a1538','#8a1538'], IL:['h','#ffffff','#0038b8','#ffffff'], IN:['h','#ff9933','#ffffff','#138808'],
-  BR:['h','#009c3b','#ffdf00','#009c3b'], MX:['v','#006847','#ffffff','#ce1126'], CL:['h','#ffffff','#ffffff','#d52b1e'],
-  ZA:['h','#e03c31','#007749','#001489'], NG:['v','#008751','#ffffff','#008751'], KE:['h','#000000','#bb0000','#006600'],
-  KY:['h','#012169','#c8102e','#012169'], VG:['h','#012169','#c8102e','#012169'], BM:['h','#c8102e','#012169','#c8102e'],
-  RU:['h','#ffffff','#0039a6','#d52b1e'], IT:['v','#009246','#ffffff','#ce2b37'], ES:['h','#aa151b','#f1bf00','#aa151b'],
-  NL:['h','#ae1c28','#ffffff','#21468b'], PH:['h','#0038a8','#ffffff','#ce1126'], MY:['h','#cc0001','#ffffff','#010066'],
-};
+/* 國旗:真的像素國旗(使用者:「國家的國旗要正確」)。
+   每一面 18×12,照實際的設計畫:日本的紅日、韓國的太極與卦、美國的條紋與星區、英國的米字、
+   台灣的青天白日、中國的五星、加拿大的楓葉… 44 座城市所在的國家都有;另外常見的三色旗一併收。
+   沒收到的國家退回系統的國旗表情符號(至少是對的),不亂畫一面假的。 */
+const FW = 18, FH = 12;
+const FC = {};
+function flagDraw(code){
+  const c = document.createElement('canvas'); c.width = FW; c.height = FH;
+  const x = c.getContext('2d');
+  const R = (col, x0, y0, w, h) => { x.fillStyle = col; x.fillRect(x0, y0, w, h); };
+  const P = (col, pts) => { x.fillStyle = col; for(const [a, b] of pts) x.fillRect(a, b, 1, 1); };
+  const disc = (col, cx, cy, r) => { x.fillStyle = col; for(let j = -r; j <= r; j++) for(let i = -r; i <= r; i++) if(i*i + j*j <= r*r + r*.6) x.fillRect(cx + i, cy + j, 1, 1); };
+  const star = (col, cx, cy) => P(col, [[cx, cy - 1], [cx - 1, cy], [cx, cy], [cx + 1, cy], [cx - 1, cy + 1], [cx + 1, cy + 1]]);
+  const h3 = (a, b, cc) => { R(a, 0, 0, FW, 4); R(b, 0, 4, FW, 4); R(cc, 0, 8, FW, 4); };
+  const v3 = (a, b, cc) => { R(a, 0, 0, 6, FH); R(b, 6, 0, 6, FH); R(cc, 12, 0, 6, FH); };
+  const h2 = (a, b) => { R(a, 0, 0, FW, 6); R(b, 0, 6, FW, 6); };
+  const union = (x0, y0, w, h) => {          // 米字旗(縮小版)
+    R('#012169', x0, y0, w, h);
+    for(let i = 0; i < w; i++){ const y1 = Math.round(y0 + i * (h - 1) / (w - 1)), y2 = Math.round(y0 + (h - 1) - i * (h - 1) / (w - 1));
+      P('#ffffff', [[x0 + i, y1], [x0 + i, y2]]); if(i % 2) P('#c8102e', [[x0 + i, y1], [x0 + i, y2]]); }
+    const cx = x0 + Math.floor(w / 2), cy = y0 + Math.floor(h / 2);
+    R('#ffffff', x0, cy - 1, w, 3); R('#ffffff', cx - 1, y0, 3, h);
+    R('#c8102e', x0, cy, w, 1); R('#c8102e', cx, y0, 1, h);
+  };
+  const cross = (bg, fg, fg2) => {           // 北歐十字
+    R(bg, 0, 0, FW, FH); R(fg, 5, 0, 3, FH); R(fg, 0, 4, FW, 3);
+    if(fg2){ R(fg2, 6, 0, 1, FH); R(fg2, 0, 5, FW, 1); }
+  };
+  switch(code){
+    case 'TW': R('#fe0000', 0, 0, FW, FH); R('#000095', 0, 0, 9, 6); disc('#ffffff', 4, 3, 2); disc('#000095', 4, 3, 1); P('#ffffff', [[4, 3]]); break;
+    case 'CN': R('#de2910', 0, 0, FW, FH); disc('#ffde00', 3, 3, 1); P('#ffde00', [[3, 1], [1, 3], [5, 3], [2, 5], [4, 5], [6, 1], [7, 2], [7, 4], [6, 5]]); break;
+    case 'HK': R('#de2910', 0, 0, FW, FH); P('#ffffff', [[9, 3], [8, 4], [9, 4], [10, 4], [7, 5], [8, 5], [9, 5], [10, 5], [11, 5], [8, 6], [9, 6], [10, 6], [9, 7], [8, 8], [10, 8]]); break;
+    case 'JP': R('#ffffff', 0, 0, FW, FH); disc('#bc002d', 9, 6, 3); break;
+    case 'KR': R('#ffffff', 0, 0, FW, FH); disc('#cd2e3a', 9, 6, 3); R('#0047a0', 6, 6, 7, 4); disc('#0047a0', 9, 7, 2); R('#ffffff', 5, 10, 9, 2);
+      P('#000000', [[2, 1], [3, 2], [4, 3], [14, 1], [15, 2], [13, 2], [2, 10], [3, 9], [14, 10], [15, 9], [13, 9]]); break;
+    case 'SG': h2('#ef3340', '#ffffff'); P('#ffffff', [[3, 1], [2, 2], [2, 3], [3, 4], [5, 2], [6, 1], [7, 2], [5, 4], [7, 4]]); break;
+    case 'TH': R('#a51931', 0, 0, FW, 2); R('#f4f5f8', 0, 2, FW, 2); R('#2d2a4a', 0, 4, FW, 4); R('#f4f5f8', 0, 8, FW, 2); R('#a51931', 0, 10, FW, 2); break;
+    case 'ID': h2('#ce1126', '#ffffff'); break;
+    case 'MC': h2('#ce1126', '#ffffff'); break;
+    case 'PL': h2('#ffffff', '#dc143c'); break;
+    case 'VN': R('#da251d', 0, 0, FW, FH); disc('#ffff00', 9, 6, 1); P('#ffff00', [[9, 3], [9, 4], [6, 5], [7, 5], [11, 5], [12, 5], [7, 8], [11, 8]]); break;
+    case 'AU': case 'NZ': R('#012169', 0, 0, FW, FH); union(0, 0, 9, 6);
+      P(code === 'NZ' ? '#c8102e' : '#ffffff', [[13, 2], [15, 5], [12, 6], [13, 9], [4, 9], [4, 8], [3, 9], [5, 9], [4, 10]]); break;
+    case 'KY': case 'VG': R('#012169', 0, 0, FW, FH); union(0, 0, 9, 6); R('#ffffff', 12, 4, 4, 5); R('#c8102e', 13, 5, 2, 2); R('#2e8540', 13, 7, 2, 1); break;
+    case 'BM': R('#c8102e', 0, 0, FW, FH); union(0, 0, 9, 6); R('#ffffff', 12, 4, 4, 5); R('#c8102e', 13, 6, 2, 2); break;
+    case 'GB': union(0, 0, FW, FH); break;
+    case 'US': for(let i = 0; i < 6; i++) R(i % 2 ? '#ffffff' : '#b22234', 0, i * 2, FW, 2); R('#3c3b6e', 0, 0, 8, 6);
+      for(let j = 1; j < 6; j += 2) for(let i = 1; i < 8; i += 2) P('#ffffff', [[i, j]]); break;
+    case 'CA': R('#d52b1e', 0, 0, 4, FH); R('#ffffff', 4, 0, 10, FH); R('#d52b1e', 14, 0, 4, FH);
+      P('#d52b1e', [[9, 2], [8, 3], [9, 3], [10, 3], [6, 4], [8, 4], [9, 4], [10, 4], [12, 4], [7, 5], [8, 5], [9, 5], [10, 5], [11, 5], [8, 6], [9, 6], [10, 6], [9, 7], [9, 8]]); break;
+    case 'CH': R('#d52b1e', 0, 0, FW, FH); R('#ffffff', 8, 2, 3, 8); R('#ffffff', 5, 5, 9, 3); break;
+    case 'DE': h3('#000000', '#dd0000', '#ffce00'); break;
+    case 'FR': v3('#0055a4', '#ffffff', '#ef4135'); break;
+    case 'IT': v3('#009246', '#ffffff', '#ce2b37'); break;
+    case 'IE': v3('#169b62', '#ffffff', '#ff883e'); break;
+    case 'BE': v3('#000000', '#fae042', '#ed2939'); break;
+    case 'NG': v3('#008751', '#ffffff', '#008751'); break;
+    case 'MX': v3('#006847', '#ffffff', '#ce1126'); R('#8b5a2b', 8, 5, 2, 2); break;
+    case 'LU': h3('#ed2939', '#ffffff', '#00a1de'); break;
+    case 'NL': h3('#ae1c28', '#ffffff', '#21468b'); break;
+    case 'RU': h3('#ffffff', '#0039a6', '#d52b1e'); break;
+    case 'AT': h3('#ed2939', '#ffffff', '#ed2939'); break;
+    case 'HU': h3('#ce2939', '#ffffff', '#477050'); break;
+    case 'BG': h3('#ffffff', '#00966e', '#d62612'); break;
+    case 'EE': h3('#0072ce', '#000000', '#ffffff'); break;
+    case 'LT': h3('#fdb913', '#006a44', '#c1272d'); break;
+    case 'UA': h2('#0057b7', '#ffd700'); break;
+    case 'ES': R('#aa151b', 0, 0, FW, 3); R('#f1bf00', 0, 3, FW, 6); R('#aa151b', 0, 9, FW, 3); R('#aa151b', 4, 5, 2, 2); break;
+    case 'PT': R('#006600', 0, 0, 7, FH); R('#ff0000', 7, 0, 11, FH); disc('#ffcc00', 7, 6, 2); break;
+    case 'IN': h3('#ff9933', '#ffffff', '#138808'); disc('#000080', 9, 6, 1); P('#ffffff', [[9, 6]]); break;
+    case 'IL': R('#ffffff', 0, 0, FW, FH); R('#0038b8', 0, 1, FW, 1); R('#0038b8', 0, 10, FW, 1);
+      P('#0038b8', [[9, 3], [8, 4], [10, 4], [7, 5], [11, 5], [7, 7], [11, 7], [8, 8], [10, 8], [9, 9], [7, 4], [11, 4], [7, 8], [11, 8]]); break;
+    case 'AE': R('#ff0000', 0, 0, 5, FH); R('#00732f', 5, 0, 13, 4); R('#ffffff', 5, 4, 13, 4); R('#000000', 5, 8, 13, 4); break;
+    case 'SA': R('#006c35', 0, 0, FW, FH); R('#ffffff', 4, 3, 10, 1); R('#ffffff', 5, 5, 8, 1); R('#ffffff', 4, 8, 10, 1); P('#ffffff', [[14, 7]]); break;
+    case 'QA': R('#8a1538', 0, 0, FW, FH); R('#ffffff', 0, 0, 5, FH); for(let j = 0; j < FH; j += 2) P('#ffffff', [[5, j]]); break;
+    case 'BR': R('#009c3b', 0, 0, FW, FH); for(let j = 1; j <= 10; j++){ const w = 8 - Math.abs(j - 5.5) * 1.4; R('#ffdf00', Math.round(9 - w), j, Math.round(w * 2), 1); }
+      disc('#002776', 9, 6, 2); R('#ffffff', 7, 6, 5, 1); break;
+    case 'CL': R('#ffffff', 0, 0, FW, 6); R('#d52b1e', 0, 6, FW, 6); R('#0039a6', 0, 0, 6, 6); star('#ffffff', 3, 3); break;
+    case 'ZA': R('#e03c31', 0, 0, FW, 4); R('#001489', 0, 8, FW, 4); R('#ffffff', 0, 4, FW, 4); R('#007749', 0, 5, FW, 2);
+      for(let j = 0; j < FH; j++){ const w = 6 - Math.abs(j - 5.5); R('#007749', 0, j, Math.max(0, Math.round(w)) + 1, 1); R('#000000', 0, j, Math.max(0, Math.round(w) - 1), 1); }
+      P('#ffb612', [[0, 3], [0, 8]]); break;
+    case 'KE': R('#000000', 0, 0, FW, 3); R('#ffffff', 0, 3, FW, 1); R('#bb0000', 0, 4, FW, 4); R('#ffffff', 0, 8, FW, 1); R('#006600', 0, 9, FW, 3);
+      R('#bb0000', 8, 2, 2, 8); R('#000000', 8, 4, 2, 4); R('#ffffff', 8, 5, 2, 2); break;
+    case 'TR': R('#e30a17', 0, 0, FW, FH); disc('#ffffff', 6, 6, 3); disc('#e30a17', 7, 6, 2); star('#ffffff', 11, 6); break;
+    case 'SE': cross('#006aa7', '#fecc00'); break;
+    case 'NO': cross('#ba0c2f', '#ffffff', '#00205b'); break;
+    case 'DK': cross('#c60c30', '#ffffff'); break;
+    case 'FI': cross('#ffffff', '#002f6c'); break;
+    case 'GR': for(let i = 0; i < 6; i++) R(i % 2 ? '#ffffff' : '#0d5eaf', 0, i * 2, FW, 2); R('#0d5eaf', 0, 0, 7, 6); R('#ffffff', 3, 0, 1, 6); R('#ffffff', 0, 2, 7, 1); break;
+    case 'MY': for(let i = 0; i < 6; i++) R(i % 2 ? '#ffffff' : '#cc0001', 0, i * 2, FW, 2); R('#010066', 0, 0, 9, 6); disc('#ffcc00', 3, 3, 2); disc('#010066', 4, 3, 1); star('#ffcc00', 6, 3); break;
+    case 'PH': R('#0038a8', 0, 0, FW, 6); R('#ce1126', 0, 6, FW, 6); for(let j = 0; j < FH; j++){ const w = 6 - Math.abs(j - 5.5); R('#ffffff', 0, j, Math.round(w) + 1, 1); } disc('#fcd116', 2, 6, 1); break;
+    case 'AR': h3('#74acdf', '#ffffff', '#74acdf'); disc('#f6b40e', 9, 6, 1); break;
+    case 'CO': R('#fcd116', 0, 0, FW, 6); R('#003893', 0, 6, FW, 3); R('#ce1126', 0, 9, FW, 3); break;
+    case 'PE': v3('#d91023', '#ffffff', '#d91023'); break;
+    case 'EG': h3('#ce1126', '#ffffff', '#000000'); R('#c09300', 8, 5, 2, 2); break;
+    case 'PK': R('#ffffff', 0, 0, 5, FH); R('#01411c', 5, 0, 13, FH); disc('#ffffff', 11, 6, 3); disc('#01411c', 12, 5, 2); star('#ffffff', 14, 4); break;
+    case 'BD': R('#006a4e', 0, 0, FW, FH); disc('#f42a41', 8, 6, 3); break;
+    default: return null;
+  }
+  return c.toDataURL();
+}
+PX.flagURL = code => (code in FC) ? FC[code] : (FC[code] = (() => { try{ return flagDraw(code); }catch(e){ return null; } })());
 PX.flagHTML = code => {
-  const f = FLAG[code];
-  const bg = f ? `linear-gradient(${f[0] === 'h' ? '180deg' : '90deg'},${f[1]} 0 34%,${f[2]} 34% 67%,${f[3]} 67%)` : '#8a93a3';
-  return `<i class="pxflag" style="background:${bg}" title="${code || ''}"></i>`;
+  const u = code ? PX.flagURL(code) : null;
+  if(u) return `<img class="pxflag" src="${u}" alt="${code}" title="${code}" draggable="false">`;
+  // 沒畫的國家:系統的國旗表情符號(至少是對的)
+  if(code && /^[A-Z]{2}$/.test(code)) return `<span class="sysflag">${String.fromCodePoint(...[...code].map(ch => 0x1F1E6 + ch.charCodeAt(0) - 65))}</span>`;
+  return '';
 };
-
 /* 文字裡的表情符號 → <img>。只動文字節點,屬性(title、alt)不動 */
 const KEYS = Object.keys(I).sort((a, b) => b.length - a.length);
 const esc = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');

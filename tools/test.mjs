@@ -1995,6 +1995,51 @@ test('帝國第十輪:立體地形的高程、音效模組不會壞、所有按�
   await page.__ctx.close();
 });
 
+test('帝國第十一輪:兵種改成坦克步兵火炮補給、偵察機給情報、像素國旗正確', async (browser) => {
+  const page = await freshPage(browser, { seed: SEED, hash: '#/tycoon' });
+  const r = await page.evaluate(() => {
+    tyStart('heir', 7); TY.cash = 900e8; TY_MODAL = null; renderPage();
+    const out = {};
+    out.names = ['raid', 'law', 'lobby', 'mgr'].map(k => TY_UNITS[k].nm);
+    out.sprites = ['raid', 'law', 'lobby', 'mgr', 'recon', 'reconTop'].every(k => PX.SPR[k] && PX.SPR[k].w > 10);
+    out.icons = ['raid', 'law', 'lobby', 'mgr'].every(k => !!PX.ICON[TY_UNITS[k].ic]);
+    // 偵察:沒有對手的城市要擋;香港(鄭天賜的大本營)可以
+    out.blockLon = tyBlock('recon', 'lon');
+    const r1 = tyRival('r1');
+    const cash0 = TY.cash;
+    out.msg = tyRecon('hkg');
+    out.intel = tyIntel('r1'); out.paid = cash0 - TY.cash;
+    // 情報期間:談判 +8%、打擊 +30%
+    const odds = tyDealOdds('pact', r1, 1e9);
+    TY.intel.r1 = 0; const odds0 = tyDealOdds('pact', r1, 1e9); TY.intel.r1 = TY.t + 3;
+    out.oddsUp = odds - odds0;
+    const t0 = tyTurf(r1, 'cn'); tyStrike('air', 'sha'); out.airCut = t0 - tyTurf(r1, 'cn');
+    // 報告畫得出來、三季後失效
+    out.report = /下一季最可能擴張到/.test(tyIntelHTML(r1));
+    for (let i = 0; i < 3; i++) tyNext();
+    out.expired = !tyIntel('r1');
+    // 國旗:44 座城市所在的國家都有像素國旗
+    const isos = [...new Set(TY_SITES.map(x => x.iso))];
+    out.noFlag = isos.filter(c => !PX.flagURL(c));
+    out.flagImg = PX.flagHTML('JP').includes('<img');
+    return out;
+  });
+  eq(r.names, ['坦克營', '步兵連', '火炮陣地', '補給車隊'], '兵種名稱要改成軍隊');
+  ok(r.sprites, '每一種兵與偵察機都要有像素圖');
+  ok(r.icons, '兵種圖示都要有像素版');
+  ok(r.blockLon && /對手/.test(r.blockLon), `沒有對手的城市不能偵察:${r.blockLon}`);
+  ok(r.intel, '偵察之後要有情報');
+  ok(r.paid > 0, '偵察要花錢');
+  near(r.oddsUp, .08, 1e-9, '情報期間談判 +8%');
+  near(r.airCut, 12 * 1.3, .01, '情報期間空襲效果 +30%(12 → 15.6)');
+  ok(r.report, '情報報告要寫出他下一季可能往哪裡擴張');
+  ok(r.expired, '情報三季後失效');
+  eq(r.noFlag, [], `這些國家沒有像素國旗:${r.noFlag}`);
+  ok(r.flagImg, '國旗是像素圖');
+  ok(page.__errors.length === 0, `有 JS 錯誤:\n      ${page.__errors.join('\n      ')}`);
+  await page.__ctx.close();
+});
+
 /* =========================================================================
    跑
    ========================================================================= */

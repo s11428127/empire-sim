@@ -4822,7 +4822,8 @@
   @keyframes goPulse{ 50%{ box-shadow:0 3px 0 rgba(0,0,0,.55), 0 0 0 4px #ffd84a } }
   /* 像素圖示(取代表情符號)與像素國旗 */
   img.pxi{ height:1.15em; width:auto; vertical-align:-.2em; margin:0 .06em; image-rendering:pixelated; image-rendering:crisp-edges }
-  .pxflag{ display:inline-block; width:1.35em; height:.95em; border:2px solid #0b0f15; vertical-align:-.12em; box-sizing:border-box }
+  img.pxflag{ display:inline-block; width:auto; height:1em; border:1px solid #0b0f15; vertical-align:-.15em; image-rendering:pixelated; image-rendering:crisp-edges }
+  .sysflag{ font-family:'Apple Color Emoji','Segoe UI Emoji','Noto Color Emoji',sans-serif }
   /* 按鈕:像素邊框 —— 外圈黑線、左上亮邊、右下暗邊,按下去往下沉兩格 */
   .tycon .ty-b, .tycon .tg-c, .tycon .ty-chip, .tycon .tg-ml, .tycon .tg-x, .tycon .p-back, .tycon .rv-dh, .tycon .tg-go, .tycon .tg-nwp{
     border:2px solid #0b0f15 !important;
@@ -5746,14 +5747,16 @@ function tyRivalTurn(){
    ========================================================================= */
 const TY_UNIT_MAX = 6;
 const TY_UNITS = {
-  raid:  { nm:'併購小組', ic:'⚔', pct:.030, min:.5e8, def:.7,
-           dsc:'駐在一個地區:每季削掉那裡最強對手 3 點勢力、壓低當地競爭。駐在對手大本營的地區:對他敵意收購 +10%(最多 +30%)。' },
-  law:   { nm:'律師團',   ic:'⚖', pct:.020, min:.3e8, def:1.0,
-           dsc:'不管駐在哪裡,每季關注度 −1.5。被攻擊的時候是防守主力(防守力 1.0,其他部隊只有它的一半左右)。' },
-  lobby: { nm:'遊說團',   ic:'🏛', pct:.025, min:.4e8, def:.4,
-           dsc:'駐在一個地區:每季人脈 +1.2、關注 +0.3。遊說是看得見的 —— 走得越勤,被記下來的也越多。' },
-  mgr:   { nm:'經理人',   ic:'👔', pct:.015, min:.25e8, def:.2,
-           dsc:'駐在一個城市:你在那裡的事業現金流 +15%(同一城最多算兩位)。他不打仗,但他讓錢變多。' },
+  /* 使用者:「軍隊我要改成坦克、步兵、火炮等等」。兵種的**效果不變**(平衡與測試都建立在上面),
+     只是換成軍隊的樣子與名字 —— 括號裡是它在商戰裡代表的東西。 */
+  raid:  { nm:'坦克營',   ic:'🚜', alt:'併購小組', pct:.030, min:.5e8, def:.7,
+           dsc:'攻擊主力(併購小組)。駐在一個地區:每季削掉那裡最強對手 3 點勢力、壓低當地競爭。駐在對手大本營的地區:對他敵意收購 +10%(最多 +30%)。' },
+  law:   { nm:'步兵連',   ic:'🪖', alt:'律師團', pct:.020, min:.3e8, def:1.0,
+           dsc:'防守主力(律師團)。不管駐在哪裡,每季關注度 −1.5。被攻擊的時候防守力 1.0,其他兵種只有它的一半左右。' },
+  lobby: { nm:'火炮陣地', ic:'💣', alt:'遊說團', pct:.025, min:.4e8, def:.4,
+           dsc:'遠程施壓(遊說團)。駐在一個地區:每季人脈 +1.2、關注 +0.3。砲聲是聽得見的 —— 打得越勤,被記下來的也越多。' },
+  mgr:   { nm:'補給車隊', ic:'🚚', alt:'經理人', pct:.015, min:.25e8, def:.2,
+           dsc:'後勤(經理人)。駐在一個城市:你在那裡的事業現金流 +15%(同一城最多算兩隊)。它不打仗,但它讓錢變多。' },
 };
 const TY_UNIT_UP = .08;
 let TY_LAST_MOVE=null;                        // 最近一次派遣(畫面層用來播飛機 / 船的動畫)                       // 每季維持費 = 招募價的 8%
@@ -5853,6 +5856,55 @@ const tyStrikeLog = () => (TY.strikes = TY.strikes || []);
 const tyStrikeUses = k => tyStrikeLog().filter(x=>x.k===k && x.t > TY.t-TY_STRIKE_WIN).length;
 const tyStrikeFatigue = rid => Math.pow(.6, tyStrikeLog().filter(x=>x.rid===rid && x.t > TY.t-TY_STRIKE_WIN).length);
 const tyStrikeCost = k => Math.max(TY_STRIKES[k].min, tyNW()*TY_STRIKES[k].pct) * Math.pow(1.4, tyStrikeUses(k));
+
+/* ---- 偵察機 ----
+   使用者:「也可以有偵察機,對應大富翁的玩法」—— 大富翁(大富翁 4)裡有「看別人的牌、知道他下一步」
+   那一類的卡。這裡的偵察機:飛到一個對手的大本營(或他駐軍的城市)繞一圈,拿到 3 季的**情報**:
+     · 一份報告:他的身家走勢、每個地區的勢力、下一季最可能往哪裡擴張(他挑地區的規則是公開的,
+       這裡把前三名算出來)、他會不會出兵打你(條件寫出來)、正在路上的部隊
+     · 情報期間:對他的飛彈 / 空襲效果 +30%、跟他談條件成功率 +8%
+   不擲骰;花一點現金 + 1 點行動點。 */
+const tyReconCost = () => Math.max(.3e8, tyNW()*.004);
+const tyIntel = rid => ((TY.intel||{})[rid]||0) > TY.t;
+const tyIntelMul = rid => tyIntel(rid) ? 1.3 : 1;
+function tyReconTarget(site){
+  return tyRivalsA().find(r=>r.home===site) || (tyRivalForces().find(f=>f.site===site)||{}).r || null;
+}
+let TY_LAST_RECON=null;                // 給畫面層播偵察機(不進存檔)
+function tyRecon(site){
+  const blocked=tyBlock('recon', site); if(blocked) return blocked;
+  const r=tyReconTarget(site), cost=tyReconCost();
+  TY.cash-=cost;
+  TY.intel=TY.intel||{}; TY.intel[r.id]=TY.t+3;
+  tyLog('strike', `🛩 偵察機飛過${tySite(site).nm}:取得${r.nm}三季的情報。`, r.id);
+  TY_LAST_RECON={ from:TY.home, to:site, rid:r.id };
+  tySave();
+  return `<b>🛩 偵察完成。</b>${r.nm}的情報三季有效(到 ${tyWhen(TY.t+3)}):對他的打擊 +30%、談判 +8%。花費 ${tyM(cost)}。`;
+}
+/* 情報報告:只用公開的規則推算,不偷看亂數 */
+function tyIntelHTML(r){
+  const regs=Object.keys(TY_REGIONS).filter(k=>k!=='off');
+  const cand=regs.slice().sort((a,b)=>(TY.reg[b].idx+tyTurf(r,b)/200)-(TY.reg[a].idx+tyTurf(r,a)/200)).slice(0,3);
+  const mine=new Set(tyMyRegions());
+  const hostile=(r.rel||0)<-25 && r.nw>tyShownNW()*.8;
+  const hist=(r.hist||[]).slice(-5);
+  const trend=hist.length>1 ? hist[hist.length-1]/hist[0]-1 : 0;
+  const th=tyThreats().filter(x=>x.rid===r.id);
+  return `<div class="ty-intel">
+    <div class="p-sec">🛩 情報報告<span>${r.ic||''} ${escH(r.nm)} · 有效到 ${tyWhen((TY.intel||{})[r.id]||TY.t)}</span></div>
+    <div class="ty-facts">
+      <div><em>身家</em><b>${tyM(r.nw)}</b><i>近 ${Math.max(0,hist.length-1)} 季 ${trend>=0?'+':''}${(trend*100).toFixed(1)}%</i></div>
+      <div><em>對你的關係</em><b class="${(r.rel||0)<0?'down':'up'}">${tyRelTxt(r.rel||0)}(${(r.rel||0).toFixed(0)})</b></div>
+      <div><em>會不會出兵打你</em><b class="${hostile?'down':'up'}">${hostile?'會 —— 關係夠差、而且他比你大':'暫時不會'}</b>
+        <i>條件:關係低於 −25 且身家大於你的 0.8 倍</i></div>
+      <div><em>正在路上的部隊</em><b>${th.length?th.map(x=>`→ ${escH(tySite(x.site).nm)}(${Math.max(0,x.eta-TY.t)} 季)`).join('、'):'沒有'}</b></div>
+    </div>
+    <div class="p-sec">下一季最可能擴張到<span>他挑地區的規則:景氣指數 + 自己已有的勢力,前三名擇一</span></div>
+    <div class="ty-feed">${cand.map(g=>`<div class="fd${mine.has(g)?' bad':''}"><span class="fd-t">${escH(TY_REGIONS[g].nm)}</span>
+      <i class="fd-ic">${mine.has(g)?'⚠':'•'}</i><span class="fd-x">勢力 ${tyTurf(r,g).toFixed(0)} · 景氣 ${((TY.reg[g].idx-1)*100).toFixed(1)}%${mine.has(g)?' · 你也在這裡 —— 會被搶生意':''}</span></div>`).join('')}</div>
+    <div class="expo-note">情報期間:對他的飛彈 / 空襲效果 +30%、跟他談條件成功率 +8%。</div>
+  </div>`;
+}
 const tyStrikeReady = k => ((TY.cd||{})[k]||0) <= TY.t;
 /* 打哪一個對手:飛彈打他本人(目標城市 = 他的大本營);空襲打那個地區勢力最大的對手 */
 function tyStrikeTarget(k, site){
@@ -5868,10 +5920,10 @@ function tyStrike(k, site){
   TY.cash-=cost;
   TY.cd=TY.cd||{}; TY.cd[k]=TY.t+d.cd;
   let txt='';
-  const fat=tyStrikeFatigue(r.id);                       // 最近被打過幾次 → 這一發打幾折
+  const fat=tyStrikeFatigue(r.id)*tyIntelMul(r.id);      // 最近被打過幾次 → 這一發打幾折;有偵察情報 +30%
   tyStrikeLog().push({ k, rid:r.id, t:TY.t });
   if(TY.strikes.length>40) TY.strikes.splice(0, TY.strikes.length-40);
-  const fatTxt = fat<.999 ? `(他最近被打過,效果只剩 ${(fat*100).toFixed(0)}%)` : '';
+  const fatTxt = fat<.999 ? `(他最近被打過,效果只剩 ${(fat*100).toFixed(0)}%)` : fat>1.001 ? `(偵察情報加成 ${(fat*100).toFixed(0)}%)` : '';
   if(k==='missile'){
     const hit=r.nw*(.04+tyRnd()*.04)*fat;
     const gain=Math.min(hit*.2, cost*1.5);
@@ -6053,6 +6105,7 @@ function tyDealOdds(k, r, amt){
     p += Math.min(.3, .1*tyUnitN(tyUnitsIn(tySite(r.home).reg),'raid'));
   }
   if(k==='pact' && (r.pact||0)>TY.t) p += .2;          // 已經有過約的比較好續
+  if(tyIntel(r.id)) p += .08;                           // 偵察過:知道他要什麼
   return tyClamp(p, .05, .95);
 }
 const tyOddsTxt = p => p>=.75?'他很有興趣' : p>=.55?'應該談得成' : p>=.35?'看他當天的心情'
@@ -7638,6 +7691,11 @@ function tyNeeds0(act, arg){
       out.push(cashFor(tyStrikeCost(k)));
       return out;
     }
+    case 'recon': {
+      const r=arg ? tyReconTarget(arg) : null;
+      return [ tyNb('那裡有對手(大本營或駐軍)', !!r, '偵察機要飛到對手的大本營或他駐軍的城市'),
+               cashFor(tyReconCost()) ];
+    }
     case 'deploy': {
       const u=arg&&arg.u, site=arg&&arg.site;
       if(!u || !TY_SITE[site]) return [ tyNb('有這支部隊', false, '找不到這支部隊') ];
@@ -8938,6 +8996,13 @@ function tyPlayLast(){
   if((TY_LAST_MOVE || TY_LAST_STRIKE) && TY_MODAL && !tySideModal()){ TY_MODAL=null; renderPage(); }
   if(TY_LAST_MOVE){ W3D.animMove(TY_LAST_MOVE); TY_LAST_MOVE=null; }
   if(TY_LAST_STRIKE){ W3D.animStrike(TY_LAST_STRIKE); TY_LAST_STRIKE=null; }
+  if(TY_LAST_RECON){
+    // 手機:先收起面板看偵察機飛,繞完再把情報報告打開
+    const reopen = TY_MODAL==='pick' && !tySideModal();
+    if(reopen){ TY_MODAL=null; renderPage(); }
+    W3D.animRecon(TY_LAST_RECON, ()=>{ if(reopen && TY_PICK){ TY_MODAL='pick'; renderPage(); } });
+    TY_LAST_RECON=null;
+  }
 }
 /* 拉線:從部隊(或你的大本營)拉一條線,點 / 放開在一座城市上就是目標。
    手機沒有「拖曳」可言,一樣是先按「地圖上選」再點城市。 */
@@ -9115,7 +9180,9 @@ function tyRivalTab(){
         ${clash.length?`<span class="rl-c">⚔ 跟你在${clash.map(g=>TY_REGIONS[g].nm).join('、')}正面對上</span>`:''}
       </div>
       ${tyRivalLast(r)}
+      ${tyIntel(r.id)?`<div class="rv-last"><b class="up">🛩 情報中</b>(到 ${tyWhen(TY.intel[r.id])})· 打他 +30%、談判 +8%</div>`:''}
       ${tyTurfHTML(r)}
+      ${open && tyIntel(r.id) ? tyIntelHTML(r) : ''}
       ${open?`<div class="rv-deals">${Object.keys(TY_DEALS).map(k=>tyDealHTML(k,r)).join('')}</div>`
             :`<div class="rv-more">點一下展開七種可以跟他談的條件</div>`}
     </div>`;
@@ -10910,7 +10977,7 @@ function tycoonPage(){
    ========================================================================= */
 const TY_AP_COST = { found:2, upgrade:1, expand:1, ipo:1, reverse:1, buy:1, short:1,
   recruit:1, recruitTo:1, deploy:1, strike:2, partner:1, movehome:1, lobby:1, media:1,
-  charity:1, trust:1, holdco:1 };
+  charity:1, trust:1, holdco:1, recon:1 };
 const tyApCost = act => String(act).startsWith('deal:') ? 1 : (TY_AP_COST[act] || 0);
 const tyApMax  = () => Math.min(9, 6 + Math.floor((TY && TY.infl || 0) / 25));
 function tyApNow(){ if(TY && typeof TY.ap !== 'number') TY.ap = tyApMax(); return TY ? TY.ap : 0; }
@@ -10960,6 +11027,9 @@ const TY_CARDS = [
     dsc:'拖到對手的大本營:放空狙擊他的控股公司,身家 −4~8%,你賺回兩成。冷卻 2 季,連發加價、連打同一人效果遞減。',
     ok:id=>tyStrikeReady('missile') && !!tyStrikeTarget('missile', id),
     unlock:()=>TY.t>=4 || tyThreats().length>0, why:'第 5 季,或有人出兵打你' },
+  { k:'recon', nm:'偵察機', col:'#9aa5b8', ap:1, tgt:'city', art:()=>PX.SPR.recon, tint:TY_TEAM,
+    dsc:'拖到對手的大本營(或他駐軍的城市):偵察機飛過去繞一圈,拿到三季的情報 —— 他下一步往哪裡擴張、會不會打你;情報期間打他 +30%、跟他談 +8%。',
+    ok:id=>!!tyReconTarget(id), unlock:()=>TY.t>=1, why:'第 2 季' },
   { k:'lobby', nm:'遊說', col:'#5fd0b0', ap:1, tgt:'none', art:()=>PX.SPR.bond,
     dsc:'政治獻金:人脈上去(人脈高,每季行動點也多)。關注度也會跟著上去。' },
   { k:'media', nm:'媒體曝光', col:'#7fd8ff', ap:1, tgt:'none', art:()=>PX.bizTower('media',.3),
@@ -11111,6 +11181,7 @@ function tyCardLabel(k, b){
   if(k==='upgrade') return '⬆ 升級';
   if(k==='troop') return d.k && TY_UNITS[d.k] ? `${TY_UNITS[d.k].ic} +${TY_UNITS[d.k].nm}` : '';
   if(k==='deal') return '🤝 談判';
+  if(k==='recon') return '🛩 偵察';
   if(k==='move') return '🏠 遷入';
   if(k==='partner') return '🤝 夥伴';
   return '';
@@ -11164,6 +11235,7 @@ function tyCardHint(c, id){
   if(c.k==='build'){ const o=tyBuildOpts(id); return o.length?`可以開:${o.map(k=>TY_BIZ[k].nm).join('、')}`:'這裡不能開公司'; }
   if(c.k==='invest'){ const o=tyInvestOpts(id); return o.length?`市場:${o.slice(0,5).map(a=>a.nm).join('、')}${o.length>5?'…':''}`:'這裡沒有市場'; }
   if(c.k==='deal'){ const r=tyRivalsA().find(x=>x.home===id); return r?`跟 ${r.ic||''} ${r.nm} 談`:'這裡不是對手的大本營'; }
+  if(c.k==='recon'){ const r=tyReconTarget(id); return r?`偵察 ${r.ic||''} ${r.nm}`:'這裡沒有對手'; }
   if(c.k==='missile'||c.k==='air'){ const r=tyStrikeTarget(c.k, id); if(!tyStrikeReady(c.k)) return '冷卻中'; return r?`打擊 ${r.ic||''} ${r.nm}`:(c.k==='missile'?'這裡沒有對手的大本營':'這個地區沒有對手的勢力'); }
   if(c.k==='partner'){ const P=TY_PARTNERS[s.reg]; return P?(TY.partners[s.reg]?'已經有夥伴':`${P.nm}`):'這個地區不需要夥伴'; }
   if(c.k==='shell') return tyCan(id,'shell')?'離岸金融中心':'這裡不是離岸金融中心';
@@ -11250,6 +11322,14 @@ function tyPickHTML(){
           + (r && tyStrikeFatigue(r.id)<.999 ? ` · <b class="down">對他的效果只剩 ${(tyStrikeFatigue(r.id)*100).toFixed(0)}%</b>` : ''), tyActBtn('strike', { k:c.k, site:id }, '發射', ` data-k="${c.k}" data-site="${id}"`, 'warn'),
         tyNeedHTML(tyNeeds('strike', { k:c.k, site:id }),'tight'), `<em class="pk-d">${escH(d.dsc)}</em>`);
       break; }
+    case 'recon': {
+      const r=tyReconTarget(id);
+      body=r?row(PX.img('pk:recon', PX.SPR.recon, { fit:[56,64], tint:TY_TEAM }), `🛩 偵察 ${r.ic||''} ${escH(r.nm)}`,
+          `花費 ${tyM(tyReconCost())} · 情報三季有效${tyIntel(r.id)?` · <b class="up">已經有情報(到 ${tyWhen(TY.intel[r.id])})</b>`:''}`,
+          tyActBtn('recon', id, '起飛', ` data-site="${id}"`), tyNeedHTML(tyNeeds('recon', id),'tight'))
+        + (tyIntel(r.id) ? tyIntelHTML(r) : '<div class="expo-note">起飛之後,這裡會出現他的情報報告。</div>')
+        :'<div class="empty">這裡沒有對手。</div>';
+      break; }
     case 'move':
       body=row('', `遷到 ${escH(s.nm)}`, `證券資本利得 ${(tyCg(id,1)*100).toFixed(1)}% · 一般所得 ${(s.tax*100).toFixed(1)}% · 費用 ${tyM(tyMoveCost())} · 人脈 −10`,
         tyActBtn('movehome', id, '遷過去', ` data-site="${id}"`, 'alt'), tyNeedHTML(tyNeeds('movehome', id),'tight'), `<em class="pk-d">${escH(s.note||'')}</em>`);
@@ -11304,6 +11384,7 @@ const TY_ACT = {
   charity:()=>tyPlayCharity(),
   recruit:e=>tyRecruit(e.dataset.k),
   recruitTo:e=>tyRecruitTo(e.dataset.k, e.dataset.site),
+  recon:  e=>tyRecon(e.dataset.site),
   deploy: e=>tyDeploy(+e.dataset.id, e.dataset.site || TY_DEP[e.dataset.id]),
   disband:e=>tyDisband(+e.dataset.id),
   strike: e=>tyStrike(e.dataset.k, e.dataset.site || TY_STRK[e.dataset.k]),
@@ -11496,14 +11577,14 @@ function bindTycoon(root){
     }
     const fn=TY_ACT[a];
     if(!fn) return;
-    TY_LAST_MOVE=null; TY_LAST_STRIKE=null;
+    TY_LAST_MOVE=null; TY_LAST_STRIKE=null; TY_LAST_RECON=null;
     const s0=TY_SAVES;
     const play = TY_MODAL==='pick' && TY_PICK ? { k:TY_PICK.k, site:TY_PICK.site, label:tyCardLabel(TY_PICK.k, b) } : null;
     TY_MSG = tyDo(a, ()=>fn(b)) || '';
     /* 出牌的選項面板:做成了就收起來,讓你看到地圖上多出來的那一棟(或飛出去的那一架) */
     const done = TY_SAVES>s0;
     const br=b.getBoundingClientRect();
-    if(TY_MODAL==='pick' && done) TY_MODAL=null;
+    if(TY_MODAL==='pick' && done && !(play && play.k==='recon')) TY_MODAL=null;   // 偵察:留著面板看情報報告
     renderPage();
     if(play && done) tyCardFly(play.k, play.site, play.label);
     else if(done){ tyBurst(br.left+br.width/2, br.top+br.height/2); tySfx(/buy|found|expand|upgrade|ipo/.test(a)?'coin':'hit','tap'); }

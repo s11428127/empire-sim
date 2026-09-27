@@ -752,6 +752,9 @@ function voxRoot(d, key, make, flags){
   if(!hasPX()) return root;
   const mesh = new T.Mesh(voxGeo(key, make), vmat());
   mesh.scale.setScalar(PXU);
+  if(!mesh.geometry.boundingBox) mesh.geometry.computeBoundingBox();
+  const bb = mesh.geometry.boundingBox;
+  root.userData.rx = Math.max(Math.abs(bb.min.x), bb.max.x, Math.abs(bb.min.y), bb.max.y);
   root.add(mesh);
   root.userData.vox = mesh;
   root.userData.key = key;
@@ -759,6 +762,7 @@ function voxRoot(d, key, make, flags){
   return root;
 }
 let LAST_SITES = null;
+const CENTER_R = Object.create(null);     // 每座城正中央那一棟的佔地半徑(度),旁邊的東西照它讓位
 /* 待機動畫:部隊一格一格地上下彈(兩個畫格,交錯),地圖不是一張死的圖。
    只動子物件的高度(一個體素),每 380ms 一次 —— 便宜,而且是像素遊戲那種「一跳一跳」的節奏。 */
 let bobT = 0;
@@ -793,7 +797,8 @@ function buildLandmark(d){
 function buildTroop(d){
   const enemy = d._threat || d._rvf;
   const tint = enemy ? `rgb(${rvRGB(d._r.id)})` : TEAM;
-  const kinds = d._threat ? [d._sea ? 'ship' : 'raid'] : d._sea ? ['ship'] : d._units.slice(0, 3).map(u => u.k);
+  // 模型最多兩種兵(不同兵種優先),其餘看標籤上的 ×N —— 三台並排太寬,旁邊的城市就擠不下
+  const kinds = d._threat ? [d._sea ? 'ship' : 'raid'] : d._sea ? ['ship'] : [...new Set(d._units.map(u => u.k))].slice(0, 2);
   const key = 'tr:' + tint + ':' + kinds.join(',');
   return voxRoot(d, key, B => voxCity(B, [...kinds.map(k => ({ sp: PX.SPR[k] || PX.SPR.raid, tint, dep: 7 })),
                                           { sp: PX.SPR.flag, tint, dep: 1 }], tint), { troop: true });
@@ -879,6 +884,9 @@ function applyScale(obj, now){
     const far = clamp(1.25 - W3D.alt * .35, .45, 1);
     const b = s * far * (obj.userData.troop ? .8 : obj.userData.lm ? .9 : 1);
     obj.scale.set(b, b, b * kk);
+    obj.userData.rdeg = (obj.userData.rx || 8) * PXU * b / 1.745;          // 佔地半徑(度)
+    if(!(obj.userData.at && obj.userData.at.slot) && obj.userData.site && obj.userData.site.id && !obj.userData.troop)
+      CENTER_R[obj.userData.site.id] = obj.userData.rdeg;
   }else obj.scale.set(s * 1.6, s * 1.6, s * k);
   const at = obj.userData.at;
   if(at && at.slot){
@@ -886,7 +894,10 @@ function applyScale(obj, now){
        第一版的偏移是「幾塊地磚寬」、陸地只在固定的 0.3~0.5 度檢查過 —— 拉遠一點,
        地磚變大、偏移跟著變大,實際站的地方早就不是檢查過的那一點,於是部隊站到海上、
        離城市一大截(使用者:「部隊和建築的定位沒有很精準」)。 */
-    const S = at.slot, D = 1.6 * bScale();
+    /* 距離 = 中間那一棟的半徑 + 自己的半徑(都用實際的體素大小 × 目前的縮放算)再留一點縫 ——
+       第一版用固定的 1.6 倍,體素模型變大之後部隊就疊在建築與彼此身上(使用者:「部隊會重疊在一起」)。 */
+    const S = at.slot, oR = obj.userData.rdeg || .8 * bScale(), cR = CENTER_R[S.id] || oR;
+    const D = Math.max(.05, (cR + oR) * 1.1);
     const L = slotDirs(S.id, S.lat, S.lng, D);
     const [ang, f] = L[S.n % L.length], ring = Math.floor(S.n / L.length);
     const r = D * f * (1 + ring * .8), k = 1 / Math.max(.2, Math.cos(S.lat * Math.PI / 180));
@@ -1060,7 +1071,8 @@ W3D.attach = function(globe){
      ② 只有近一點(0.55D)才是陸地的方向 —— 站近一點,寧可跟中央有點擠也不要下海
      ③ 剩下的(真的全是海,例如香港、新加坡拉很遠的時候)縮到 0.4D
    D 跟著鏡頭高度走,所以依 D 分桶快取(每一桶差 26%),同一桶只算一次。 */
-const DIRS = [-40, -140, 40, 140, -90, 90, 0, 180, -65, -115, -20, -160, 20, 160, 65, 115].map(a => a * Math.PI / 180);
+/* 方向的偏好:東、西、東南、西南、南,北邊最後 —— 建築往北仰(看得到正面),北邊的東西會被高樓擋住 */
+const DIRS = [0, 180, -40, -140, -90, -20, -160, -65, -115, 40, 140, 20, 160, 65, 115, 90].map(a => a * Math.PI / 180);
 const SLOT_C = Object.create(null);
 const angGap = (a, b) => { let d = Math.abs(a - b) % (Math.PI * 2); return d > Math.PI ? Math.PI * 2 - d : d; };
 function slotDirs(id, lat, lng, D){
@@ -1075,11 +1087,11 @@ function slotDirs(id, lat, lng, D){
   for(const f of [1, .75, .55, .4, .28])
     for(const a of DIRS){
       if(!on(a, Dq * f) || !on(a, Dq * f * .6)) continue;
-      if(out.some(o => angGap(o[0], a) < .7 && Math.abs(o[1] - f) < .3)) continue;
+      if(out.some(o => angGap(o[0], a) < 1.0 && Math.abs(o[1] - f) < .3)) continue;   // 57° 以內不放第二個:同樣大小的兩個才不會疊
       out.push([a, f]);
     }
   // 真的全是海(新加坡、香港拉很遠的時候):縮到 0.28 倍,至少不要離城市太遠
-  for(const a of DIRS.slice(0, 8)) if(!out.some(o => angGap(o[0], a) < .7)) out.push([a, .28]);
+  for(const a of DIRS.slice(0, 8)) if(!out.some(o => angGap(o[0], a) < 1.0)) out.push([a, .28]);
   return (SLOT_C[key] = out);
 }
 W3D._objs = () => [...OBJS];     // 給截圖驗證用
@@ -1120,6 +1132,7 @@ W3D.sites = function(mine, rivals, troops){
   pushPaths();
   armHover();
   W3D._warm = true;           // 第一批是開局就有的，不要全部從地上長出來
+  setTimeout(rescaleAll, 0);  // 中間那一棟的大小要先量到,旁邊的東西才知道要讓多遠
   W3D.rings();
 };
 
@@ -1466,7 +1479,7 @@ function coastToward(city, node){
    靠港那兩下是 mode:'dock' 的停頓段(見 fly 的權重):船停在碼頭一會兒,地圖上跳「登船」「上岸」。 */
 function routeFor(kind, A, B){
   const a = [A.lat, A.lng], b = [B.lat, B.lng], pts = [];
-  if(kind === 'plane' || kind === 'missile' || kind === 'jet'){ legPts(a, b, kind, pts); return pts; }
+  if(kind === 'plane' || kind === 'missile' || kind === 'jet' || kind === 'recon'){ legPts(a, b, kind, pts); return pts; }
   if(kmLL(a, b) < 2500 && !crossesSea(a, b)){ legPts(a, b, 'truck', pts); return pts; }
   const sea = seaPath(a, b);
   const pa = coastToward(a, sea[0]), pb = coastToward(b, sea[sea.length-1]);
@@ -1488,6 +1501,7 @@ function spawnVeh(k, tint){
   const h = patchHost(); if(!h || !hasPX()) return null;
   const sp = PX.SPR[k] || PX.SPR.truck;
   const dep = k === 'ship' ? 4 : k === 'plane' ? 3 : 2;
+  if(k === 'reconTop') tint = tint || TEAM;
   const g = voxGeo('veh:' + k + ':' + (tint || ''), B => voxAdd(B, sp, tint || null, { x: -sp.w / 2, y: -sp.h / 2, z: -dep / 2 }, dep, true));
   const m = new T.Mesh(g, vmat());
   m.renderOrder = 3;
@@ -1527,7 +1541,7 @@ function fly(opt){
   const tot = cum[cum.length-1] || 1;
   ANIMS.push({ pts, cum, tot, t0: performance.now() + (opt.delay || 0), dur: opt.dur || 5000,
                arc: opt.arc || 0, off: opt.off || 0, kind: opt.kind, mesh: null, mk: '',
-               done: opt.done, onPass: opt.onPass, passed: false,
+               done: opt.done, onPass: opt.onPass, passAt: opt.passAt, passed: false,
                trail: opt.trail || null, tr: opt.trail ? [] : null, tag: opt.tag || '' });
   tyWake();
   if(!animOn){ animOn = true; requestAnimationFrame(animStep); }
@@ -1546,6 +1560,7 @@ function posAt(a, u){
     let e;
     if(a.kind === 'missile') e = Math.pow(Math.sin(Math.PI * u), .8);        // 拋物線
     else if(a.kind === 'jet') e = smooth(clamp(u / .15, 0, 1));             // 起飛後一路低空
+    else if(a.kind === 'recon') e = smooth(clamp(u / .12, 0, 1));           // 偵察機:爬升後一直待在空中繞圈
     else e = smooth(clamp((u - .08) / .2, 0, 1)) * smooth(clamp((.92 - u) / .2, 0, 1));   // 滑行 → 爬升 → 巡航 → 下降 → 滑行
     alt += a.arc * e;
   }
@@ -1558,7 +1573,7 @@ function animStep(now){
     // W3D._tfix:只給截圖驗證用 —— 開發機一幀要畫好幾秒,把動畫凍結在某個進度才拍得到
     const u = W3D._tfix != null ? W3D._tfix : clamp((now - a.t0) / a.dur, 0, 1);
     const P = posAt(a, u), Q = posAt(a, Math.min(1, u + .006));
-    const mk = a.kind === 'jet' ? 'jet' : a.kind === 'missile' ? 'missile' : a.kind === 'bomb' ? 'bomb' : a.kind === 'plane' ? 'plane' : P.mode;
+    const mk = a.kind === 'jet' ? 'jet' : a.kind === 'missile' ? 'missile' : a.kind === 'bomb' ? 'bomb' : a.kind === 'plane' ? 'plane' : a.kind === 'recon' ? 'reconTop' : P.mode;
     if(mk !== a.mk){ if(a.mesh && a.mesh.parent) a.mesh.parent.remove(a.mesh); a.mesh = spawnVeh(mk, a.tag ? `rgb(${rvRGB(a.tag)})` : null); a.mk = mk; }
     if(a.mesh){
       const p = G.getCoords(P.lat, P.lng, P.alt);
@@ -1567,7 +1582,7 @@ function animStep(now){
       if(a.kind === 'bomb') q = G.getCoords(P.lat, P.lng, P.alt - .01);  // 炸彈頭朝下
       orient(a.mesh, p, q); a._p = p;
       // 載具要比建築顯眼 —— 它們是這一刻畫面上的主角(第一版跟地標一樣大,遠看根本找不到)
-      const s = bScale() * (mk === 'missile' ? 3.6 : mk === 'ship' ? 3.2 : mk === 'plane' ? 3.2 : mk === 'jet' ? 3 : mk === 'bomb' ? 2.6 : 2.4);
+      const s = bScale() * (mk === 'missile' ? 3.6 : mk === 'ship' ? 3.2 : mk === 'plane' || mk === 'reconTop' ? 3.2 : mk === 'jet' ? 3 : mk === 'bomb' ? 2.6 : 2.4);
       a.mesh.scale.setScalar(s * VPX);         // 幾何是體素單位,一格 = VPX
     }
     if(a.tr){                                              // 尾跡:凝結尾 / 航跡 / 飛彈的煙
@@ -1745,6 +1760,24 @@ W3D.animMove = function(m){
             trail: { col: ['rgba(255,255,255,0)', 'rgba(255,255,255,.75)'], w: 1.1, max: 70 }, done: land });
     }
   }, lag));
+};
+/* 偵察機:飛到目標上空繞一圈(掃描光圈 + 星星),再飛離;done 在繞完之後呼叫 */
+W3D.animRecon = function(m, done){
+  if(!W3D.ok || !m){ if(done) done(); return; }
+  const A = tySite(m.from), B = tySite(m.to);
+  const km = kmLL([A.lat, A.lng], [B.lat, B.lng]);
+  focusOn(A, B, () => {
+    sfx('jet', 'tap');
+    const pts = routeFor('recon', A, B);
+    const r = clamp(km / 9000, .8, 2.2), k = 1 / Math.max(.2, Math.cos(B.lat * Math.PI / 180));
+    for(let i = 1; i <= 24; i++){ const a = -Math.PI / 2 + i / 24 * Math.PI * 2;
+      pts.push({ lat: B.lat + Math.sin(a) * r - r, lng: B.lng + Math.cos(a) * r * k, mode: 'recon' }); }
+    fly({ kind: 'recon', pts, arc: clamp(km / 9000 * .1, .03, .09), dur: clamp(5000 + km * .35, 6000, 10000),
+          trail: { col: ['rgba(255,255,255,0)', 'rgba(160,230,255,.7)'], w: 1, max: 80 },
+          passAt: .7, onPass: () => { fxAt(B.lat, B.lng, 'ring', { z: 5, dur: .7, life: 1000 }); fxAt(B.lat, B.lng, 'ring', { z: 4, dur: .7, delay: 250, life: 1200 });
+            sfx('coin'); const fx = fxLayer(); if(fx) floatAt(fx, B.lat, B.lng, '🛩 偵察完成 · 情報到手', 'card', 0); },
+          done: () => { if(done) done(); } });
+  });
 };
 /* 打擊:飛彈從大本營拋過去;空襲是三架戰機編隊,飛過目標上空一路投彈 */
 W3D.animStrike = function(s){
