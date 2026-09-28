@@ -2001,6 +2001,7 @@ W3D.cardHit = function(id, k, label){
 };
 /* 開演之前鏡頭先飛過去:起點與終點都要在畫面裡 */
 function focusOn(A, B, cb){
+  FOLLOW = null;                                  // 地球上的動畫要看地球:取消太空鏡頭鎖定
   const km = kmLL([A.lat, A.lng], [B.lat, B.lng]);
   const mid = tyGeoLerp(A, B, .5);
   const alt = clamp(.3 + km / 3800, .38, 2.1);
@@ -2887,20 +2888,173 @@ function vsphere(B, rad, col, half){
   }
 }
 const vnoise = (x, y, z, s) => { const h = Math.sin(x * 12.99 + y * 78.23 + z * 37.71 + (s || 0)) * 43758.55; return h - Math.floor(h); };
-function moonCol(x, y, z){
-  const l = Math.hypot(x, y, z) || 1, u = [x / l, y / l, z / l];
-  const craters = [[.6,.5,.62,.35], [-.7,.2,.68,.28], [.1,-.8,.58,.3], [-.2,.6,-.77,.4], [.8,-.3,-.5,.25], [-.5,-.6,-.6,.22]];
-  for(const c of craters){ const d = Math.acos(clamp(u[0]*c[0] + u[1]*c[1] + u[2]*c[2], -1, 1)); if(d < c[3]) return d > c[3] * .7 ? [200,204,210] : [112,116,124]; }
-  if(u[0] * .3 + u[2] * .9 > .55) return [128,132,140];            // 一片「月海」
-  return vnoise(Math.round(x), Math.round(y), Math.round(z)) < .18 ? [150,154,162] : [176,180,188];
+/* =============================================================================
+   火星與月球大改 —— 使用者:「火星跟月球基地開始做個大改外型」
+   -----------------------------------------------------------------------------
+   第一版是一顆顆「顏色不同的方塊球」,表面是平的。這一版是**有地形的體素星球**:
+   每一個方向算一個高度(平滑雜訊 + 地標),方塊堆到那個高度 —— 撞擊坑真的凹下去、坑緣凸起來,
+   火山真的隆起、峽谷真的切下去。
+     火星  奧林帕斯山(太陽系最高的火山,頂上有火山口)、塔爾西斯三座火山、水手號峽谷、
+           十幾個撞擊坑、南北極冠(冰的邊緣帶一點藍)、一層橘色的薄大氣光暈、兩顆小衛星(火衛一、火衛二)
+     月球  月海(大片深色低地)、二十幾個撞擊坑(亮坑緣、暗坑底)、第谷坑的放射亮紋
+   月球基地與火星殖民地:圓頂(白色骨架 + 玻璃)、居住艙與連接通道、登陸場(黃色 H)與登陸器、
+   太陽能板陣列、雷達天線、探測車、旗子;火星另外有溫室(裡面是綠的)、通訊塔、採礦鑽機。
+   它們永遠轉向鏡頭那一側(看得到你蓋了什麼)。只是畫面,不碰遊戲狀態、不用種子亂數。
+   ============================================================================= */
+/* 平滑的 3D 值雜訊(格點用 vnoise,三線性內插) */
+function snoise(x, y, z, s){
+  const X = Math.floor(x), Y = Math.floor(y), Z = Math.floor(z), fx = x - X, fy = y - Y, fz = z - Z;
+  const sm = t => t * t * (3 - 2 * t), u = sm(fx), v = sm(fy), w = sm(fz);
+  const n = (a, b, c) => vnoise(X + a, Y + b, Z + c, s);
+  const l = (a, b, t) => a + (b - a) * t;
+  return l(l(l(n(0,0,0), n(1,0,0), u), l(n(0,1,0), n(1,1,0), u), v), l(l(n(0,0,1), n(1,0,1), u), l(n(0,1,1), n(1,1,1), u), v), w);
 }
-function marsCol(x, y, z){
-  const l = Math.hypot(x, y, z) || 1, u = [x / l, y / l, z / l];
-  if(Math.abs(u[2]) > .84) return [240,240,245];                    // 極冠
-  const n = vnoise(Math.round(x * .5), Math.round(y * .5), Math.round(z * .5), 3);
-  if(Math.abs(u[2] + .1 - .25 * Math.sin(Math.atan2(u[1], u[0]) * 2)) < .14) return [122,50,32];   // 水手號峽谷那一條暗帶
-  return n < .3 ? [156,68,40] : n < .75 ? [196,92,54] : [214,120,72];
+const dirOf = (lat, lng) => { const a = lat * Math.PI / 180, b = lng * Math.PI / 180; return [Math.cos(a) * Math.cos(b), Math.cos(a) * Math.sin(b), Math.sin(a)]; };
+const angD = (u, d) => Math.acos(clamp(u[0] * d[0] + u[1] * d[1] + u[2] * d[2], -1, 1));
+/* 固定的撞擊坑清單(方向 + 角半徑),用固定的種子產生 —— 每次長得一樣 */
+function craterList(n, seed, rMin, rMax){
+  let s = seed; const r = () => { s = (s * 1103515245 + 12345) >>> 0; return (s >>> 8) / 16777216; };
+  const out = [];
+  for(let i = 0; i < n; i++){ const z = r() * 2 - 1, t = r() * Math.PI * 2, q = Math.sqrt(1 - z * z); out.push([q * Math.cos(t), q * Math.sin(t), z, rMin + r() * (rMax - rMin)]); }
+  return out;
 }
+/* 有地形的體素星球:solid = 到球心的距離 ≤ 半徑 + 高度(方向);只畫露在外面的面 */
+function vplanet(B, rad, feat){
+  const M = Math.ceil(rad + 5), memo = new Map();
+  const cell = (x, y, z) => {
+    const k = ((x + 64) * 256 + (y + 64)) * 256 + (z + 64);
+    let v = memo.get(k);
+    if(v === undefined){
+      const cx = x + .5, cy = y + .5, cz = z + .5, l = Math.hypot(cx, cy, cz) || 1;
+      const f = feat([cx / l, cy / l, cz / l]);
+      v = l <= rad + f.h ? f : null;
+      memo.set(k, v);
+    }
+    return v;
+  };
+  for(let x = -M; x < M; x++) for(let y = -M; y < M; y++) for(let z = -M; z < M; z++){
+    const f = cell(x, y, z); if(!f) continue;
+    const c = f.c, X = x + 1, Y = y + 1, Zz = z + 1;
+    if(!cell(x + 1, y, z)) vquad(B, [X,y,z], [X,Y,z], [X,Y,Zz], [X,y,Zz], [1,0,0], c, 1);
+    if(!cell(x - 1, y, z)) vquad(B, [x,Y,z], [x,y,z], [x,y,Zz], [x,Y,Zz], [-1,0,0], c, 1);
+    if(!cell(x, y + 1, z)) vquad(B, [X,Y,z], [x,Y,z], [x,Y,Zz], [X,Y,Zz], [0,1,0], c, 1);
+    if(!cell(x, y - 1, z)) vquad(B, [x,y,z], [X,y,z], [X,y,Zz], [x,y,Zz], [0,-1,0], c, 1);
+    if(!cell(x, y, z + 1)) vquad(B, [x,y,Zz], [X,y,Zz], [X,Y,Zz], [x,Y,Zz], [0,0,1], c, 1);
+    if(!cell(x, y, z - 1)) vquad(B, [x,Y,z], [X,Y,z], [X,y,z], [x,y,z], [0,0,-1], c, 1);
+  }
+}
+const MARS_R = 14, MOON_R = 12, MARS_S = 1.7, MOON_S = 2.2;
+const MARS_CR = craterList(16, 77, .07, .2);
+const OLYMPUS = dirOf(18, -40), THARSIS = [dirOf(10, -8), dirOf(0, 0), dirOf(-10, 8)];
+function marsFeat(u){
+  const lat = Math.asin(u[2]) * 180 / Math.PI, lng = Math.atan2(u[1], u[0]) * 180 / Math.PI;
+  let h = (snoise(u[0] * 3 + 5, u[1] * 3, u[2] * 3, 2) - .5) * 1.4 + (snoise(u[0] * 8, u[1] * 8, u[2] * 8, 4) - .5) * .6;
+  const n = snoise(u[0] * 5, u[1] * 5 + 3, u[2] * 5, 7);
+  let c = n < .33 ? [150,64,38] : n < .66 ? [190,90,52] : [214,124,74];
+  if(snoise(u[0] * 11, u[1] * 11, u[2] * 11, 9) > .72) c = [232,158,104];               // 亮色的沙塵
+  const dO = angD(u, OLYMPUS);
+  if(dO < .42){ h += 3.6 * Math.pow(1 - dO / .42, 1.4); c = dO < .06 ? [120,52,34] : [206,112,72]; if(dO < .06) h -= 1; }
+  for(const t of THARSIS){ const d = angD(u, t); if(d < .16){ h += 1.8 * (1 - d / .16); c = d < .03 ? [120,52,34] : [198,104,66]; } }
+  if(Math.abs(lat + 8) < 4.5 && lng > 20 && lng < 95){                                    // 水手號峽谷
+    const k = 1 - Math.abs(lat + 8) / 4.5; h -= 2.4 * k; c = k > .5 ? [104,40,26] : [138,58,36];
+  }
+  for(const cr of MARS_CR){
+    const d = angD(u, cr), r = cr[3];
+    if(d < r){ h -= 1.5 * (1 - (d / r) ** 2); c = [132,58,36]; }
+    else if(d < r * 1.3){ h += .8 * (1 - (d - r) / (r * .3)); c = [228,150,100]; }
+  }
+  const pole = Math.abs(lat) + (snoise(u[0] * 6, u[1] * 6, 0, 11) - .5) * 10;
+  if(pole > 74){ h += .7; c = pole > 78 ? [244,246,250] : [196,212,232]; }
+  return { h, c };
+}
+const MOON_CR = craterList(24, 1234, .05, .17), TYCHO = dirOf(-43, 10);
+const MARIA = [[dirOf(20, 20), .55], [dirOf(5, 55), .4], [dirOf(-10, -15), .45], [dirOf(35, -30), .35]];
+function moonFeat(u){
+  let h = (snoise(u[0] * 4, u[1] * 4, u[2] * 4, 21) - .5) * .9;
+  let c = snoise(u[0] * 9, u[1] * 9, u[2] * 9, 23) < .5 ? [168,172,180] : [184,188,196];
+  for(const [d0, r] of MARIA){ const d = angD(u, d0) + (snoise(u[0] * 5, u[1] * 5, u[2] * 5, 25) - .5) * .25; if(d < r){ h -= .7; c = [98,102,112]; } }
+  const dT = angD(u, TYCHO);
+  if(dT > .12 && dT < .9){                                                                  // 第谷坑的放射亮紋
+    const ax = Math.atan2(u[1] - TYCHO[1], u[0] - TYCHO[0]);
+    if(Math.abs(Math.sin(ax * 7)) > .93) c = [214,218,226];
+  }
+  for(const cr of [...MOON_CR, [...TYCHO, .12]]){
+    const d = angD(u, cr), r = cr[3];
+    if(d < r){ h -= 1.3 * (1 - (d / r) ** 2); c = d < r * .25 ? [150,154,162] : [118,122,130]; }
+    else if(d < r * 1.3){ h += .7 * (1 - (d - r) / (r * .3)); c = [220,224,230]; }
+  }
+  return { h, c };
+}
+/* 平滑球(大氣光暈用):經緯網格 */
+function sphereGeo(r, seg){
+  const B = VB(), P = (i, j) => { const a = Math.PI * (i / seg - .5), b = Math.PI * 2 * j / seg; return [r * Math.cos(a) * Math.cos(b), r * Math.cos(a) * Math.sin(b), r * Math.sin(a)]; };
+  for(let i = 0; i < seg; i++) for(let j = 0; j < seg; j++){
+    const a = P(i, j), b = P(i, j + 1), c = P(i + 1, j + 1), d = P(i + 1, j), n = a.map(v => v / r);
+    vquad(B, a, b, c, d, n, [255,255,255], 1);
+  }
+  return vgeo(B);
+}
+/* ---- 基地的零件(z 朝上,一格 = 一個體素) ---- */
+const BASE_C = { frame: [238,242,247], glass: [110,190,230], hull: [217,221,230], dark: [70,74,84], gold: [214,170,60],
+                 pad: [80,84,94], yel: [255,216,74], panel: [40,90,190], panel2: [90,150,230], green: [70,170,80] };
+function bDome(B, ox, oy, oz, r, glass){
+  const tmp = VB();
+  vsphere(tmp, r, (x, y, z) => (Math.abs(x) < .6 || Math.abs(y) < .6 || z > r * .82) ? BASE_C.frame : (glass || BASE_C.glass), true);
+  for(let i = 0; i < tmp.p.length; i += 3){ B.p.push(tmp.p[i] + ox, tmp.p[i + 1] + oy, tmp.p[i + 2] + oz); }
+  B.n.push(...tmp.n); B.c.push(...tmp.c);
+}
+function bFoundation(B, w, d, col){ vbox(B, -w / 2, -d / 2, -2.2, w, d, 2.5, col); }
+function bHab(B, col){                                                 // 居住區:兩座圓頂 + 長艙 + 通道 + 氣閘
+  bFoundation(B, 16, 10, col);
+  bDome(B, -4, 0, .3, 3.2); bDome(B, 4.5, 1.5, .3, 2.3);
+  vbox(B, -1, -1, .3, 4, 2, 1.8, BASE_C.hull); vbox(B, -.8, -1.05, 1.1, 3.6, .1, .5, BASE_C.glass);   // 連接通道
+  vbox(B, 1, -4.2, .3, 6, 2.4, 2.2, BASE_C.hull); vbox(B, 1.2, -4.25, 1.2, 5.6, .1, .6, BASE_C.glass); // 長艙
+  vbox(B, 1, -4.3, 2.5, 6, 2.6, .3, BASE_C.dark);
+  vbox(B, -7.5, 2.6, .3, 1.6, 1.6, 1.4, BASE_C.dark);                                               // 氣閘
+}
+function bPad(B, col){                                                 // 登陸場 + 登陸器
+  bFoundation(B, 10, 10, col);
+  vbox(B, -4, -4, .3, 8, 8, .2, BASE_C.pad);
+  vbox(B, -2, -2, .5, .6, 4, .05, BASE_C.yel); vbox(B, 1.4, -2, .5, .6, 4, .05, BASE_C.yel); vbox(B, -1.4, -.3, .5, 2.8, .6, .05, BASE_C.yel);
+  vbox(B, -1.3, -1.3, 1.2, 2.6, 2.6, 2.2, BASE_C.hull); vbox(B, -1.1, -1.1, 3.4, 2.2, 2.2, .7, BASE_C.gold);
+  vbox(B, -.4, -.4, 4.1, .8, .8, 1.4, BASE_C.hull); vbox(B, -.6, -.6, .5, 1.2, 1.2, .7, BASE_C.dark);
+  for(const [x, y] of [[-2.3,-2.3],[1.8,-2.3],[-2.3,1.8],[1.8,1.8]]) vbox(B, x, y, .5, .5, .5, 1, BASE_C.dark);
+}
+function bSolar(B, col){                                               // 太陽能板 3×2 + 雷達天線
+  bFoundation(B, 14, 10, col);
+  for(let i = 0; i < 3; i++) for(let j = 0; j < 2; j++){
+    const x = -6 + i * 3.6, y = -4 + j * 3.4;
+    vbox(B, x + 1.2, y + 1, .3, .3, .3, 1.2, BASE_C.dark);
+    vbox(B, x, y, 1.5, 3, 2.4, .2, BASE_C.panel);
+    vbox(B, x + 1.4, y, 1.71, .15, 2.4, .02, BASE_C.panel2); vbox(B, x, y + 1.1, 1.71, 3, .15, .02, BASE_C.panel2);
+  }
+  vbox(B, 4.6, -.3, .3, .5, .5, 3.6, BASE_C.dark);                                                  // 雷達天線(碗是一層層的方塊)
+  vbox(B, 3.6, -1.3, 3.9, 2.5, 2.5, .3, BASE_C.frame); vbox(B, 3.1, -1.8, 4.2, 3.5, 3.5, .3, BASE_C.frame); vbox(B, 2.6, -2.3, 4.5, 4.5, 4.5, .3, BASE_C.frame);
+  vbox(B, 4.7, -.2, 4.8, .3, .3, 1.6, BASE_C.dark);
+}
+function bRover(B){
+  vbox(B, -1.5, -1, .6, 3, 2, 1, BASE_C.hull); vbox(B, -.6, -.8, 1.6, 1.6, 1.6, .9, BASE_C.glass);
+  for(const [x, y] of [[-1.6,-1.3],[.9,-1.3],[-1.6,1],[.9,1]]) vbox(B, x, y, 0, .8, .4, .8, BASE_C.dark);
+  vbox(B, 1.1, .3, 1.6, .2, .2, 1.4, BASE_C.dark);
+}
+function bFlag(B, acc){ vbox(B, 0, 0, 0, .3, .3, 5, BASE_C.frame); vbox(B, .3, -.05, 3.4, 2.6, .2, 1.6, acc); }
+function bGreenhouse(B, col){                                          // 溫室:三條長玻璃溫室,裡面是綠的
+  bFoundation(B, 14, 11, col);
+  for(let i = 0; i < 3; i++){
+    const y = -4.5 + i * 3.4;
+    vbox(B, -6, y, .3, 12, 2.6, .8, BASE_C.green);
+    vbox(B, -6.2, y - .1, 1.1, 12.4, 2.8, 1.4, [150,220,190]);
+    for(let x = -6; x <= 6; x += 2) vbox(B, x, y - .15, .3, .25, 2.9, 2.4, BASE_C.frame);
+  }
+}
+function bTower(B, col){                                               // 通訊塔 + 採礦鑽機
+  bFoundation(B, 10, 8, col);
+  vbox(B, -3.5, -.5, .3, 1, 1, 9, [200,200,210]); for(let z = 1.3; z < 9; z += 2) vbox(B, -4, -1, z, 2, 2, .3, [229,72,77]);
+  vbox(B, -4.2, -1.2, 9.3, 2.4, 2.4, .6, BASE_C.frame);
+  vbox(B, 1, -2, .3, 4, 4, 1.4, [150,120,80]); vbox(B, 2.6, -.4, 1.7, .8, .8, 5, BASE_C.yel); vbox(B, 1.5, -1.5, 6.7, 3, 3, .6, BASE_C.yel);
+  vbox(B, 2.8, -.2, -1.5, .4, .4, 1.8, BASE_C.dark);
+}
+
 const SPACE = { on: false };
 W3D.spaceStat = () => SPACE.on ? { sats: SPACE.sats.length, moon: !!SPACE.moon, mars: !!SPACE.mars, satsVisible: SPACE.satG.visible } : null;
 function spaceInit(){
@@ -2920,14 +3074,22 @@ function spaceInit(){
     }
     add(gI, .5, 142, 51.6 * Math.PI / 180, 1.1, 0, .075);
     add(gN, .6, 196, 55 * Math.PI / 180, .4, 0, .03); add(gN, .6, 196, 55 * Math.PI / 180, 2.5, 2.2, .03);
-    const MB = VB(); vsphere(MB, 9, moonCol);
-    const moon = mk(MB, 3); root.add(moon);
-    const RB = VB(); vsphere(RB, 8, marsCol);
-    const mars = mk(RB, 2.6); root.add(mars);
+    const MB = VB(); vplanet(MB, MOON_R, moonFeat);
+    const moon = mk(MB, MOON_S); root.add(moon);
+    const RB = VB(); vplanet(RB, MARS_R, marsFeat);
+    const mars = mk(RB, MARS_S); root.add(mars);
+    // 火星的薄大氣:一層橘色半透明的光暈(只畫背面 = 星球邊緣一圈亮邊)
+    const halo = new T.Mesh(sphereGeo(MARS_R * 1.16, 24), new T.Phong({ color: 0x000000, emissive: 0xff8a48, transparent: true, opacity: .28, depthWrite: false, side: 1 }));
+    mars.add(halo);
+    // 火衛一、火衛二:兩顆坑坑疤疤的小石頭
+    const lump = (r, seed) => { const B = VB(); vplanet(B, r, u => ({ h: (snoise(u[0] * 3, u[1] * 3, u[2] * 3, seed) - .5) * 1.6, c: snoise(u[0] * 6, u[1] * 6, u[2] * 6, seed + 1) < .5 ? [120,104,92] : [150,132,116] })); return mk(B, MARS_S * .9); };
+    const phobos = lump(2.4, 31), deimos = lump(1.7, 41); root.add(phobos); root.add(deimos);
     G.scene().add(root);
-    /* 殖民地不黏在火星的自轉上:永遠轉向鏡頭那一側(不然十次有五次在背面,看不到你蓋了什麼) */
-    const colony = new T.O3(); colony.scale.setScalar(2.6); root.add(colony);
-    Object.assign(SPACE, { on: true, root, satG, sats, moon, mars, colony });
+    /* 殖民地與月球基地不黏在星球的自轉上:永遠轉向鏡頭那一側(不然十次有五次在背面,看不到你蓋了什麼) */
+    const colony = new T.O3(); colony.scale.setScalar(MARS_S); root.add(colony);
+    const moonBase = new T.O3(); moonBase.scale.setScalar(MOON_S); root.add(moonBase);
+    Object.assign(SPACE, { on: true, root, satG, sats, moon, mars, colony, moonBase, phobos, deimos });
+    buildMoonBase();
     spaceApply();
     let lastT = 0;
     const tick = now => {
@@ -2959,11 +3121,21 @@ function spaceStep(t){
   SPACE.moon.position.set(mp[0], mp[1], mp[2]); SPACE.moon.rotation.y = t * .003;
   const rp = orbitPos(650, 2 * Math.PI / 180, 2.2, 5 + t * .0015);
   SPACE.mars.position.set(rp[0], rp[1], rp[2]); SPACE.mars.rotation.y = t * .05;
-  if(SPACE.colony.children.length){
-    const C = SPACE.colony, V3 = C.position.constructor;
-    C.position.copy(SPACE.mars.position);
-    const d = G.camera().position.clone().sub(SPACE.mars.position).normalize();
+  const face = (C, P) => {
+    if(!C.children.length) return;
+    const V3 = C.position.constructor;
+    C.position.copy(P.position);
+    const d = G.camera().position.clone().sub(P.position).normalize();
     C.quaternion.setFromUnitVectors(new V3(1, 0, 0), d);
+  };
+  face(SPACE.colony, SPACE.mars); face(SPACE.moonBase, SPACE.moon);
+  const ph = t * .4, dm = t * .15, M = SPACE.mars.position;
+  SPACE.phobos.position.set(M.x + Math.cos(ph) * 36, M.y + Math.sin(ph) * 6, M.z + Math.sin(ph) * 36); SPACE.phobos.rotation.set(ph, ph * .7, 0);
+  SPACE.deimos.position.set(M.x + Math.cos(dm) * 54, M.y - Math.sin(dm) * 9, M.z + Math.sin(dm) * 54); SPACE.deimos.rotation.set(0, dm, dm * .5);
+  // 看月球 / 看火星:鏡頭鎖住那顆星(它一直在公轉,不跟的話幾分鐘就跑出畫面)
+  if(FOLLOW && !CV.on){
+    const now = performance.now();
+    if(now - followT > 1500){ followT = now; const pov = W3D.spacePov(FOLLOW); if(pov){ try{ G.pointOfView(pov, 1500); }catch(e){} } }
   }
 }
 /* 遊戲狀態 → 太空畫面:幾批星鏈、火星計畫走到哪。index.html 每次畫地圖時呼叫(只讀,不改規則) */
@@ -2976,26 +3148,42 @@ function spaceApply(){
   const key = (w.mars || 0) + ':' + (w.run || 0);
   if(key === SPACE_KEY) return;
   SPACE_KEY = key;
-  // 火星上的殖民地:無人補給 → 一台著陸器;首批登陸 → 三座圓頂 + 旗子;自給自足 → 六座圓頂 + 溫室
+  // 火星上的殖民地:無人補給 → 登陸場 + 物資;首批登陸 → 居住區 + 旗子 + 探測車;自給自足 → 溫室、太陽能、通訊塔與鑽機
   const C = SPACE.colony;
   while(C.children.length){ const o = C.children.pop(); o.geometry && o.geometry.dispose(); }
-  const st = w.mars || 0, V3 = SPACE.mars.position.constructor, Q = SPACE.mars.quaternion.constructor;
-  const put = (B, lat, lng) => {
-    const m = new T.Mesh(vgeo(B), vmat());
-    const la = lat * Math.PI / 180, lo = lng * Math.PI / 180;
-    const d = new V3(Math.cos(la) * Math.cos(lo), Math.cos(la) * Math.sin(lo), Math.sin(la));
-    m.position.copy(d).multiplyScalar(7.6);
-    m.quaternion.copy(new Q().setFromUnitVectors(new V3(0, 0, 1), d));
-    m.scale.setScalar(.45);
-    C.add(m);
-  };
-  const dome = (r, glass) => { const B = VB(); vsphere(B, r, (x, y, z) => z > r * .8 || Math.abs(x) < .6 ? [240,240,245] : glass, true); return B; };
-  if(st >= 2 || w.run >= 2){ const B = VB(); vbox(B, -1.5, -1.5, 0, 3, 3, 2, [217,221,230]); vbox(B, -.5, -.5, 2, 1, 1, 2, [229,72,77]);
-    vbox(B, -2.5, -2.5, 0, 1, 1, 1, [80,86,100]); vbox(B, 1.5, 1.5, 0, 1, 1, 1, [80,86,100]); put(B, 8, 20); }
-  if(st >= 3){ put(dome(3, [127,216,255]), 0, 0); put(dome(2, [127,216,255]), -12, 10); put(dome(2, [127,216,255]), 10, -12);
-    const F = VB(); vbox(F, 0, 0, 0, .4, .4, 5, [220,220,230]); vbox(F, .4, -.1, 3.2, 2.4, .3, 1.6, [47,143,224]); put(F, -4, -18); }
-  if(st >= 4){ put(dome(3, [95,208,176]), 18, 8); put(dome(2, [70,196,106]), -20, -4); put(dome(2, [70,196,106]), 4, 24); }
+  const st = w.mars || 0, soil = [176,86,52];
+  if(st >= 2 || w.run >= 2){ const B = VB(); bPad(B, soil);
+    const cols = [[229,72,77], [58,123,213], [255,216,74], [238,242,247]];
+    for(let i = 0; i < 4; i++) vbox(B, 3 + (i % 2) * 1.3, -3.5 + Math.floor(i / 2) * 1.3, .3, 1.1, 1.1, 1.1, cols[i]);
+    surfPut(C, B, MARS_R, -14, 22); }
+  if(st >= 3){ const B = VB(); bHab(B, soil); surfPut(C, B, MARS_R, 0, 0);
+    const F = VB(); bFlag(F, hexRGB(TEAM)); surfPut(C, F, MARS_R, 10, 12);
+    const R = VB(); bRover(R); surfPut(C, R, MARS_R, -12, -8); }
+  if(st >= 4){ const G1 = VB(); bGreenhouse(G1, soil); surfPut(C, G1, MARS_R, 20, -16);
+    const S = VB(); bSolar(S, soil); surfPut(C, S, MARS_R, -24, -22);
+    const T1 = VB(); bTower(T1, soil); surfPut(C, T1, MARS_R, 22, 24); }
 }
+/* 把一組零件貼在星球表面(局部座標:+x 朝鏡頭那一側,lat / lng 是從那一點往外偏幾度) */
+function surfPut(C, B, rad, lat, lng){
+  const m = new T.Mesh(vgeo(B), vmat());
+  const V3 = m.position.constructor, d = new V3(...dirOf(lat, lng));
+  m.position.copy(d).multiplyScalar(rad + .6);
+  m.quaternion.setFromUnitVectors(new V3(0, 0, 1), d);
+  m.scale.setScalar(.5);
+  C.add(m);
+}
+/* 月球基地(外型;什麼時候出現、怎麼玩等討論完再接規則,現在先一直擺著給你看) */
+function buildMoonBase(){
+  const C = SPACE.moonBase, soil = [150,154,162];
+  const H = VB(); bHab(H, soil); surfPut(C, H, MOON_R, 0, 0);
+  const P = VB(); bPad(P, soil); surfPut(C, P, MOON_R, -18, 26);
+  const S = VB(); bSolar(S, soil); surfPut(C, S, MOON_R, 20, -22);
+  const R = VB(); bRover(R); surfPut(C, R, MOON_R, -14, -12);
+  const F = VB(); bFlag(F, hexRGB(TEAM)); surfPut(C, F, MOON_R, 12, 14);
+}
+let FOLLOW = null, followT = 0;
+/* 鏡頭鎖定:'moon' / 'mars' / null(回地球)。index.html 的太空鈕與火星火箭用 */
+W3D.spaceFollow = k => { FOLLOW = k || null; followT = performance.now(); };
 /* 火箭發射:從城市垂直升空。星鏈 → 升到軌道就散開;火星 → 升空後轉向,一路飛到火星 */
 const ROCKETS = new Set();
 W3D.launch = function(L){
@@ -3029,6 +3217,7 @@ function rocketStep(now){
         r.cam = true;
         const pov = W3D.spacePov('mars');
         if(pov){ try{ G.controls().autoRotate = false; G.pointOfView(pov, 5000); }catch(e){} tyWake(); }
+        FOLLOW = 'mars'; followT = performance.now() + 4000;      // 飛到之後鏡頭鎖在火星
         try{ if(typeof TY_SPACEV !== 'undefined') TY_SPACEV = 2; }catch(e){}    // 側邊鈕變成「回地球」
       }
       const f = smooth((t - 3.2) / 5), top = r.base.clone().addScaledVector(r.n, h);

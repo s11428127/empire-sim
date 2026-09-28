@@ -10231,6 +10231,7 @@ function tyFitAlt(mult){
    加減固定值在拉遠的時候幾乎沒感覺、在貼近的時候會直接穿過地表。 */
 function tyZoom(dir){
   if(!TYG) return;
+  if(TY_SPACEV){ TY_SPACEV=0; if(window.W3D && W3D.spaceFollow) W3D.spaceFollow(null); }
   try{
     /* 傾斜鏡頭之下 pointOfView() 讀到的是「往南挪過」的實際位置,
        拿它算的話每按一次畫面就往南漂一點 —— 要用邏輯位置(W3D.pov)。 */
@@ -10313,6 +10314,7 @@ function tyPickSite(id, ref){
   TY_MODAL = TY_SEL ? 'site' : null;      // 點地圖就開據點面板,取消就回到地圖
   if(TY_SEL){
     TY_ISO = tySite(id).iso;
+    if(TY_SPACEV){ TY_SPACEV=0; if(window.W3D && W3D.spaceFollow) W3D.spaceFollow(null); }   // 點城市 = 回到地球
     if(TYG){
       const s=tySite(id);
       TYG.controls().autoRotate=false;
@@ -11941,6 +11943,8 @@ function bindTycoon(root){
     if(a==='space'){
       TY_SPACEV=(TY_SPACEV+1)%3;
       const pov=TY_SPACEV && window.W3D && W3D.spacePov ? W3D.spacePov(TY_SPACEV===1?'moon':'mars') : null;
+      // 鏡頭鎖住月球 / 火星(它們在公轉,會一直跟);回地球 = 解除鎖定、地球置中
+      if(window.W3D && W3D.spaceFollow) W3D.spaceFollow(TY_SPACEV===1?'moon':TY_SPACEV===2?'mars':null);
       if(TYG){ TYG.controls().autoRotate=false;
         TYG.pointOfView(pov || { ...TYG.pointOfView(), altitude:tyFitAlt() }, 1600); }
       tySfx(TY_SPACEV?'launch':'click','tap'); renderPage(); return;
