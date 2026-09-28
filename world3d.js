@@ -1024,7 +1024,9 @@ function buildSite(d){
 /* 建築的大小跟著鏡頭高度走：拉遠的時候放大，不然整座城只剩一個點；
    貼近的時候縮小，不然一棟樓會蓋掉整座城市。 */
 /* 近看要縮小:第一版最小 .55,貼近台灣時一座小城比新竹市還大,半個都站到海裡去了 */
-const bScale = () => clamp(.15 + W3D.alt * 2.2, .38, 5.5);
+/* 第二版:拉很近的時候模型跟著縮小(下限從 .38 降到 .16)。使用者截圖:貼近台北時台北、新竹、對手大本營、
+   地標、部隊全部疊在一起 —— 城市之間的距離在螢幕上會隨拉近變大,模型如果不縮,就永遠擠在一起。 */
+const bScale = () => clamp(.06 + W3D.alt * 2.2, .16, 5.5);
 function placeSite(obj, d){
   const a = (d._base || .0085) + elevAlt(d.lat, d.lng);        // 站在地形上(山上的城市不能埋進山裡)
   const c = G.getCoords(d.lat, d.lng, a);
@@ -1332,7 +1334,8 @@ W3D.sites = function(mine, rivals, troops){
   });
   TROOPS = tr;
   /* 地標:每一座城市都有。正中央空著就站中央,不然也去拿一個陸地上的空位。 */
-  const lms = (typeof TY_SITES !== 'undefined' ? TY_SITES : []).map(st => ({
+  /* 地標只畫在「沒有人的城市」:你或對手已經在那裡蓋了東西,地標就收進城市全景(連點兩下看得到),不要再多擠一棟 */
+  const lms = (typeof TY_SITES !== 'undefined' ? TY_SITES : []).filter(st => !center.has(st.id)).map(st => ({
     id: st.id, lat: st.lat, lng: st.lng, iso: st.iso, _lm: true, _k: 'lm:' + st.id, _base: .0008,
     _slot: center.has(st.id) ? take(st.id, st.lat, st.lng) : null }));
   G.customLayerData([...mine, ...rivals, ...tr, ...lms]);
@@ -1385,6 +1388,25 @@ function tagsOn(){
   if(TROOPS.length && !tagLoop){ tagLoop = true; requestAnimationFrame(tagStep); }
 }
 /* 城市名牌的位置(globe.gl 的 HTML 圖層)。量版面很貴,所以 250ms 才量一次 */
+/* 城市名牌互相讓位 —— 使用者截圖:台北、新竹、對手名字疊在一起,「台北的字很擠」。
+   地圖軟體的做法:名牌重疊時,比較不重要的那一個先藏起來(拉近、分開了自然又出現)。
+   重要度:你的城市(越值錢越前面)> 對手大本營 > 還沒進場的城市。每 300ms 量一次,只動 class,不動位置。 */
+setInterval(() => {
+  if(!W3D.ok || document.hidden) return;
+  const host = document.getElementById('tyGlobeHost'); if(!host) return;
+  const els = [...host.querySelectorAll('.tyk')];
+  if(!els.length) return;
+  const rank = e => e.classList.contains('idle') ? 0 : e.classList.contains('rv') ? 1e15 : 1e18 + (+e.dataset.v || 0);
+  els.sort((a, b) => rank(b) - rank(a));
+  const keep = [];
+  for(const e of els){
+    const r = (e.querySelector('.k-n') || e).getBoundingClientRect();      // 外框是 0×0 的定位點,量字那一塊
+    if(!(r.width > 0 && r.height > 0)){ e.classList.remove('cull'); continue; }
+    const hit = keep.some(k => r.left < k.right - 3 && r.right > k.left + 3 && r.top < k.bottom - 2 && r.bottom > k.top + 2);
+    if(e.classList.contains('cull') !== hit) e.classList.toggle('cull', hit);
+    if(!hit) keep.push(r);
+  }
+}, 300);
 let OBST = [], obstT = 0;
 function obstacles(){
   const now = performance.now();
@@ -1393,7 +1415,7 @@ function obstacles(){
   const host = document.getElementById('tyGlobeHost'); if(!host){ OBST = []; return OBST; }
   const hr = host.getBoundingClientRect();
   OBST = [];
-  for(const e of host.querySelectorAll('.tyk')){
+  for(const e of host.querySelectorAll('.tyk:not(.cull)')){
     const r = e.getBoundingClientRect();
     if(r.width > 0 && r.height > 0 && r.bottom > hr.top && r.top < hr.bottom) OBST.push([r.left - hr.left, r.top - hr.top, r.width, r.height]);
   }
