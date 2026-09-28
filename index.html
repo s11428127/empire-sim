@@ -4945,6 +4945,17 @@
   .tg-planet{ background:#050a12 }
   .tg-planet .cv-canvas{ cursor:grab }
 
+  /* ---- 月球 / 火星:嵌在地圖那一格 ---- */
+  .tg-pv{ position:absolute; inset:0; z-index:140; background:#03070d; touch-action:none }
+  .tg-pv .pv-canvas{ position:absolute; inset:0; width:100%; height:100%; cursor:grab }
+  .tg-pv .cv-tip{ position:absolute; left:0; top:0; padding:4px 8px; background:#fff8dc; color:#141821; border:3px solid #000;
+    box-shadow:0 3px 0 #000; font-size:13px; white-space:nowrap; pointer-events:none; font-family:'EmpirePixel',var(--sans) }
+  .tycon[data-world] #tyGlobeSlot,.tycon[data-world] .tg-lay{ visibility:hidden }
+  .tycon[data-world][data-modal] .tg-pv{ visibility:hidden }
+  .tg-world{ position:absolute; left:8px; top:8px; z-index:205; display:flex; flex-direction:column; gap:2px; max-width:min(70vw,520px);
+    padding:6px 10px; background:rgba(19,34,49,.9); border:2px solid #000; box-shadow:0 3px 0 #000; font-family:'EmpirePixel',var(--sans) }
+  .tg-world b{ font-weight:400; font-size:16px; color:#e8f1f8 } .tg-world span{ font-size:12px; color:#9db4c8 } .tg-world em{ font-style:normal; font-size:11px; color:#6b8299 }
+
   /* ---- 所有動作的回饋 ---- */
   .px-burst{ position:fixed; z-index:10002; pointer-events:none; width:5px; height:5px; background:var(--c); box-shadow:0 0 0 1px #141821;
     animation:pxBurst .6s steps(6) forwards }
@@ -10233,6 +10244,7 @@ function tyFitAlt(mult){
 function tyZoom(dir){
   if(!TYG) return;
   // 看月球 / 看火星的時候:拉近拉遠 = 靠近 / 遠離那顆星(可以放大到跟地球一樣大)
+  if(TY_PLANET && window.W3D && W3D.planetZoom){ W3D.planetZoom(dir); return; }
   if(TY_SPACEV && window.W3D && W3D.spaceZoom){ W3D.spaceZoom(dir); return; }
   try{
     /* 傾斜鏡頭之下 pointOfView() 讀到的是「往南挪過」的實際位置,
@@ -10403,52 +10415,61 @@ function tyOpenCity(id, at){
     <div class="cv-list">${Object.keys(TY_CITY_ZN).filter(k=>n(k)).map(k=>`<p><b>${TY_CITY_ZN[k]}</b> ${d.zones[k].map(x=>x.tag).join('、')}</p>`).join('')}</div>`;
   tySfx('build','land');
 }
-/* 月球 / 火星的獨立畫面(可以轉、可以放大縮小,之後要在上面蓋東西)。版面跟城市全景同一套。 */
-let TY_PLANET=null;
-function tyOpenPlanet(k, opt){
-  tyCloseCity(true); tyClosePlanet(true);
-  if(!TY) return;
-  TY_PLANET=k;
+function tyWorldBadge(){
   const sp=TY.space, st=sp?sp.mars.st:0, run=sp&&sp.mars.run?sp.mars.run.st:0;
-  const nm=k==='moon'?'🌙 月球':'🔴 火星';
-  const sub=k==='moon' ? '月球基地(外型;玩法之後討論)'
+  const nm=TY_PLANET==='moon'?'🌙 月球':'🔴 火星';
+  const sub=TY_PLANET==='moon' ? '月球基地(外型;玩法之後討論)'
     : st>=4 ? '火星殖民地 · 自給自足' : st>=3 ? '火星殖民地 · 首批登陸' : st>=2||run>=2 ? '無人補給已送達' : run ? `火星計畫第 ${run} 階段進行中` : '還沒有任何東西 —— 出「火星計畫」牌開始';
-  const el=document.createElement('div');
-  el.id='tyPlanet'; el.className='tg-city tg-planet'; el.setAttribute('role','dialog'); el.setAttribute('aria-label',nm);
-  el.innerHTML=`<div class="cv-top"><b>${nm}</b><span>${sub}</span>
-      <button type="button" class="cv-sw" data-pv="${k==='moon'?'mars':'moon'}">${k==='moon'?'🔴 火星':'🌙 月球'}</button>
-      <button type="button" class="cv-x" data-pv="close">← 回地球</button></div>
-    <div class="cv-host" id="tyPlanetHost"></div>
-    <div class="cv-leg"><em>拖曳轉動星球 · 滾輪 / 雙指縮放 · 點建築看是什麼 · Esc 回地球</em></div>`;
-  el.addEventListener('click', e=>{ const b=e.target.closest('[data-pv]'); if(!b) return;
-    if(b.dataset.pv==='close'){ if(window.W3D && W3D.planetBack && W3D.planetOn()) W3D.planetBack(); else tyClosePlanet(); } else tyOpenPlanet(b.dataset.pv); });
-  document.body.appendChild(el);
-  tyGlobeAwake(false);
-  const ok=!!(window.W3D && W3D.planetOpen && W3D.planetOpen(el.querySelector('#tyPlanetHost'), k, { mars:st, run, landing:!!(opt&&opt.landing) }));
-  if(!ok) el.querySelector('#tyPlanetHost').innerHTML='<div class="cv-zl z-empty" style="position:static;margin:24px auto">3D 畫面需要地球的繪圖程式庫 —— 現在連不到。</div>';
-  tySfx('launch','tap');
+  return `<div class="tg-world"><b>${nm}</b><span>${sub}</span><em>拖曳移動 · 滾輪 / 雙指縮放 · 點建築 · 連點兩下背景的地球飛回去</em></div>`;
 }
-function tyClosePlanet(quiet){
-  const el=document.getElementById('tyPlanet');
+/* 月球 / 火星:嵌在地圖那一格裡(頂欄、資源列、手牌都還在),操作跟地球一樣。
+   畫布掛在一個常駐的容器上,renderPage 重畫之後再搬回地圖裡(跟地球同一套作法),不會每次重建 WebGL。 */
+let TY_PLANET=null, TY_PV_HOST=null;
+function tyPlanetMount(){
+  if(TY_PLANET==null || !TY_PV_HOST) return;
+  const map=document.querySelector('.tg-map');
+  if(map && TY_PV_HOST.parentNode!==map) map.insertBefore(TY_PV_HOST, map.firstChild);
+}
+function tyOpenPlanet(k, opt){
+  opt=opt||{};
+  tyCloseCity(true);
+  if(!TY) return;
+  const sw = TY_PLANET!=null && TY_PLANET!==k;
   if(window.W3D && W3D.planetClose) W3D.planetClose();
-  if(el) el.remove();
+  TY_PLANET=k;
+  if(!TY_PV_HOST){ TY_PV_HOST=document.createElement('div'); TY_PV_HOST.id='tyPlanetHost'; TY_PV_HOST.className='tg-pv'; }
+  TY_PV_HOST.innerHTML='';
+  TY_MODAL=null; renderPage();                    // 地圖那一格換成星球(頂欄、手牌照舊)
+  tyPlanetMount();
+  tyGlobeAwake(false);
+  const sp=TY.space, st=sp?sp.mars.st:0, run=sp&&sp.mars.run?sp.mars.run.st:0;
+  const from = opt.from && opt.from.dir ? opt.from : null;
+  const ok=!!(window.W3D && W3D.planetOpen && W3D.planetOpen(TY_PV_HOST, k, { mars:st, run, landing:!!opt.landing, from }));
+  if(!ok) TY_PV_HOST.innerHTML='<div class="cv-zl z-empty" style="position:static;margin:24px auto">3D 畫面需要地球的繪圖程式庫 —— 現在連不到。</div>';
+  if(!from || sw) tySfx('launch','tap');
+}
+function tyClosePlanet(quiet, fromK){
+  if(window.W3D && W3D.planetClose) W3D.planetClose();
+  if(TY_PV_HOST) TY_PV_HOST.remove();
   if(TY_PLANET!=null){
-    TY_PLANET=null; tyGlobeAwake(true); if(!quiet) tySfx('click','tap');
-    /* 回地球:解除太空鏡頭鎖定,鏡頭從太空拉回你的大本營上空。
-       (第一版火星計畫之後 FOLLOW 還鎖在火星 —— 按回地球還是停在火星) */
+    const k=TY_PLANET;
+    TY_PLANET=null; if(!quiet) tySfx('click','tap');
+    /* 回地球:解除太空鏡頭鎖定;地球的鏡頭先擺在那顆星旁邊(剛剛的角度),再拉回大本營上空 */
     TY_SPACEV=0;
     if(window.W3D && W3D.spaceFollow) W3D.spaceFollow(null);
-    if(!quiet && TYG){ const h=tySite(TY.home); try{ TYG.pointOfView({ lat:h.lat, lng:h.lng, altitude:tyFitAlt() }, 1600); }catch(e){} }
+    renderPage();
+    tyGlobeAwake(true);
+    if(TYG && window.W3D && W3D.returnFrom) W3D.returnFrom(fromK||k, tySite(TY.home), tyFitAlt());
   }
 }
-addEventListener('keydown', e=>{ if(e.key==='Escape' && TY_PLANET!=null){ e.preventDefault(); tyClosePlanet(); } });
+addEventListener('keydown', e=>{ if(e.key==='Escape' && TY_PLANET!=null && !TY_MODAL){ e.preventDefault(); if(window.W3D && W3D.planetOn && W3D.planetOn()) W3D.planetBack(); else tyClosePlanet(); } });
 /* 地球畫面上連點兩下月球或火星 → 鏡頭飛過去、打開那顆星的畫面 */
 let TY_SPTAP={ k:null, t:0 };
 function tyGlobeSpaceTap(ev){
   if(!window.W3D || !W3D.pickSpace || TY_PLANET!=null) return;
   const k=W3D.pickSpace(ev.clientX, ev.clientY);
   const now=Date.now();
-  if(k && TY_SPTAP.k===k && now-TY_SPTAP.t<450){ TY_SPTAP={ k:null, t:0 }; W3D.flyToPlanet(k, ()=>tyOpenPlanet(k)); return; }
+  if(k && TY_SPTAP.k===k && now-TY_SPTAP.t<450){ TY_SPTAP={ k:null, t:0 }; W3D.flyToPlanet(k, h=>tyOpenPlanet(k, { from:h })); return; }
   TY_SPTAP={ k, t:k?now:0 };
 }
 function tyCloseCity(quiet){
@@ -11213,8 +11234,9 @@ function tySideBtns(){
       ${b('modal:log','📋','大事記')}
       ${b('modal:learn','🎓','怎麼玩')}
       ${b('sfx', window.SFX&&SFX.on?'🔊':'🔇', window.SFX&&SFX.on?'音效':'靜音')}
-      ${b('space:moon','🌙','月球')}
-      ${b('space:mars','🔴','火星')}
+      ${TY_PLANET?b('space:earth','🌍','地球'):''}
+      ${b('space:moon','🌙','月球', TY_PLANET==='moon'?'on':'')}
+      ${b('space:mars','🔴','火星', TY_PLANET==='mars'?'on':'')}
       ${b('zoomin','＋','拉近')}
       ${b('zoomout','－','拉遠')}
     </div>`;
@@ -11328,7 +11350,7 @@ function tycoonPage(){
   /* data-modal:面板蓋上來的時候要**整層**把地球收起來。
      globe.gl 的 HTML 標記自己算 z-index(會算到比面板高),
      光靠面板的背景色壓不住 —— 那就是使用者看到城市名穿透出來的原因。 */
-  return `<div id="tyRoot" class="tycon"${TY_MODAL?` data-modal="${escH(TY_MODAL)}"`:''}${TY_MODAL==='site'&&(TY_SEL||TY_ISO)?` data-sel="${escH(TY_SEL||TY_ISO)}"`:''}${tySideModal()?' data-side="1"':''}>
+  return `<div id="tyRoot" class="tycon"${TY_PLANET?` data-world="${TY_PLANET}"`:''}${TY_MODAL?` data-modal="${escH(TY_MODAL)}"`:''}${TY_MODAL==='site'&&(TY_SEL||TY_ISO)?` data-sel="${escH(TY_SEL||TY_ISO)}"`:''}${tySideModal()?' data-side="1"':''}>
     ${tyTopBar()}
     ${tyResBar()}
     <div class="tg-map">
@@ -11336,6 +11358,7 @@ function tycoonPage(){
                   <b>其他功能完全不受影響</b> —— 底下每一顆按鈕都還能按。</div>`
              : `<div id="tyGlobeSlot"></div><div class="tg-scrim"></div>`}
       ${tySideBtns()}
+      ${TY_PLANET?tyWorldBadge():''}
       <div class="tg-lay${TY_LAY_OPEN?' open':''}">
         <button type="button" class="tg-c${TY_LAYER==='mine'?' on':''}" data-ty="layer" data-k="mine">我的資產</button>
         <button type="button" class="tg-c${TY_LAYER==='econ'?' on':''}" data-ty="layer" data-k="econ">地區景氣</button>
@@ -11632,6 +11655,7 @@ function tyCardGo(k){
   if(!tyHasCard(k)){ TY_MSG=`🔒 <b>${c.nm}</b>還沒解鎖 —— 條件:${c.why}。`; renderPage(); return; }
   if(c.k==='vault'){ TY_MODAL='vault'; renderPage(); return; }
   if(c.tgt==='none'){ TY_PICK={ k }; TY_MODAL='pick'; renderPage(); return; }
+  if(TY_PLANET){ TY_MSG=`${TY_PLANET==='moon'?'🌙 月球':'🔴 火星'}上還不能出「${c.nm}」—— 這張牌要拖到地球的城市。太空專用的牌之後加(回地球:右邊的 🌍)。`; tySfx('deny','deny'); renderPage(); return; }
   if(!(window.W3D && W3D.ok)){ TY_PICK={ k, site:null }; TY_MODAL='pick'; renderPage(); return; }  // 沒有地球:改成清單選城市
   if(tySideModal() || TY_MODAL){ TY_MODAL=null; renderPage(); }
   W3D.aim({ from:tySite(TY.home), label:`${c.nm}:拖到 / 點一座城市`,
@@ -11902,7 +11926,7 @@ function bindTycoon(root){
   if(!el) return;
   // 地圖是底層,永遠在 —— 只要在這一頁就把地球掛進去
   // 面板蓋上來的時候地球是看不到的(見 .tycon[data-modal]),那就別再燒 60fps。
-  if(TY){ tyGlobeMount(); tyGlobeAwake(!TY_MODAL || tySideModal()); } else tyParkGlobe();
+  if(TY){ tyGlobeMount(); tyGlobeAwake(TY_PLANET==null && (!TY_MODAL || tySideModal())); tyPlanetMount(); } else tyParkGlobe();
   el.querySelectorAll('.hd-cards [data-card]').forEach(tyArmCard);
   // 市場下拉是 <select>,它發的是 change 不是 click
   el.querySelectorAll('select[data-mkt]').forEach(sel=>{
@@ -11993,7 +12017,13 @@ function bindTycoon(root){
     /* 太空:拉到最遠,鏡頭擺在月球(再按一次:火星)旁邊,地球跟它同框。第三次回到原本的高度。 */
     /* 太空:三顆各自一顆按鈕(第一版只有一顆循環鈕,顯示的是「下一步」,按了看到的不是字上寫的那一顆) */
     // 月球 / 火星:打開那顆星自己的畫面(可以轉、可以縮放)
-    if(a==='space:moon' || a==='space:mars'){ tyOpenPlanet(a.slice(6)); return; }
+    if(a==='space:moon' || a==='space:mars'){
+      const k=a.slice(6);
+      if(TY_PLANET===k) return;
+      if(TY_PLANET==null && window.W3D && W3D.flyToPlanet && W3D.ok){ W3D.flyToPlanet(k, h=>tyOpenPlanet(k, { from:h })); return; }   // 從地球飛過去,不是直接切
+      tyOpenPlanet(k); return;
+    }
+    if(a==='space:earth'){ if(window.W3D && W3D.planetOn && W3D.planetOn()) W3D.planetBack(); else tyClosePlanet(); return; }
     if(a.startsWith('space:')){
       TY_SPACEV={ moon:1, mars:2 }[a.slice(6)] || 0;
       const pov=TY_SPACEV && window.W3D && W3D.spacePov ? W3D.spacePov(TY_SPACEV===1?'moon':'mars') : null;

@@ -2284,16 +2284,20 @@ test('帝國第十七輪:月球 / 火星有自己的畫面(開得了、關得掉
     tyStart('tester', 7); TY_MODAL = null; renderPage();
     const out = {};
     document.querySelector('[data-ty="space:mars"]').click();
-    out.mars = !!document.getElementById('tyPlanet') && TY_PLANET === 'mars';
-    document.querySelector('#tyPlanet [data-pv="moon"]').click();
-    out.moon = TY_PLANET === 'moon' && document.querySelectorAll('#tyPlanet').length === 1;
+    out.mars = TY_PLANET === 'mars' && !!document.querySelector('.tg-map #tyPlanetHost') && !!document.querySelector('#tyRoot[data-world="mars"]');
+    out.hand = !!document.querySelector('.hd-cards');           // 手牌、頂欄還在(嵌在地圖那一格,不是蓋上來的畫面)
+    document.querySelector('[data-ty="space:moon"]').click();
+    out.moon = TY_PLANET === 'moon' && document.querySelectorAll('#tyPlanetHost').length === 1;
+    out.earthBtn = !!document.querySelector('[data-ty="space:earth"]');
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
-    out.closed = !document.getElementById('tyPlanet') && TY_PLANET === null;
+    out.closed = !document.getElementById('tyPlanetHost') && TY_PLANET === null && !document.querySelector('#tyRoot[data-world]');
     out.icons = ['🌙', '🔴'].every(k => !!PX.ICON[k]);
     return out;
   });
   ok(r.mars, '火星鈕打開火星畫面');
-  ok(r.moon, '畫面裡可以切到月球');
+  ok(r.moon, '可以切到月球');
+  ok(r.hand, '手牌還在(星球嵌在地圖那一格)');
+  ok(r.earthBtn, '在星球上時側邊有「地球」鈕');
   ok(r.closed, 'Esc 回地球');
   ok(r.icons, '月球 / 火星有像素圖示');
   ok(page.__errors.length === 0, `有 JS 錯誤:\n      ${page.__errors.join('\n      ')}`);
