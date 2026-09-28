@@ -2164,6 +2164,55 @@ test('帝國第十三輪:星鏈(網路費、現金流加成、退役)、火星�
   await page.__ctx.close();
 });
 
+test('帝國第十四輪:航母戰鬥群只能停港口、走海路,有航運加成與海權效果', async (browser) => {
+  const page = await freshPage(browser, { seed: SEED, hash: '#/tycoon' });
+  const r = await page.evaluate(() => {
+    tyStart('heir', 7); TY.cash = 900e8; TY_MODAL = null; renderPage();
+    const out = {};
+    out.def = !!TY_UNITS.navy && TY_UNITS.navy.port === true && !!PX.SPR.navy && !!PX.ICON[TY_UNITS.navy.ic];
+    out.inland = tyRecruitTo('navy', 'las');
+    out.nInland = tyUnits().length;
+    out.port = tyRecruitTo('navy', 'nyc');
+    const u = tyUnits().find(x => x.k === 'navy');
+    out.goingNyc = !!u && u.to === 'nyc';
+    // 內陸城市:調不過去
+    out.deployChi = tyBlock('deploy', { u, site: 'chi' });
+    // 大本營不靠海:在家招募不了
+    const home0 = TY.home; TY.home = 'zur'; out.homeBlock = tyBlock('recruit', 'navy'); TY.home = home0;
+    // 抵達之後:地圖上是另一個標記(停在海上)
+    u.site = 'nyc'; u.to = null;
+    const marks = tyTroopMarks();
+    out.navMark = marks.some(m => m._navy && m._k === 'nv:nyc');
+    // 海權:那個地區勢力最大的對手每季 −2
+    const reg = tySite('nyc').reg;
+    const rv = tyRivalsA()[0]; rv.turf = rv.turf || {}; rv.turf[reg] = 40; rv.pact = 0;
+    for (const x of tyRivalsA()) if (x !== rv && x.turf) x.turf[reg] = 0;
+    tyUnitsTurn(); out.turf = rv.turf[reg];
+    // 航運:同一個存檔有 / 沒有航母,紐約那家銀行的現金流
+    tyFound('bank', 'nyc');
+    const snap = JSON.stringify(TY);
+    tyNext(); const a = TY.biz.find(b => b.k === 'bank' && b.site === 'nyc').cf;
+    TY = JSON.parse(snap); TY.units = TY.units.filter(x => x.k !== 'navy');
+    tyNext(); const b = TY.biz.find(b => b.k === 'bank' && b.site === 'nyc').cf;
+    out.ship = [a, b];
+    // 對手:勢力夠大、駐在港口 → 也有航母
+    out.rvNavy = tyRivalForces().filter(f => tyIsPort(f.site) && f.units.length >= 3).every(f => f.units.some(x => x.k === 'navy'))
+              && tyRivalForces().filter(f => !tyIsPort(f.site)).every(f => !f.units.some(x => x.k === 'navy'));
+    return out;
+  });
+  ok(r.def, '航母兵種、像素圖、圖示都要有');
+  ok(/港口/.test(r.inland) && r.nInland === 0, `內陸城市招不了航母:${r.inland}`);
+  ok(r.goingNyc, `港口城市招得到,下一季到:${r.port}`);
+  ok(/港口|靠海/.test(r.deployChi || ''), `航母調不去內陸:${r.deployChi}`);
+  ok(/港口|靠海/.test(r.homeBlock || ''), `大本營不靠海不能在家招航母:${r.homeBlock}`);
+  ok(r.navMark, '海軍是獨立的標記(畫在海上)');
+  near(r.turf, 38, 1e-9, '海權:最強對手勢力 −2');
+  ok(r.ship[0] > r.ship[1] && r.ship[1] > 0, `航運:有航母的地區現金流比較高 ${r.ship}`);
+  ok(r.rvNavy, '對手只在港口、勢力夠大時有航母');
+  ok(page.__errors.length === 0, `有 JS 錯誤:\n      ${page.__errors.join('\n      ')}`);
+  await page.__ctx.close();
+});
+
 /* =========================================================================
    跑
    ========================================================================= */

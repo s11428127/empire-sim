@@ -474,6 +474,11 @@ SPR.fx = classic('v', 'y', 3);
 SPR.bankc = classic('e', 'y', 5);
 SPR.casino = classic('p', 'y', 5);
 /* 太空計畫(第十三輪):火箭(站著,發射動畫與火星牌用)、衛星(星鏈牌的卡面) */
+/* 航空母艦(側面):艦島、甲板上的戰機、紅色水線 —— 招募面板與卡面用 */
+SPR.navy = S([
+  '............k...........', '...........kgk..........', '..........kkgkk.........', '..kk.....kgcgck....kk...',
+  'kkkkkkkkkkkkkkkkkkkkkkkkk', 'kGGGGGGGGGGGGGGGGGGGGGGGk', '.kGGGgGGGGGgGGGGGgGGGGGk.', '..kRRRRRRRRRRRRRRRRRRRk..',
+  '...kkkkkkkkkkkkkkkkkkk...']);
 SPR.rocket = S([
   '....k....', '...kwk...', '...kwk...', '..kwwwk..', '..kwcwk..', '..kwwwk..', '..kwwwk..',
   '..kgwgk..', '..kwwwk..', '..kwwwk..', '..kwrwk..', '..kwrwk..', '..kwwwk..', '.kkwwwkk.',

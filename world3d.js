@@ -748,6 +748,46 @@ function voxCity(B, parts, ground){
   };
   place(rows[0], -D/2 + 1, D0);
   if(rows[1].length) place(rows[1], -D/2 + 1 + D0 + gap, D1);
+  return { W, D };
+}
+/* 城市的配套 —— 使用者:「參考世界征服者 4 的城市,還有港口、工廠等等」。
+   你的小城旁邊依那座城的條件長出配套(規則面由 index.html 算好,放在 d._feat):
+     港口  港口城市:碼頭、貨櫃堆、龍門吊(南邊,朝海的那一側)
+     工廠  有能源 / 基建 / 建設 / 科技公司:鋸齒屋頂廠房 + 紅白煙囪(東邊)
+     機場  城市等級 6 以上:跑道 + 塔台 + 一架停著的客機(西邊)
+   W、D = 小城地基的寬與深(體素),配套貼在它外側。 */
+function cityExtras(B, W, D, f){
+  if(!f) return;
+  if(f.factory){
+    const x0 = W / 2 + 1;
+    vbox(B, x0, -4, 0, 10, 8, 1, [150,150,140]);
+    vbox(B, x0 + .5, -3, 1, 9, 6, 3.4, [176,160,140]);
+    for(let i = 0; i < 3; i++){ vbox(B, x0 + .5 + i * 3, -3, 4.4, 3, 6, .9, [120,110,100]); vbox(B, x0 + 2.6 + i * 3, -3, 4.4, .4, 6, 1.8, [127,190,220]); }
+    for(const [x, y] of [[x0 + 7.5, 2], [x0 + 5.5, 2.2]]){
+      for(let z = 1; z < 11; z += 2) vbox(B, x, y, z, 1.4, 1.4, 1, z % 4 === 1 ? [229,72,77] : [238,242,247]);
+      vbox(B, x - .3, y - .3, 11, 2, 2, 1.2, [200,200,205]); vbox(B, x - .8, y - .6, 12.2, 2.6, 2.4, 1.6, [215,215,220]);   // 冒出來的煙
+    }
+  }
+  if(f.port){
+    const y0 = -D / 2 - 7;
+    vbox(B, -W / 2 - 2, y0, 0, W + 4, 6.5, 1, [168,172,180]);             // 碼頭
+    for(let x = -W / 2 - 2; x < W / 2 + 2; x += 3) vbox(B, x, y0 - .6, 0, .6, .6, 1, [90,70,50]);   // 繫纜樁
+    const cols = [[229,72,77], [58,123,213], [70,196,106], [245,159,58], [255,216,74]];
+    for(let i = 0; i < 6; i++) vbox(B, -W / 2 + 1 + (i % 3) * 2.6, y0 + 3 + Math.floor(i / 3) * 1.4, 1, 2.4, 1.2, 1.2 + (i % 2), cols[i % 5]);
+    const cx = W / 2 - 3;                                                  // 龍門吊
+    vbox(B, cx, y0 + 1, 1, .7, .7, 9, [255,216,74]); vbox(B, cx, y0 + 5, 1, .7, .7, 9, [255,216,74]);
+    vbox(B, cx - .2, y0 - 4, 10, 1.1, 10, 1, [255,216,74]); vbox(B, cx - .4, y0 + 3.5, 10.5, 1.5, 2, 1.5, [60,64,74]);
+    vbox(B, cx + .1, y0 - 2.5, 6, .3, .3, 4, [60,64,74]);
+  }
+  if(f.airport){
+    const x1 = -W / 2 - 2;
+    vbox(B, x1 - 5, -9, 0, 5, 18, .5, [70,74,84]);                        // 跑道
+    for(let y = -8; y < 9; y += 3) vbox(B, x1 - 2.7, y, .5, .6, 1.6, .05, [238,242,247]);
+    vbox(B, x1 - 7.5, 4, 0, 2, 2, 7, [217,221,230]); vbox(B, x1 - 7.9, 3.6, 7, 2.8, 2.8, 1.4, [127,216,255]);   // 塔台
+    // 停在跑道頭的客機:機身、主翼、尾翼
+    vbox(B, x1 - 3.1, -7, .6, .9, 6, .9, [238,242,247]); vbox(B, x1 - 5, -4.8, .9, 4.8, 1.2, .3, [200,205,215]);
+    vbox(B, x1 - 3.9, -7, .9, 2.5, .7, .3, [200,205,215]); vbox(B, x1 - 2.8, -7, 1.5, .3, .8, 1.4, [47,143,224]);
+  }
 }
 function voxRoot(d, key, make, flags){
   const root = new T.O3();
@@ -798,15 +838,155 @@ function buildLandmark(d){
   const k = L[0], sp = (PX.LMS[k] || PX.LMS.skyline);
   return voxRoot(d, 'lm:' + k, B => voxCity(B, [{ sp, dep: Math.max(4, Math.min(sp.w, 10)) }], '#9aa5b8'), { lm: true });
 }
+/* =============================================================================
+   軍隊模型 —— 使用者:「軍隊這樣很醜,我想要長得像那幾張圖(Conflict of Nations 那種)」
+   -----------------------------------------------------------------------------
+   第一版是把 2D 像素圖擠出厚度、底下墊一塊藍色地基 —— 像一張立牌,不像一台戰車。
+   這一版每一種兵都是**真的 3D 模型**(一塊一塊長方體拼的,還是方方的像素手感):
+     坦克    履帶、車身、砲塔、長砲管、天線上一面小旗
+     步兵    三個兵:鋼盔、背包、步槍
+     火炮    自走砲:大砲塔 + 往上翹的長砲管(一格一格的階梯)
+     補給    軍卡:駕駛艙、擋風玻璃、帆布車斗、六個輪子
+     驅逐艦  船身、艦橋、桅杆、前主砲、紅色水線
+     航空母艦 長甲板(白邊、黃中線)、右舷艦島、甲板上停著戰機
+   塗裝照參考圖:你的部隊是沙漠色、對手是灰綠色;隊伍顏色只出現在旗子與砲塔上的一條識別帶。
+   每一支部隊一台,排成小隊形(不再是一坨擠在同一塊底座上),底下有一片半透明的影子。
+   座標:x = 車頭方向、y = 左、z = 上,一格 = 一個體素;跟移動動畫的 orient() 同一套。
+   ============================================================================= */
+const MIL_SCHEME = {
+  me:  { body: [206,182,124], dark: [150,130,86], light: [226,206,152], track: [58,56,50], canvas: [170,156,108] },
+  foe: { body: [118,128,110], dark: [80,88,76],   light: [146,156,136], track: [46,48,44], canvas: [98,110,88] },
+};
+const SHIP = { hull: [120,128,140], deck: [150,158,170], dark: [84,90,100], red: [150,44,40], fdeck: [74,80,90] };
+const GUN = [40,42,44], SKIN = [230,190,150], GLASS = [127,216,255], WHITE = [238,242,247], YEL = [255,216,74];
+function milFlag(B, x, y, z, acc){ vbox(B, x, y, z, .25, .25, 3.4, GUN); vbox(B, x + .25, y, z + 2.2, 2.2, .15, 1.3, acc); }
+/* 每一種兵的長寬高(體素),排隊形與算佔地用 */
+const MIL_DIM = { tank: [15, 7, 6], inf: [6, 6, 5], arty: [16, 7, 8], truck: [12, 5, 4], destroyer: [19, 5, 7], carrier: [33, 9, 10] };
+const MIL_OF = { raid: 'tank', law: 'inf', lobby: 'arty', mgr: 'truck', navy: 'carrier', ship: 'destroyer' };
+function milBuild(B, kind, side, acc){
+  const C = MIL_SCHEME[side] || MIL_SCHEME.me;
+  if(kind === 'tank'){
+    vbox(B, -5.6, -3.4, 0, 11.2, 1.7, 1.9, C.track); vbox(B, -5.6, 1.7, 0, 11.2, 1.7, 1.9, C.track);
+    for(let i = 0; i < 5; i++){ vbox(B, -4.4 + i * 2.2, -3.5, .3, 1.2, .1, 1.2, [90,88,80]); vbox(B, -4.4 + i * 2.2, 3.4, .3, 1.2, .1, 1.2, [90,88,80]); }
+    vbox(B, -5.2, -2.9, 1.2, 10.2, 5.8, 1.5, C.body);
+    vbox(B, 4.4, -2.6, 1.2, 1.4, 5.2, 1, C.dark);                       // 前裝甲斜板
+    vbox(B, -2.8, -2.1, 2.7, 5.2, 4.2, 1.7, C.light);                    // 砲塔
+    vbox(B, -2.8, -2.15, 3.5, 5.2, .1, .4, acc);                         // 識別帶
+    vbox(B, -1.9, .4, 4.4, 1.3, 1.3, .4, C.dark);                        // 艙蓋
+    vbox(B, 2.3, -.4, 3.2, 7, .8, .8, GUN); vbox(B, 9, -.55, 3.05, 1, 1.1, 1.1, GUN);   // 砲管 + 砲口
+    milFlag(B, -2.4, 1.6, 4.4, acc);
+  }else if(kind === 'inf'){
+    const man = (ox, oy) => {
+      vbox(B, ox - .35, oy - .55, 0, .7, .45, 1.5, C.dark); vbox(B, ox - .35, oy + .1, 0, .7, .45, 1.5, C.dark);
+      vbox(B, ox - .55, oy - .65, 1.5, 1.1, 1.3, 1.6, C.body);
+      vbox(B, ox - 1.05, oy - .45, 1.7, .5, .9, 1.2, C.dark);            // 背包
+      vbox(B, ox - .35, oy - .35, 3.1, .7, .7, .7, SKIN);
+      vbox(B, ox - .5, oy - .5, 3.6, 1, 1, .5, C.dark);                   // 鋼盔
+      vbox(B, ox + .2, oy - .95, 2.1, 2.2, .3, .3, GUN);                   // 步槍
+    };
+    man(1.6, 0); man(-1.2, 2); man(-1.2, -2);
+    milFlag(B, -2.6, 0, 0, acc);
+  }else if(kind === 'arty'){
+    vbox(B, -6, -3.4, 0, 12, 1.7, 1.9, C.track); vbox(B, -6, 1.7, 0, 12, 1.7, 1.9, C.track);
+    vbox(B, -5.6, -2.9, 1.2, 11, 5.8, 1.4, C.body);
+    vbox(B, -5, -2.5, 2.6, 6.2, 5, 2.4, C.light);                        // 大砲塔(在後段)
+    vbox(B, -5, -2.55, 3.8, 6.2, .1, .5, acc);
+    for(let i = 0; i < 7; i++) vbox(B, 1 + i * 1.25, -.45, 3.6 + i * .62, 1.45, .9, .9, GUN);   // 往上翹的長砲管
+    vbox(B, -6.4, -2, .6, .8, 4, .5, C.dark);                            // 駐鋤
+    milFlag(B, -4.4, 1.8, 5, acc);
+  }else if(kind === 'truck'){
+    for(const x of [-3.8, -1.8, 3.6]) for(const y of [-2.7, 2.1]) vbox(B, x, y, 0, 1.5, .6, 1.5, C.track);
+    vbox(B, -5, -2.2, .8, 11, 4.4, .6, C.dark);                          // 底盤
+    vbox(B, 3, -2.2, 1.4, 2.8, 4.4, 2.4, C.body);                        // 駕駛艙
+    vbox(B, 5.75, -1.8, 2.4, .12, 3.6, 1, GLASS);
+    vbox(B, -5, -2.3, 1.4, 7.6, 4.6, 2.8, C.canvas);                     // 帆布車斗
+    for(let x = -4.4; x < 2.5; x += 1.8) vbox(B, x, -2.35, 1.4, .3, 4.7, 2.9, C.dark);   // 帆布的肋條
+    vbox(B, -5, -2.4, 3.2, 7.6, .1, .5, acc);
+    milFlag(B, 3.2, 1.6, 3.8, acc);
+  }else if(kind === 'destroyer'){
+    vbox(B, -8.5, -2.1, 0, 14, 4.2, .5, SHIP.red);                       // 水線
+    vbox(B, -8.5, -2, .5, 14, 4, 1.4, SHIP.hull);
+    vbox(B, 5.5, -1.5, 0, 2, 3, 1.9, SHIP.hull); vbox(B, 7.5, -.8, .2, 1.7, 1.6, 1.7, SHIP.hull);   // 船頭收窄
+    vbox(B, -8.5, -1.9, 1.9, 16.6, 3.8, .15, SHIP.deck);
+    vbox(B, -3.5, -1.4, 2, 4.6, 2.8, 2, SHIP.deck); vbox(B, 0, -1.1, 2, 1.8, 2.2, 3.2, WHITE);     // 艦橋
+    vbox(B, .2, -1.15, 4.4, 1.4, 2.3, .4, GLASS);
+    vbox(B, -2.2, -.15, 4, .3, .3, 3.4, GUN); vbox(B, -2.9, -.9, 6.4, 1.6, 1.8, .15, GUN);         // 桅杆 + 雷達
+    vbox(B, 3.6, -.7, 2, 1.5, 1.4, .9, SHIP.dark); vbox(B, 5.1, -.15, 2.3, 2.4, .3, .3, GUN);     // 前主砲
+    vbox(B, -8, -1.6, 2.05, 3, 3.2, .05, [200,200,200]);                  // 直升機甲板
+    vbox(B, -2.25, -.1, 7.4, .2, 1.8, 1.1, acc);                          // 艦旗
+  }else if(kind === 'carrier'){
+    vbox(B, -15, -3.4, 0, 27, 6.8, .6, SHIP.red);
+    vbox(B, -15, -3.3, .6, 27, 6.6, 2, SHIP.hull);
+    vbox(B, 12, -2.4, .1, 3, 4.8, 2.5, SHIP.hull);
+    vbox(B, -16, -4.4, 2.6, 32, 8.8, .35, SHIP.fdeck);                   // 飛行甲板
+    vbox(B, -16, -4.35, 2.96, 32, .2, .04, WHITE); vbox(B, -16, 4.15, 2.96, 32, .2, .04, WHITE);
+    for(let x = -14; x < 15; x += 2.6) vbox(B, x, -.1, 2.96, 1.4, .2, .04, YEL);                 // 中線
+    vbox(B, -1, -4.6, 2.95, 4.2, 1.8, 4, SHIP.deck); vbox(B, -.8, -4.65, 5.7, 3.8, 1.9, .6, GLASS);   // 右舷艦島
+    vbox(B, .6, -3.9, 6.95, .35, .35, 2.6, GUN); vbox(B, 0, -4.6, 8.6, 1.6, 1.6, .15, GUN);
+    vbox(B, .9, -3.85, 8.4, .2, 1.6, 1, acc);
+    const jet = (x, y) => {
+      vbox(B, x - 1.7, y - .35, 3, 3.4, .7, .5, [150,160,172]);
+      vbox(B, x - .5, y - 1.7, 3.1, 1.3, 3.4, .15, [128,138,150]);
+      vbox(B, x - 1.7, y - .9, 3.1, .6, 1.8, .15, [128,138,150]);
+      vbox(B, x - 1.7, y - .08, 3.5, .7, .16, .9, [110,120,130]);
+      vbox(B, x + 1.3, y - .25, 3.35, .6, .5, .25, GLASS);
+    };
+    jet(-11, 2.2); jet(-6.5, 2.2); jet(-2, 2.2); jet(6, 1.8); jet(10, -1.8);
+  }
+}
+/* 一台模型的幾何(同一種兵 + 同一個陣營 + 同一個識別色只算一次) */
+function milGeo(kind, side, acc){
+  const a = acc || [47,143,224];
+  return voxGeo('mil:' + kind + ':' + side + ':' + a.join(','), B => milBuild(B, kind, side, a));
+}
+let SHADOW_MAT = null, SHADOW_GEO = null;
+function milShadow(len, wid){
+  if(!SHADOW_MAT){
+    SHADOW_MAT = new T.Phong({ color: 0x000000, transparent: true, opacity: .28, depthWrite: false });
+    const B = VB(); vquad(B, [-.5,-.5,0], [.5,-.5,0], [.5,.5,0], [-.5,.5,0], [0,0,1], [0,0,0], 1); SHADOW_GEO = vgeo(B);
+  }
+  const m = new T.Mesh(SHADOW_GEO, SHADOW_MAT);
+  m.scale.set(len * 1.05, wid * 1.15, 1); m.position.set(.8, -.8, .05);
+  return m;
+}
+/* 部隊:每一支一台,排成小隊形。海軍另外站在海上(見 applyScale 的 navy) */
 function buildTroop(d){
   const enemy = d._threat || d._rvf;
-  const tint = enemy ? `rgb(${rvRGB(d._r.id)})` : TEAM;
-  // 模型最多兩種兵(不同兵種優先),其餘看標籤上的 ×N —— 三台並排太寬,旁邊的城市就擠不下
-  const kinds = d._threat ? [d._sea ? 'ship' : 'raid'] : d._sea ? ['ship'] : [...new Set(d._units.map(u => u.k))].slice(0, 2);
-  const key = 'tr:' + tint + ':' + kinds.join(',');
-  return voxRoot(d, key, B => voxCity(B, [...kinds.map(k => ({ sp: PX.SPR[k] || PX.SPR.raid, tint, dep: 7 })),
-                                          { sp: PX.SPR.flag, tint, dep: 1 }], tint), { troop: true });
+  const side = enemy ? 'foe' : 'me';
+  const acc = enemy ? rvRGB(d._r.id).split(',').map(Number) : hexRGB(TEAM);
+  let kinds;
+  if(d._threat) kinds = [d._sea ? 'destroyer' : 'tank'];
+  else if(d._navy){ kinds = ['carrier']; if(d._units.length > 1) kinds.push('destroyer'); }
+  else if(d._sea) kinds = ['destroyer'];
+  else kinds = d._units.slice(0, 4).map(u => MIL_OF[u.k] || 'tank');
+  const root = new T.O3();
+  root.userData.site = d; root.userData.troop = true; root.userData.mil = true; root.userData.navy = !!d._navy;
+  if(!hasPX()) return root;
+  const grp = new T.O3();
+  /* 隊形:兩兩一排,往東南斜斜地排(鏡頭從南邊看,側面看得到);船一前一後 */
+  let maxX = 0, maxY = 0;
+  kinds.forEach((k, i) => {
+    const dim = MIL_DIM[k] || MIL_DIM.tank;
+    const m = new T.Mesh(milGeo(k, side, acc), vmat());
+    const col = i % 2, row = Math.floor(i / 2);
+    const x = d._navy ? (i ? -dim[0] * .9 : 0) : (col ? -dim[0] * .35 : dim[0] * .35) - row * 4;
+    const y = d._navy ? (i ? -9 : 0) : (col ? -4.5 : 4.5) - row * 9;
+    m.position.set(x, y, 0);
+    m.rotation.z = d._navy ? .15 : -.35;
+    if(!d._navy && !d._sea) m.add(milShadow(dim[0], dim[1]));
+    grp.add(m);
+    maxX = Math.max(maxX, Math.abs(x) + dim[0] / 2); maxY = Math.max(maxY, Math.abs(y) + dim[1] / 2);
+  });
+  const K = d._navy || d._sea ? .8 : 1.25;          // 參考圖裡的部隊很顯眼:比第一版的立牌大
+  grp.scale.setScalar(PXU * K);
+  root.add(grp);
+  root.userData.vox = grp;
+  root.userData.rx = Math.max(maxX, maxY) * K;
+  root.userData.key = 'mil:' + side + ':' + kinds.join(',');
+  OBJS.add(root);
+  return root;
 }
+W3D._milKinds = () => [...OBJS].filter(o => o.userData.mil).map(o => o.userData.key);
 
 /* 一個據點（或一個對手大本營）的整座小城 */
 function buildSite(d){
@@ -821,8 +1001,10 @@ function buildSite(d){
   }else{
     const blds = (d._blds || []);
     const ground = (d._col && d._col[0] === '#') ? d._col : '#4fc3f7';
-    key = `me:${ground}:${blds.map(b => b.c + (b.k || '') + b.f + (b.st || '') + (b.h != null ? '@' + b.h : '')).join(',')}`;
-    make = B => voxCity(B, blds.map(b => ({ sp: bldSprite(b) })), ground);
+    const f = d._feat || null;
+    key = `me:${ground}:${blds.map(b => b.c + (b.k || '') + b.f + (b.st || '') + (b.h != null ? '@' + b.h : '')).join(',')}`
+        + (f ? `:${f.port ? 'P' : ''}${f.factory ? 'F' : ''}${f.airport ? 'A' : ''}` : '');
+    make = B => { const r = voxCity(B, blds.map(b => ({ sp: bldSprite(b) })), ground); cityExtras(B, r.W, r.D, f); };
   }
   const root = voxRoot(d, key, make);
   /* 這個據點的樣子跟上一次不一樣（新蓋的、長高的）→ 播一次「從地上長出來」 */
@@ -860,7 +1042,7 @@ function placeSite(obj, d){
      看不到正面的窗戶、招牌與兵種 —— 像很多 2.5D 地圖遊戲那樣,把模型「立」起來給你看。 */
   /* ⚠ 往**北**仰(頂端離開鏡頭):正面(朝南)才會轉向天空、朝著上方的鏡頭。
      第一版往南傾,正面反而轉去對著地面,從上面看只剩屋頂。 */
-  const LEAN = obj.userData.vox ? .8 : 0, cl = Math.cos(LEAN), sl = Math.sin(LEAN);
+  const LEAN = obj.userData.mil ? .45 : obj.userData.vox ? .8 : 0, cl = Math.cos(LEAN), sl = Math.sin(LEAN);   // 真 3D 的軍隊只要仰一點
   const ux = nx*cl + qx*sl, uy = ny*cl + qy*sl, uz = nz*cl + qz*sl;     // 新的上 = 往北仰
   const vx = qx*cl - nx*sl, vy = qy*cl - ny*sl, vz = qz*cl - nz*sl;     // 新的北
   M.set(ex, vx, ux, 0,  ey, vy, uy, 0,  ez, vz, uz, 0,  0, 0, 0, 1);
@@ -903,7 +1085,7 @@ function applyScale(obj, now){
        第一版用固定的 1.6 倍,體素模型變大之後部隊就疊在建築與彼此身上(使用者:「部隊會重疊在一起」)。 */
     const S = at.slot, oR = obj.userData.rdeg || .8 * bScale(), cR = CENTER_R[S.id] || oR;
     const D = Math.max(.05, (cR + oR) * 1.1);
-    const L = slotDirs(S.id, S.lat, S.lng, D);
+    const L = obj.userData.navy ? seaDirs(S.id, S.lat, S.lng, D) : slotDirs(S.id, S.lat, S.lng, D);
     const [ang, f] = L[S.n % L.length], ring = Math.floor(S.n / L.length);
     const r = D * f * (1 + ring * .8), k = 1 / Math.max(.2, Math.cos(S.lat * Math.PI / 180));
     const c = G.getCoords(S.lat + Math.sin(ang) * r, S.lng + Math.cos(ang) * r * k, at.base);
@@ -1100,6 +1282,26 @@ function slotDirs(id, lat, lng, D){
   for(const a of DIRS.slice(0, 8)) if(!out.some(o => angGap(o[0], a) < 1.0)) out.push([a, .28]);
   return (SLOT_C[key] = out);
 }
+/* 海軍的位子:跟 slotDirs 反過來,要**海上**(那個距離與再遠一點都是海)。港口城市一定找得到;
+   真的找不到(內陸)就退回城市旁邊。 */
+const SEA_C = Object.create(null);
+function seaDirs(id, lat, lng, D){
+  const b = Math.round(Math.log2(Math.max(.01, D)) * 3);
+  const key = id + ':' + b + (W3D.hiFeats ? 'h' : '');
+  if(SEA_C[key]) return SEA_C[key];
+  const Dq = Math.pow(2, b / 3), k = 1 / Math.max(.2, Math.cos(lat * Math.PI / 180));
+  const sea = (a, r) => !W3D.featAt(lat + Math.sin(a) * r, lng + Math.cos(a) * r * k);
+  const out = [];
+  for(const f of [1, 1.4, 1.9, 2.6])
+    for(const a of DIRS){
+      if(!sea(a, Dq * f) || !sea(a, Dq * f * 1.3)) continue;
+      if(out.some(o => angGap(o[0], a) < 1.0)) continue;
+      out.push([a, f]);
+    }
+  if(!out.length) out.push([DIRS[0], 1]);
+  return (SEA_C[key] = out);
+}
+W3D._seaSlot = (id, lat, lng, D) => seaDirs(id, lat, lng, D);
 W3D._objs = () => [...OBJS];     // 給截圖驗證用
 W3D._slot = (id, lat, lng, D) => slotDirs(id, lat, lng, D);   // 給測試用
 
@@ -1123,7 +1325,8 @@ W3D.sites = function(mine, rivals, troops){
     delete o._arc;
     if(d._threat){ o._slot = null; o._sea = !W3D.featAt(d.lat, d.lng); return o; }
     const st = siteOf(d);
-    if(st){ o._slot = take(st.id, st.lat, st.lng); o._sea = false; }   // 駐紮 / 下季到位:城市旁邊的陸地上
+    if(st && d._navy){ o._slot = take(st.id + ':sea', st.lat, st.lng); o._slot.id = st.id; o._sea = false; }   // 海軍:港外的海上
+    else if(st){ o._slot = take(st.id, st.lat, st.lng); o._sea = false; }   // 駐紮 / 下季到位:城市旁邊的陸地上
     else o._sea = !W3D.featAt(d.lat, d.lng);
     return o;
   });
@@ -1146,6 +1349,8 @@ W3D.sites = function(mine, rivals, troops){
    所以標籤不能掛在 globe.gl 的 HTML 層(那一層只吃經緯度)—— 這裡每一幀
    直接把棋子的 3D 位置投影到螢幕上。沒有部隊的時候這個迴圈不跑。 */
 let TROOPS = [], TAGS = null, tagLoop = false;
+/* 標籤前面一面像素國旗(參考圖裡每一台車旁邊都有):你的是大本營所在國、對手的是他大本營所在國 */
+const tagFlag = site => { try{ const s = tySite(site); return s && PX.flagHTML ? PX.flagHTML(s.iso) : ''; }catch(e){ return ''; } };
 function tagsOn(){
   const host = document.getElementById('tyGlobeHost');
   if(!host) return;
@@ -1158,7 +1363,7 @@ function tagsOn(){
     if(d._rvf){
       // 對手的駐軍:他的顏色、他的頭像 + 兵種;點下去開那位對手的卡
       el.style.setProperty('--rc', `rgb(${(typeof TY_RVCOL !== 'undefined' && TY_RVCOL[d._r.id]) || '255,69,58'})`);
-      el.innerHTML = `${d._r.ic || '⚔'}${d._units.map(u => TY_UNITS[u.k].ic).join('')}`;
+      el.innerHTML = `${tagFlag(d._r.home)}${d._r.ic || '⚔'}${d._units.map(u => TY_UNITS[u.k].ic).join('')}`;
       el.title = `${d._r.nm}在${TY_REGIONS[d._rvf.reg].nm}的駐軍(勢力 ${d._rvf.v.toFixed(0)})`;
     }else if(d._threat){
       el.style.setProperty('--rc', `rgb(${(typeof TY_RVCOL !== 'undefined' && TY_RVCOL[d._r.id]) || '255,69,58'})`);
@@ -1168,7 +1373,7 @@ function tagsOn(){
       // 同一種兵只畫一個圖示,後面標總數;下一季才到的標「+N」
       const ics = [...new Set(d._units.map(u => TY_UNITS[u.k].ic))].slice(0, 3).join('');
       const n = d._units.length, inc = d._in || 0;
-      el.innerHTML = `${ics}${n > 1 ? ` <b>×${n}</b>` : ''}${inc ? ` <i class="inc">+${inc}</i>` : ''}`;
+      el.innerHTML = `${tagFlag(TY.home)}${ics}${n > 1 ? ` <b>×${n}</b>` : ''}${inc ? ` <i class="inc">+${inc}</i>` : ''}`;
       el.title = d._units.map(u => TY_UNITS[u.k].nm + (u.to ? ` → ${tySite(u.to).nm}` : '')).join('、');
     }
     if(d._rvf) el.onclick = () => { TY_MODAL = 'rival'; TY_RIVAL = d._r.id; renderPage(); };
@@ -1505,6 +1710,14 @@ let ANIMS = [], animOn = false;
 /* 載具:俯視的像素圖平躺在地上(機頭 +x),orient() 把它轉向前進方向 */
 function spawnVeh(k, tint){
   const h = patchHost(); if(!h || !hasPX()) return null;
+  /* 地面與海上的載具換成跟駐軍同一套 3D 模型(卡車段是軍卡或坦克、海上是驅逐艦或航母) */
+  const mk3 = k === 'truck' ? 'truck' : k === 'ship' ? 'destroyer' : MIL_DIM[k] ? k : null;
+  if(mk3){
+    const acc = tint ? (tint.match(/\d+/g) || []).slice(0, 3).map(Number) : hexRGB(TEAM);
+    const m = new T.Mesh(milGeo(mk3, tint ? 'foe' : 'me', acc), vmat());
+    m.renderOrder = 3; m.userData.vpx = VPX;
+    h.add(m); return m;
+  }
   const sp = PX.SPR[k] || PX.SPR.truck;
   const dep = k === 'ship' ? 4 : k === 'plane' ? 3 : 2;
   if(k === 'reconTop') tint = tint || TEAM;
@@ -1548,7 +1761,7 @@ function fly(opt){
   ANIMS.push({ pts, cum, tot, t0: performance.now() + (opt.delay || 0), dur: opt.dur || 5000,
                arc: opt.arc || 0, off: opt.off || 0, kind: opt.kind, mesh: null, mk: '',
                done: opt.done, onPass: opt.onPass, passAt: opt.passAt, passed: false,
-               trail: opt.trail || null, tr: opt.trail ? [] : null, tag: opt.tag || '' });
+               trail: opt.trail || null, tr: opt.trail ? [] : null, tag: opt.tag || '', unit: opt.unit || '' });
   tyWake();
   if(!animOn){ animOn = true; requestAnimationFrame(animStep); }
 }
@@ -1579,7 +1792,9 @@ function animStep(now){
     // W3D._tfix:只給截圖驗證用 —— 開發機一幀要畫好幾秒,把動畫凍結在某個進度才拍得到
     const u = W3D._tfix != null ? W3D._tfix : clamp((now - a.t0) / a.dur, 0, 1);
     const P = posAt(a, u), Q = posAt(a, Math.min(1, u + .006));
-    const mk = a.kind === 'jet' ? 'jet' : a.kind === 'missile' ? 'missile' : a.kind === 'bomb' ? 'bomb' : a.kind === 'plane' ? 'plane' : a.kind === 'recon' ? 'reconTop' : P.mode;
+    let mk = a.kind === 'jet' ? 'jet' : a.kind === 'missile' ? 'missile' : a.kind === 'bomb' ? 'bomb' : a.kind === 'plane' ? 'plane' : a.kind === 'recon' ? 'reconTop' : P.mode;
+    if(a.unit === 'navy' && (mk === 'truck' || mk === 'ship' || mk === 'dock')) mk = 'carrier';        // 航母一路都是航母
+    else if(a.unit === 'raid' && mk === 'truck') mk = 'tank';                                          // 坦克營在陸上是坦克
     if(mk !== a.mk){ if(a.mesh && a.mesh.parent) a.mesh.parent.remove(a.mesh); a.mesh = spawnVeh(mk, a.tag ? `rgb(${rvRGB(a.tag)})` : null); a.mk = mk; }
     if(a.mesh){
       const p = G.getCoords(P.lat, P.lng, P.alt);
@@ -1588,7 +1803,7 @@ function animStep(now){
       if(a.kind === 'bomb') q = G.getCoords(P.lat, P.lng, P.alt - .01);  // 炸彈頭朝下
       orient(a.mesh, p, q); a._p = p;
       // 載具要比建築顯眼 —— 它們是這一刻畫面上的主角(第一版跟地標一樣大,遠看根本找不到)
-      const s = bScale() * (mk === 'missile' ? 3.6 : mk === 'ship' ? 3.2 : mk === 'plane' || mk === 'reconTop' ? 3.2 : mk === 'jet' ? 3 : mk === 'bomb' ? 2.6 : 2.4);
+      const s = bScale() * (mk === 'missile' ? 3.6 : mk === 'carrier' ? 1.8 : mk === 'tank' ? 2.2 : mk === 'ship' ? 3.2 : mk === 'plane' || mk === 'reconTop' ? 3.2 : mk === 'jet' ? 3 : mk === 'bomb' ? 2.6 : 2.4);
       a.mesh.scale.setScalar(s * VPX);         // 幾何是體素單位,一格 = VPX
     }
     if(a.tr){                                              // 尾跡:凝結尾 / 航跡 / 飛彈的煙
@@ -1770,11 +1985,11 @@ W3D.animMove = function(m){
   moveBurst.t = now; const lag = moveBurst.n++ * 900;
   focusOn(A, B, () => setTimeout(() => {
     const land = () => { landed(m.id); floatAt(fxLayer(), B.lat, B.lng, `${TY_UNITS[m.k].ic} 抵達 ${escH(B.nm)}`, 'rv', 0); sfx('hit', 'tap'); fxAt(B.lat, B.lng, 'dust', { z: 3, dur: .7, life: 900, alt: .001 }); };
-    sfx(m.k === 'raid' ? 'unit' : 'jet');
-    if(m.k === 'raid'){
+    sfx(m.k === 'raid' || m.k === 'navy' ? 'unit' : 'jet');
+    if(m.k === 'raid' || m.k === 'navy'){
       const pts = routeFor('ground', A, B);
       const sea = pts.filter(p => p.mode === 'ship').length;
-      fly({ kind: 'ground', pts, dur: sea ? clamp(9000 + km * .55, 9000, 18000) : clamp(4500 + km * .55, 5000, 12000),
+      fly({ kind: 'ground', pts, unit: m.k, dur: sea ? clamp(9000 + km * .55, 9000, 18000) : clamp(4500 + km * .55, 5000, 12000),
             trail: sea ? { col: ['rgba(255,255,255,0)', 'rgba(220,240,255,.8)'], w: 1.6, max: 90 } : null, done: land });
     }else{
       fly({ kind: 'plane', from: A, to: B, arc: clamp(km / 9000 * .1, .018, .09), dur: clamp(4000 + km * .5, 5000, 10000),
@@ -2312,7 +2527,8 @@ const ZONE_AT = { biz: [1, 1], fin: [0, 1], estate: [2, 1], army: [1, 0], lm: [1
 
 function cvItemSprite(it){
   if(it.t === 'bld') return { sp: bldSprite(it.b) };
-  if(it.t === 'unit') return { sp: PX.SPR[it.k] || PX.SPR.raid, tint: it.col ? `rgb(${it.col})` : TEAM, dep: 6 };
+  if(it.t === 'unit'){ const k = MIL_OF[it.k] || 'tank', dm = MIL_DIM[k];     // 城市全景裡也是 3D 軍隊模型
+    return { mil: k, side: it.col ? 'foe' : 'me', acc: it.col ? it.col.split(',').map(Number) : hexRGB(TEAM), sp: { w: dm[0], h: dm[2] }, dep: dm[1] }; }
   if(it.t === 'hq') return { sp: PX.rivalTower(it.h || 0), tint: `rgb(${it.col})` };
   if(it.t === 'lm'){ const L = LANDMARK[it.id]; return { sp: (L && PX.LMS[L[0]]) || PX.LMS.skyline, dep: 10 }; }
   if(it.t === 'flag') return { sp: PX.SPR.flag, tint: it.col ? `rgb(${it.col})` : TEAM, dep: 1 };
@@ -2412,8 +2628,10 @@ W3D.cityOpen = function(host, data){
       const dep = p.dep || Math.max(4, Math.min(p.sp.w, 10));
       const s = Math.min(.8, (cw - .6) / p.sp.w, (cd - .6) / Math.max(dep, 3));        // 只有一棟時不要大到蓋掉整個畫面
       const B = VB();
-      voxAdd(B, p.sp, p.tint, { x: -p.sp.w / 2, y: -dep / 2, z: 0 }, dep, false);
+      if(p.mil) milBuild(B, p.mil, p.side, p.acc);
+      else voxAdd(B, p.sp, p.tint, { x: -p.sp.w / 2, y: -dep / 2, z: 0 }, dep, false);
       const m = mesh(B);
+      if(p.mil) m.rotation.z = -.35;
       m.scale.setScalar(Math.max(.05, s));
       const cx = x0 + (c + .5) * cw, cy = y0 + (r + .5) * cd;
       m.position.set(cx, cy, .7);
