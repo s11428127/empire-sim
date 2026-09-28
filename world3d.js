@@ -3023,11 +3023,20 @@ function rocketStep(now){
     m.scale.setScalar(clamp((W3D.alt || 1) * .42, .15, .8));
     const up = Math.min(t, 3.2), h = up * up * 4.5;             // 越飛越快
     if(r.kind === 'mars' && t > 3.2){
+      /* 使用者:「發射火箭的時候鏡頭會跟著動畫移動到火星」—— 升空完、轉向火星的那一刻,
+         鏡頭跟著拉到「看火星」的位置(跟側邊太空鈕同一個鏡頭),飛行時間 5 秒剛好同步。 */
+      if(!r.cam){
+        r.cam = true;
+        const pov = W3D.spacePov('mars');
+        if(pov){ try{ G.controls().autoRotate = false; G.pointOfView(pov, 5000); }catch(e){} tyWake(); }
+        try{ if(typeof TY_SPACEV !== 'undefined') TY_SPACEV = 2; }catch(e){}    // 側邊鈕變成「回地球」
+      }
       const f = smooth((t - 3.2) / 5), top = r.base.clone().addScaledVector(r.n, h);
       r.tgt.copy(SPACE.mars.position);
       m.position.copy(top).lerp(r.tgt, f);
       m.lookAt(r.tgt);
-      if(f >= 1){ ROCKETS.delete(r); SPACE.root.remove(m); m.geometry.dispose(); }
+      if(f >= 1){ ROCKETS.delete(r); SPACE.root.remove(m); m.geometry.dispose(); sfx('upgrade', 'land');
+        try{ if(typeof renderPage === 'function' && typeof TY_MODAL !== 'undefined' && !TY_MODAL) renderPage(); }catch(e){} }
     }else{
       m.position.copy(r.base).addScaledVector(r.n, h);
       r.tgt.copy(m.position).addScaledVector(r.n, 10);
