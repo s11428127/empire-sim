@@ -2304,6 +2304,52 @@ test('帝國第十七輪:月球 / 火星有自己的畫面(開得了、關得掉
   await page.__ctx.close();
 });
 
+test('帝國第十八輪:對手出局有明顯提示、對手名字點得開、移居後現金可以一起搬、城市金額只算你的', async (browser) => {
+  const page = await freshPage(browser, { seed: SEED, hash: '#/tycoon' });
+  const r = await page.evaluate(() => {
+    tyStart('tester', 7); TY_MODAL = null; renderPage();
+    const out = {};
+    // 城市上的金額只算你自己的(對手在同一城的大本營不算進去)
+    const lin = tyRivalsA().find(x => x.home === 'tpe');
+    out.linHere = !!lin;
+    const t = tySiteStuff('tpe');
+    out.valMine = Math.abs(t.val - (t.pos.reduce((a, p) => a + tyPosVal(p), 0) + t.biz.reduce((a, b) => a + tyBizVal(b) * b.own, 0) + Math.max(0, t.cash))) < 1;
+    // 出局:記錄是誰、怎麼出局,畫面上有出局卡
+    const v = tyRivalsA()[1];
+    tyRivalDown(v, 'me', '測試用');
+    renderPage();
+    out.card = !!document.querySelector('.tg-fall') && /出局/.test(document.querySelector('.tg-fall').textContent);
+    out.news = TY.news.some(n => /出局/.test(n.title));
+    document.querySelector('[data-ty="fallok"]').click();
+    out.cardGone = !document.querySelector('.tg-fall');
+    TY_RANK = 'sim'; TY_MODAL = 'rival'; renderPage();
+    out.deadList = /已經出局/.test(document.querySelector('#tyRoot').textContent);
+    // 對手名字:點了開他的資料,有「看大本營」
+    TY_MODAL = 'power'; TY_PWR = tySite(lin.home).reg; renderPage();
+    const link = document.querySelector('.rv-link');
+    out.link = !!link;
+    if (link) link.click();
+    out.rvOpen = TY_MODAL === 'rival' && !!document.querySelector('[data-ty="gohq"]');
+    // 移居面板:說清楚現金不會跟著搬,並給一顆搬現金的鈕
+    TY_PICK = { k: 'move', site: 'tky' };
+    const h = tyPickHTML();
+    out.moveCash = /data-ty="movecash"/.test(h) && /稅務居住地/.test(h);
+    out.mh = tyMoveHome('tky'); out.m = tyMoveCash('tky');
+    out.cashMoved = TY.cashSite === 'tky' && TY.home === 'tky';
+    return out;
+  });
+  ok(r.linHere, '林敏之的大本營在台北(這一局的前提)');
+  ok(r.valMine, '城市上的金額只算你自己的資產');
+  ok(r.card && r.news, '對手出局要跳出局卡、寫進新聞');
+  ok(r.cardGone, '出局卡按「知道了」收起來');
+  ok(r.deadList, '對手頁列出已經出局的人');
+  ok(r.link && r.rvOpen, '勢力表上的對手名字點得開,有「看大本營」');
+  ok(r.moveCash, '移居面板說清楚現金不會跟著搬,並能直接搬現金');
+  ok(r.cashMoved, `移居 + 搬現金之後,住的地方跟錢都在東京:${r.mh} / ${r.m}`);
+  ok(page.__errors.length === 0, `有 JS 錯誤:\n      ${page.__errors.join('\n      ')}`);
+  await page.__ctx.close();
+});
+
 /* =========================================================================
    跑
    ========================================================================= */

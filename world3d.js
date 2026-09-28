@@ -1367,7 +1367,8 @@ function tagsOn(){
     if(d._rvf){
       // 對手的駐軍:他的顏色、他的頭像 + 兵種;點下去開那位對手的卡
       el.style.setProperty('--rc', `rgb(${(typeof TY_RVCOL !== 'undefined' && TY_RVCOL[d._r.id]) || '255,69,58'})`);
-      el.innerHTML = `${tagFlag(d._r.home)}${d._r.ic || '⚔'}${d._units.map(u => TY_UNITS[u.k].ic).join('')}`;
+      // 同一國可能有兩個對手(同一面國旗):靠他的顏色 + 頭像 + 名字第一個字分
+      el.innerHTML = `${tagFlag(d._r.home)}<u class="tg-who" style="--rc:rgb(${(typeof TY_RVCOL !== 'undefined' && TY_RVCOL[d._r.id]) || '255,69,58'})">${d._r.ic || '⚔'}${escH([...d._r.nm][0] || '')}</u>${d._units.map(u => TY_UNITS[u.k].ic).join('')}`;
       el.title = `${d._r.nm}在${TY_REGIONS[d._rvf.reg].nm}的駐軍(勢力 ${d._rvf.v.toFixed(0)})`;
     }else if(d._threat){
       el.style.setProperty('--rc', `rgb(${(typeof TY_RVCOL !== 'undefined' && TY_RVCOL[d._r.id]) || '255,69,58'})`);
@@ -1377,7 +1378,7 @@ function tagsOn(){
       // 同一種兵只畫一個圖示,後面標總數;下一季才到的標「+N」
       const ics = [...new Set(d._units.map(u => TY_UNITS[u.k].ic))].slice(0, 3).join('');
       const n = d._units.length, inc = d._in || 0;
-      el.innerHTML = `${tagFlag(TY.home)}${ics}${n > 1 ? ` <b>×${n}</b>` : ''}${inc ? ` <i class="inc">+${inc}</i>` : ''}`;
+      el.innerHTML = `${tagFlag(TY.home)}<u class="tg-who me">你</u>${ics}${n > 1 ? ` <b>×${n}</b>` : ''}${inc ? ` <i class="inc">+${inc}</i>` : ''}`;
       el.title = d._units.map(u => TY_UNITS[u.k].nm + (u.to ? ` → ${tySite(u.to).nm}` : '')).join('、');
     }
     if(d._rvf) el.onclick = () => { TY_MODAL = 'rival'; TY_RIVAL = d._r.id; renderPage(); };
