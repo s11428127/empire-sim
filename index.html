@@ -4539,6 +4539,8 @@
 
   /* 3D 部隊棋子上方的標籤(位置由 world3d.js 每一幀投影) */
   #w3dTags{position:absolute;inset:0;pointer-events:none;z-index:165;overflow:hidden}
+  .w3d-tag .pxflag{height:10px;width:auto;margin-right:3px;image-rendering:pixelated;vertical-align:middle;box-shadow:0 0 0 1px #000}
+  .w3d-tag .sysflag{font-size:10px;margin-right:2px}
   .w3d-tag{position:absolute;left:0;top:0;font:inherit;font-size:11px;line-height:1;white-space:nowrap;
     cursor:pointer;color:#fff;padding:2px 5px;border-radius:3px;
     background:rgba(18,64,106,.92);border:1px solid #6fd0ff;box-shadow:0 1px 4px rgba(0,0,0,.5)}
@@ -5801,7 +5803,14 @@ const TY_UNITS = {
            dsc:'遠程施壓(遊說團)。駐在一個地區:每季人脈 +1.2、關注 +0.3。砲聲是聽得見的 —— 打得越勤,被記下來的也越多。' },
   mgr:   { nm:'補給車隊', ic:'🚚', alt:'經理人', pct:.015, min:.25e8, def:.2,
            dsc:'後勤(經理人)。駐在一個城市:你在那裡的事業現金流 +15%(同一城最多算兩隊)。它不打仗,但它讓錢變多。' },
+  /* 使用者:「可以加海軍,有航母」。最貴的一種兵,只能待在港口城市、走海路。 */
+  navy:  { nm:'航母戰鬥群', ic:'⚓', alt:'航運與港口', pct:.045, min:1e8, def:.8, port:true,
+           dsc:'海權(航運與港口)。只能駐在港口城市、走海路。駐在一個地區:那裡你的事業現金流 +8%(航運)、最強對手勢力每季 −2、當地競爭下降;防守力 0.8。' },
 };
+/* 港口城市:航母只能停這些地方(內陸的拉斯維加斯、芝加哥、蘇黎世、北京…停不了) */
+const TY_PORTS = new Set(('nyc sfo mia hou del lon dub mon hkg sha shz tpe hsz tky osa seo sin bkk jkt hcm syd '
+  + 'dxb doh tlv bom sao lag cay vgb bmu').split(' '));
+const tyIsPort = id => TY_PORTS.has(id);
 const TY_UNIT_UP = .08;
 let TY_LAST_MOVE=null;                        // 最近一次派遣(畫面層用來播飛機 / 船的動畫)                       // 每季維持費 = 招募價的 8%
 const tyUnits   = () => (TY.units   = TY.units   || []);
@@ -5838,6 +5847,11 @@ function tyUnitProg(u){
 function tyRecruit(k){
   const d=TY_UNITS[k]; if(!d) return '';
   const blocked=tyBlock('recruit', k); if(blocked) return blocked;
+  return tyRecruitAt(k);
+}
+/* 真的成軍(條件由呼叫的人先檢查過) */
+function tyRecruitAt(k){
+  const d=TY_UNITS[k];
   const cost=tyUnitCost(k);
   TY.cash-=cost;
   TY.unitId=(TY.unitId||1);
@@ -6103,6 +6117,12 @@ function tyUnitsTurn(){
     const here=tyUnitsIn(reg);
     const lob=tyUnitN(here,'lobby');
     if(lob){ TY.infl=tyClamp(TY.infl+1.2*lob,0,100); TY.heat=tyClamp(TY.heat+.3*lob,0,120); }
+    const navy=tyUnitN(here,'navy');
+    if(navy){
+      TY.reg[reg].comp=Math.max(0, TY.reg[reg].comp-.3*navy);
+      const top=tyRivalsA().filter(r=>!(r.pact>TY.t) && tyTurf(r,reg)>0).sort((a,b)=>tyTurf(b,reg)-tyTurf(a,reg))[0];
+      if(top){ top.turf[reg]=tyClamp(tyTurf(top,reg)-2*navy, 0, 100); top.rel=tyClamp((top.rel||0)-1*navy, -100, 100); }
+    }
     const raid=tyUnitN(here,'raid');
     if(raid){
       TY.reg[reg].comp=Math.max(0, TY.reg[reg].comp-.5*raid);
@@ -6967,6 +6987,8 @@ function tyNext(){
     // 經理人:駐在這個城市的每一位 +15%,最多算兩位
     const mg=Math.min(2, tyUnitN(tyUnitsAt(b.site||TY.home),'mgr'));
     if(mg) m *= 1 + .15*mg;
+    // 航母戰鬥群:駐在這個地區(不限城市)→ 航運,現金流 +8%(同一地區只算一支)
+    if(tyUnitsIn(bs.reg).some(u=>u.k==='navy')) m *= 1.08;
     let cf = b.cap*rate*Math.max(-.6,m) + b.cap*d.vol*.012*tyG();
     const par = TY.partners[bs.reg];
     if(TY.space && cf>0 && tyStarAt(bs.reg)) cf *= 1 + TY_STAR_BOOST;   // 星鏈罩住的地區:賺錢的公司多賺 10%(燒錢的不會因此燒更多)
@@ -7807,12 +7829,15 @@ function tyNeeds0(act, arg){
                     TY.biz.some(x=>!TY_BIZ[x.k].shell), '你沒有可以賣的事業') ];
     }
 
-    case 'recruit': {
-      const d=TY_UNITS[arg]; if(!d) return [];
+    case 'recruit': case 'recruitTo': {
+      const k=act==='recruit' ? arg : arg&&arg.k, d=TY_UNITS[k]; if(!d) return [];
+      const at=act==='recruit' || !arg.site ? TY.home : arg.site;
       const n=tyUnits().length;
-      return [ tyNb(`部隊編制 ${n} / ${TY_UNIT_MAX}`, n<TY_UNIT_MAX,
-                    `部隊已經滿編(${TY_UNIT_MAX} 支)—— 先解散一支`),
-               cashFor(tyUnitCost(arg)) ];
+      const out=[ tyNb(`部隊編制 ${n} / ${TY_UNIT_MAX}`, n<TY_UNIT_MAX,
+                    `部隊已經滿編(${TY_UNIT_MAX} 支)—— 先解散一支`) ];
+      if(d.port) out.push(tyNb(`${tySite(at).nm}是港口`, tyIsPort(at), `${tySite(at).nm}不靠海,航母停不了 —— 拖到港口城市`));
+      out.push(cashFor(tyUnitCost(k)));
+      return out;
     }
     case 'strike': {
       const k=arg&&arg.k, site=arg&&arg.site, d=TY_STRIKES[k];
@@ -7853,8 +7878,10 @@ function tyNeeds0(act, arg){
     case 'deploy': {
       const u=arg&&arg.u, site=arg&&arg.site;
       if(!u || !TY_SITE[site]) return [ tyNb('有這支部隊', false, '找不到這支部隊') ];
-      return [ tyNb('不是已經在那裡', !(u.site===site && !u.to), `${TY_UNITS[u.k].nm}已經在${tySite(site).nm}了`),
+      const out=[ tyNb('不是已經在那裡', !(u.site===site && !u.to), `${TY_UNITS[u.k].nm}已經在${tySite(site).nm}了`),
                tyNb('不是已經在路上', u.to!==site, `${TY_UNITS[u.k].nm}已經在往${tySite(site).nm}的路上了`) ];
+      if(TY_UNITS[u.k].port) out.push(tyNb(`${tySite(site).nm}是港口`, tyIsPort(site), `${tySite(site).nm}不靠海,航母開不過去`));
+      return out;
     }
 
     case 'holdco':
@@ -9617,7 +9644,9 @@ function tyGlobeData(){
     // 最高的那一棟 = 你在這座城的總規模(跟對手大本營比的就是它)
     const tall=blds.filter(b=>b.h!=null).sort((a,b)=>b.h-a.h)[0];
     if(tall) tall.h=hk(t.val);
-    return { ...s, _v:t.val, _cat:cat, _blds:blds, _hk:hk(t.val),
+    /* 城市配套(世界征服者 4 那種):港口城市有碼頭與龍門吊、有工業公司就有工廠、等級 6 以上有機場 */
+    const _feat={ port:tyIsPort(s.id), factory:t.biz.some(b=>['energy','infra','dev','tech'].includes(b.k)), airport:tySiteLv(t.val)>=6 };
+    return { ...s, _v:t.val, _cat:cat, _blds:blds, _hk:hk(t.val), _feat,
              _alt: 0.002 + f*0.006,
              _rad: 0.22 + f*0.38,
              _col: TY_CAT[cat].c };
@@ -9645,7 +9674,7 @@ function tyGlobeData(){
      有一大半是這個。簽章只放「畫面上看得出差別」的東西。 */
   const troopsNow=tyTroopMarks();
   const sig=JSON.stringify([TY.t, TY_LAYER, TY_SEL, TY.holdco, (window.W3D&&W3D.ok)?1:0,
-    pts.map(d=>[d.id,d._cat,Math.round(d._v/1e6),d._blds.map(b=>b.c+(b.k||'')+b.f+(b.st||'')+b.h).join()]),
+    pts.map(d=>[d.id,d._cat,Math.round(d._v/1e6),d._blds.map(b=>b.c+(b.k||'')+b.f+(b.st||'')+b.h).join(),d._feat.port,d._feat.factory,d._feat.airport]),
     rv.map(d=>[d._rival.id,Math.round(d._v/1e7),d._hk,Math.sign(Math.trunc((d._rival.rel||0)/20))]),
     troopsNow.map(t=>t._k+':'+(t._mv||'')+':'+(t._units?t._units.map(u=>u.k).join():'')),
     Object.keys(TY.partners||{}), (window.W3D&&W3D.extraArcs||[]).length]);
@@ -9741,7 +9770,9 @@ function tyRivalForces(){
         site=ss[h%ss.length];
       }
       const ks=TY_RV_KINDS[r.arch]||TY_RV_KINDS.estate;
-      out.push({ r, reg, site:site.id, v, units:ks.slice(0,n).map(k=>({ k })) });
+      const units=ks.slice(0,n).map(k=>({ k }));
+      if(n>=2 && tyIsPort(site.id)) units.push({ k:'navy' });      // 勢力夠大、又在港口:他也有航母
+      out.push({ r, reg, site:site.id, v, units });
     }
   }
   return out.slice();
@@ -9756,13 +9787,20 @@ function tyTroopMarks(){
     if(u.to && window.W3D && W3D.flying && W3D.flying(u.id)) continue;   // 還在飛機上:落地才出現
     (at[u.to||u.site]=at[u.to||u.site]||[]).push(u);
   }
-  for(const [id,list] of Object.entries(at)){
-    const s=tySite(id), inc=list.filter(u=>u.to).length;
-    out.push({ lat:s.lat, lng:s.lng, _k:'at:'+id, _units:list, _in:inc, _mv:inc===list.length?1:0, _alt:.02 });
+  for(const [id,all] of Object.entries(at)){
+    const s=tySite(id);
+    // 海軍另外一個標記:它停在港外的海上,不跟陸軍擠在同一塊
+    for(const [list,nv] of [[all.filter(u=>u.k!=='navy'),false],[all.filter(u=>u.k==='navy'),true]]){
+      if(!list.length) continue;
+      const inc=list.filter(u=>u.to).length;
+      out.push({ lat:s.lat, lng:s.lng, _k:(nv?'nv:':'at:')+id, _units:list, _in:inc, _mv:inc===list.length?1:0, _alt:.02, _navy:nv });
+    }
   }
   for(const f of tyRivalForces()){
     const s=tySite(f.site);
-    out.push({ lat:s.lat, lng:s.lng, _k:`rf:${f.r.id}:${f.reg}`, _rvf:f, _r:f.r, _units:f.units, _alt:.02 });
+    const land=f.units.filter(u=>u.k!=='navy'), sea=f.units.filter(u=>u.k==='navy');
+    if(land.length) out.push({ lat:s.lat, lng:s.lng, _k:`rf:${f.r.id}:${f.reg}`, _rvf:f, _r:f.r, _units:land, _alt:.02 });
+    if(sea.length) out.push({ lat:s.lat, lng:s.lng, _k:`rn:${f.r.id}:${f.reg}`, _rvf:f, _r:f.r, _units:sea, _alt:.02, _navy:true });
   }
   for(const th of tyThreats()){
     const r=tyRival(th.rid); if(!r) continue;
@@ -11343,9 +11381,11 @@ function tyInvestOpts(id){
 }
 /* 招募到指定城市:在大本營成軍,下一季到位(同一張牌、一個動作、1 點) */
 function tyRecruitTo(k, site){
+  if(!site || site===TY.home) return tyRecruit(k);
+  const blocked=tyBlock('recruitTo', { k, site }); if(blocked) return blocked;
   const n0=tyUnits().length;
-  const msg=tyRecruit(k);
-  if(tyUnits().length===n0 || !site || site===TY.home) return msg;
+  const msg=tyRecruitAt(k);
+  if(tyUnits().length===n0) return msg;
   const u=tyUnits()[tyUnits().length-1];
   TY_LAST_MOVE=null;
   return msg+'<br>'+tyDeploy(u.id, site);
@@ -11577,7 +11617,7 @@ function tyPickHTML(){
     case 'troop':
       body=Object.entries(TY_UNITS).map(([k,d])=>row(PX.img('pk:u:'+k, PX.SPR[k], { fit:[56,64], tint:TY_TEAM }),
         `${d.ic} ${escH(d.nm)}`, `招募 ${tyM(tyUnitCost(k))} · 每季維持 ${tyM(tyUnitCost(k)*TY_UNIT_UP)}${id!==TY.home?' · 下一季到位':''}`,
-        tyActBtn('recruitTo', k, '招募', ` data-k="${k}" data-site="${id}"`), tyNeedHTML(tyNeeds('recruit', k),'tight'),
+        tyActBtn('recruitTo', { k, site:id }, '招募', ` data-k="${k}" data-site="${id}"`), tyNeedHTML(tyNeeds('recruitTo', { k, site:id }),'tight'),
         `<em class="pk-d">${escH(d.dsc)}</em>`)).join('');
       break;
     case 'deal': {
