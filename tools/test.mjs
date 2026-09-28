@@ -2278,6 +2278,28 @@ test('帝國第十六輪:香港要在地夥伴(面板上直接找)、一國過�
   await page.__ctx.close();
 });
 
+test('帝國第十七輪:月球 / 火星有自己的畫面(開得了、關得掉、Esc 回地球)', async (browser) => {
+  const page = await freshPage(browser, { seed: SEED, hash: '#/tycoon' });
+  const r = await page.evaluate(() => {
+    tyStart('tester', 7); TY_MODAL = null; renderPage();
+    const out = {};
+    document.querySelector('[data-ty="space:mars"]').click();
+    out.mars = !!document.getElementById('tyPlanet') && TY_PLANET === 'mars';
+    document.querySelector('#tyPlanet [data-pv="moon"]').click();
+    out.moon = TY_PLANET === 'moon' && document.querySelectorAll('#tyPlanet').length === 1;
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    out.closed = !document.getElementById('tyPlanet') && TY_PLANET === null;
+    out.icons = ['🌙', '🔴'].every(k => !!PX.ICON[k]);
+    return out;
+  });
+  ok(r.mars, '火星鈕打開火星畫面');
+  ok(r.moon, '畫面裡可以切到月球');
+  ok(r.closed, 'Esc 回地球');
+  ok(r.icons, '月球 / 火星有像素圖示');
+  ok(page.__errors.length === 0, `有 JS 錯誤:\n      ${page.__errors.join('\n      ')}`);
+  await page.__ctx.close();
+});
+
 /* =========================================================================
    跑
    ========================================================================= */
