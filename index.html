@@ -10140,8 +10140,8 @@ function tyGlobeMount(){
         el.style.pointerEvents = vis?'auto':'none';
       });
     if(typeof TYG.hexPolygonUseDots==='function') TYG.hexPolygonUseDots(true);
-    TYG.controls().autoRotate=true;
-    TYG.controls().autoRotateSpeed=0.32;
+    /* 使用者:「鏡頭有時候會一直自己往左」—— 那是閒置自轉。拿掉:鏡頭只在你動它的時候動。 */
+    TYG.controls().autoRotate=false;
     TYG.controls().enableDamping=true;
     /* 球半徑在 globe.gl 是 100,所以 minDistance 直接決定「最近能貼多近」。
        原本 170(高度 0.7)差不多是看一整個洲 —— 使用者要的是像參考那款遊戲
@@ -10158,13 +10158,7 @@ function tyGlobeMount(){
       tyZoomTier(pov&&pov.altitude);
       if(window.W3D) W3D.onZoom(pov);
     });
-    // 使用者一動就停止自轉,九秒沒動再轉回來 —— 跟主地球同一套手感
-    ['pointerdown','wheel','touchstart'].forEach(e =>
-      document.getElementById('tyGlobe').addEventListener(e, ()=>{
-        TYG.controls().autoRotate=false;
-        clearTimeout(window.__tyar);
-        window.__tyar=setTimeout(()=>{ if(TYG) TYG.controls().autoRotate=true; }, 9000);
-      }, {passive:true}));
+    // (第一版:閒置九秒後自己轉起來。使用者覺得鏡頭會亂跑,已經拿掉。)
   }
 
   const el=document.getElementById('tyGlobe');
@@ -10231,7 +10225,8 @@ function tyFitAlt(mult){
    加減固定值在拉遠的時候幾乎沒感覺、在貼近的時候會直接穿過地表。 */
 function tyZoom(dir){
   if(!TYG) return;
-  if(TY_SPACEV){ TY_SPACEV=0; if(window.W3D && W3D.spaceFollow) W3D.spaceFollow(null); }
+  // 看月球 / 看火星的時候:拉近拉遠 = 靠近 / 遠離那顆星(可以放大到跟地球一樣大)
+  if(TY_SPACEV && window.W3D && W3D.spaceZoom){ W3D.spaceZoom(dir); return; }
   try{
     /* 傾斜鏡頭之下 pointOfView() 讀到的是「往南挪過」的實際位置,
        拿它算的話每按一次畫面就往南漂一點 —— 要用邏輯位置(W3D.pov)。 */
@@ -11163,7 +11158,9 @@ function tySideBtns(){
       ${b('modal:log','📋','大事記')}
       ${b('modal:learn','🎓','怎麼玩')}
       ${b('sfx', window.SFX&&SFX.on?'🔊':'🔇', window.SFX&&SFX.on?'音效':'靜音')}
-      ${b('space','🛰',['太空','看火星','回地球'][TY_SPACEV]||'太空')}
+      ${b('space:moon','🌙','看月球', TY_SPACEV===1?'on':'')}
+      ${b('space:mars','🔴','看火星', TY_SPACEV===2?'on':'')}
+      ${TY_SPACEV?b('space:earth','🌍','回地球','on'):''}
       ${b('zoomin','＋','拉近')}
       ${b('zoomout','－','拉遠')}
     </div>`;
@@ -11940,8 +11937,9 @@ function bindTycoon(root){
     if(a==='layer'){ TY_LAYER=b.dataset.k; if(TYG) TYG.polygonCapColor(tyCountryColor).polygonSideColor(tyCountrySide).polygonAltitude(tyCountryAlt); renderPage(); if(window.W3D) W3D.repaint(); return; }
     if(a==='zoomin'||a==='zoomout'){ tyZoom(a==='zoomin'?-1:1); return; }
     /* 太空:拉到最遠,鏡頭擺在月球(再按一次:火星)旁邊,地球跟它同框。第三次回到原本的高度。 */
-    if(a==='space'){
-      TY_SPACEV=(TY_SPACEV+1)%3;
+    /* 太空:三顆各自一顆按鈕(第一版只有一顆循環鈕,顯示的是「下一步」,按了看到的不是字上寫的那一顆) */
+    if(a.startsWith('space:')){
+      TY_SPACEV={ moon:1, mars:2 }[a.slice(6)] || 0;
       const pov=TY_SPACEV && window.W3D && W3D.spacePov ? W3D.spacePov(TY_SPACEV===1?'moon':'mars') : null;
       // 鏡頭鎖住月球 / 火星(它們在公轉,會一直跟);回地球 = 解除鎖定、地球置中
       if(window.W3D && W3D.spaceFollow) W3D.spaceFollow(TY_SPACEV===1?'moon':TY_SPACEV===2?'mars':null);
