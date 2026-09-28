@@ -9989,13 +9989,17 @@ function tyIsoPower0(code, f){
   const myHere=tyIsoSites(code).reduce((a,x)=>a+tySiteStuff(x.id).val,0);
   const myReg=tyMySites().filter(x=>x.reg===reg).reduce((a,x)=>a+tySiteStuff(x.id).val,0);
   const forces=tyRivalForces();
-  const wMe=myHere>0 ? .6+.4*myHere/Math.max(1,myReg) : .3;
+  /* 使用者:「有些國家根本沒有建設(像日韓),為什麼算富豪的勢力範圍?不是應該沒人嗎」——
+     第一版只要在那個經濟圈有勢力,連一棟都沒有的國家也分到三到五成。現在一定要**真的在這個國家有東西**:
+     你:有資產(或駐軍)· 對手:大本營在這國、或駐軍在這國。都沒有的國家就是沒人的地方。 */
+  const myTroops=tyUnits().some(u=>!u.to && tySite(u.site).iso===code);
+  const wMe=myHere>0 ? .6+.4*myHere/Math.max(1,myReg) : myTroops ? .5 : 0;
   const board=[{ me:true, nm:'你', col:'41,151,255', v:tyMyTurf(reg)*wMe, w:wMe }];
   for(const r of tyRivalsA()){
     const t=tyTurf(r,reg); if(t<=0) continue;
     const w = tySite(r.home).iso===code ? 1
-            : forces.some(x=>x.r.id===r.id && tySite(x.site).iso===code) ? .8
-            : sites.length ? .5 : .3;
+            : forces.some(x=>x.r.id===r.id && tySite(x.site).iso===code) ? .8 : 0;
+    if(!w) continue;
     board.push({ r, nm:r.nm, ic:r.ic, col:TY_RVCOL[r.id]||'200,200,210', v:t*w, w });
   }
   board.sort((a,b)=>b.v-a.v);

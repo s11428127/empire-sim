@@ -715,12 +715,20 @@ test('帝國:對手會擴張、互相併購、記恨,而且談得動', async (br
     const was = tyTurf(r, reg);
     r.turf = r.turf || {};
     r.turf[reg] = 100;                        // 讓他在那一區壓倒性領先
+    /* 第二十五輪起:國家要「真的有東西」才算誰的 —— 把他的大本營暫時放進這個國家 */
+    const home0 = r.home; r.home = site.id; TY_PWC = null;
     const his = tyCountryColor({ properties: { ISO_A2: site.iso } });
+    // 同一區、但他在那一國什麼都沒有 → 沒人的地方
+    const other = TY_SITES.find(x => x.reg === reg && x.iso !== site.iso && !tyRivalsA().some(q => q !== r && tySite(q.home).iso === x.iso));
+    r.home = home0; TY_PWC = null;
+    const empty = other ? tyCountryColor({ properties: { ISO_A2: other.iso } }) : null;
     r.turf[reg] = was;
+    if (empty) return { his, reg, myTurf: tyMyTurf(reg), col: TY_RVCOL[r.id], empty, otherIso: other.iso };
     return { his, reg, myTurf: tyMyTurf(reg), col: TY_RVCOL[r.id] };
   });
   ok(map.myTurf < 100, `挑到的地區(${map.reg})你自己也押滿了,測不到對手的顏色`);
   ok(map.his.includes(map.col), `勢力圖層要用對手自己的顏色上色,實際:${map.his}`);
+  if (map.empty) ok(!map.empty.includes(map.col), `他在 ${map.otherIso} 什麼都沒有,那一國不能算他的:${map.empty}`);
 
   // ⑦ 頂列的淨值走勢圖
   const spark = await page.evaluate(() => {
