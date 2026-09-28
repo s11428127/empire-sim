@@ -12007,9 +12007,16 @@ function bindTycoon(root){
     if(a==='next'){
       TY_MSG='';
       const snap=window.W3D ? W3D.snap() : null;
+      const moving=tyUnits().filter(u=>u.to).map(u=>({ id:u.id, k:u.k, to:u.to }));
       tyNext(); renderPage();
       tyWipe(); tySfx('next','next');
       if(snap) W3D.play(snap);
+      /* 這一季真正到位的部隊(規則上的抵達)也打一次:一座城一次,錯開播 */
+      if(window.W3D && W3D.attackAt){
+        const arrived=moving.filter(m=>tyUnits().some(u=>u.id===m.id && !u.to && u.site===m.to));
+        const once={}; arrived.forEach(m=>{ once[m.to]=once[m.to]||m; });
+        Object.values(once).slice(0,3).forEach((m,i)=>setTimeout(()=>W3D.attackAt(m.to, m.k), 2600+i*2600));
+      }
       return;
     }
     if(a==='sfx'){ if(window.SFX) SFX.toggle(); renderPage(); return; }
