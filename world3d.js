@@ -1961,21 +1961,21 @@ function boom(lat, lng, big){
    沒有對手的城市 → 進駐:插旗的閃光 + 星星。
    只是畫面(Math.random,不碰種子亂數),打完什麼數字都不會變 —— 規則上的攻防在下一季結算。 */
 function attackAt(B, k){
-  if(!B || reduced()) return;
+  if(!B) return;
+  // 鏡頭先轉到目標城市(長途飛行時它常常在畫面邊緣,打起來看不到)
+  try{ if(!CHASE && !CV.on && !PV.on){ G.controls().autoRotate = false; G.pointOfView({ lat: B.lat - 1.5, lng: B.lng, altitude: clamp(W3D.alt || .6, .35, .7) }, 500); tyWake(); } }catch(e){}
   let foe = false;
   try{
     foe = tyRivalsA().some(r => r.home === B.id) || tyRivalForces().some(f => f.site === B.id) || tyThreats().some(t => t.site === B.id);
   }catch(e){}
-  const at = (dLat, dLng, fn, ms) => setTimeout(() => fn(B.lat + dLat, B.lng + dLng), ms);
+  const at = (dLat, dLng, fn, ms) => setTimeout(() => fn(B.lat + dLat, B.lng + dLng), ms + 300);   // 等鏡頭轉過去
   const rnd = Math.random, j = s => (rnd() - .5) * s;
-  if(!foe){
-    at(0, 0, (la, lo) => { fxAt(la, lo, 'ring', { z: 4, dur: .6, life: 800, alt: .003 }); fxAt(la, lo, 'star', { z: 3, dur: .8, life: 1000, alt: .004 }); sfx('upgrade', 'tap'); }, 350);
-    return;
-  }
-  setTimeout(() => floatAt(fxLayer(), B.lat, B.lng, `⚔ 進攻 ${escH(B.nm)}`, 'enemy', 0), 250);
+  /* 第二版:使用者「部隊到目的地的時候沒有攻擊動畫」—— 沒有對手的城市也要打:攻擊部隊(坦克、火炮、航母)
+     一樣開火(掃蕩、佔領),只是少一點、最後沒有大爆炸;步兵與補給是槍火。 */
+  setTimeout(() => floatAt(fxLayer(), B.lat, B.lng, foe ? `⚔ 進攻 ${escH(B.nm)}` : `⚔ 掃蕩 · 佔領 ${escH(B.nm)}`, 'enemy', 0), 550);
   if(k === 'lobby'){                                    // 火炮:齊射
     for(let i = 0; i < 6; i++) at(j(.9), j(.9), (la, lo) => { fxAt(la, lo, 'boom', { z: 3, dur: .6, life: 900, alt: .002 }); sfx('boom'); if(i % 2) shake(false); }, 500 + i * 180 + rnd() * 80);
-    at(0, 0, (la, lo) => boom(la, lo, true), 1700);
+    at(0, 0, (la, lo) => foe ? boom(la, lo, true) : fxAt(la, lo, 'boomBig', { z: 3, dur: .8, life: 1200, alt: .002 }), 1900);
   }else if(k === 'raid' || k === 'navy'){               // 坦克 / 航母:砲口閃光 → 對面爆炸,輪流
     const n = k === 'navy' ? 5 : 4;
     for(let i = 0; i < n; i++){
@@ -1983,13 +1983,14 @@ function attackAt(B, k){
       at(.25 * side, -.35, (la, lo) => { fxAt(la, lo, 'flash', { z: 3, dur: .25, life: 400, alt: .002 }); sfx('hit'); }, 450 + i * 330);
       at(j(.5), .15 + j(.4), (la, lo) => { fxAt(la, lo, 'boom', { z: 3, dur: .6, life: 1000, alt: .002 }); sfx('boom'); shake(false); }, 650 + i * 330);
     }
-    at(0, 0, (la, lo) => boom(la, lo, k === 'navy'), 650 + n * 330);
+    at(0, 0, (la, lo) => boom(la, lo, foe && k === 'navy'), 850 + n * 330);
   }else{                                                // 步兵 / 補給:槍火 + 小爆炸
     for(let i = 0; i < 6; i++) at(j(.4), j(.4), (la, lo) => { fxAt(la, lo, 'flash', { z: 2, dur: .2, life: 300, alt: .0015 }); sfx('hit'); }, 400 + i * 120);
     for(let i = 0; i < 2; i++) at(j(.5), j(.5), (la, lo) => { fxAt(la, lo, 'boom', { z: 2, dur: .5, life: 800, alt: .002 }); sfx('boom'); }, 900 + i * 260);
   }
 }
 W3D._attack = (id, k) => attackAt(tySite(id), k);     // 給截圖驗證用
+W3D.attackAt = (id, k) => attackAt(tySite(id), k);
 
 /* 小一號的像素特效:蓋房子的塵土、出牌落地的星星與金幣(出牌回饋用) */
 function fxAt(lat, lng, kind, opt){
