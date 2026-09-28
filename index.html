@@ -4941,6 +4941,10 @@
 
   .pk-o.pk-gate{ border:2px solid #ffd84a; background:#2a2410 }
 
+  .tg-city .cv-sw{ flex:none; padding:6px 10px; background:#1b3348; color:#e8f1f8; border:3px solid #000; box-shadow:0 3px 0 #000; font:inherit; font-size:14px; cursor:pointer }
+  .tg-planet{ background:#050a12 }
+  .tg-planet .cv-canvas{ cursor:grab }
+
   /* ---- 所有動作的回饋 ---- */
   .px-burst{ position:fixed; z-index:10002; pointer-events:none; width:5px; height:5px; background:var(--c); box-shadow:0 0 0 1px #141821;
     animation:pxBurst .6s steps(6) forwards }
@@ -10396,6 +10400,38 @@ function tyOpenCity(id, at){
     <div class="cv-list">${Object.keys(TY_CITY_ZN).filter(k=>n(k)).map(k=>`<p><b>${TY_CITY_ZN[k]}</b> ${d.zones[k].map(x=>x.tag).join('、')}</p>`).join('')}</div>`;
   tySfx('build','land');
 }
+/* 月球 / 火星的獨立畫面(可以轉、可以放大縮小,之後要在上面蓋東西)。版面跟城市全景同一套。 */
+let TY_PLANET=null;
+function tyOpenPlanet(k){
+  tyCloseCity(true); tyClosePlanet(true);
+  if(!TY) return;
+  TY_PLANET=k;
+  const sp=TY.space, st=sp?sp.mars.st:0, run=sp&&sp.mars.run?sp.mars.run.st:0;
+  const nm=k==='moon'?'🌙 月球':'🔴 火星';
+  const sub=k==='moon' ? '月球基地(外型;玩法之後討論)'
+    : st>=4 ? '火星殖民地 · 自給自足' : st>=3 ? '火星殖民地 · 首批登陸' : st>=2||run>=2 ? '無人補給已送達' : run ? `火星計畫第 ${run} 階段進行中` : '還沒有任何東西 —— 出「火星計畫」牌開始';
+  const el=document.createElement('div');
+  el.id='tyPlanet'; el.className='tg-city tg-planet'; el.setAttribute('role','dialog'); el.setAttribute('aria-label',nm);
+  el.innerHTML=`<div class="cv-top"><b>${nm}</b><span>${sub}</span>
+      <button type="button" class="cv-sw" data-pv="${k==='moon'?'mars':'moon'}">${k==='moon'?'🔴 火星':'🌙 月球'}</button>
+      <button type="button" class="cv-x" data-pv="close">← 回地球</button></div>
+    <div class="cv-host" id="tyPlanetHost"></div>
+    <div class="cv-leg"><em>拖曳轉動星球 · 滾輪 / 雙指縮放 · 點建築看是什麼 · Esc 回地球</em></div>`;
+  el.addEventListener('click', e=>{ const b=e.target.closest('[data-pv]'); if(!b) return;
+    if(b.dataset.pv==='close') tyClosePlanet(); else tyOpenPlanet(b.dataset.pv); });
+  document.body.appendChild(el);
+  tyGlobeAwake(false);
+  const ok=!!(window.W3D && W3D.planetOpen && W3D.planetOpen(el.querySelector('#tyPlanetHost'), k, { mars:st, run }));
+  if(!ok) el.querySelector('#tyPlanetHost').innerHTML='<div class="cv-zl z-empty" style="position:static;margin:24px auto">3D 畫面需要地球的繪圖程式庫 —— 現在連不到。</div>';
+  tySfx('launch','tap');
+}
+function tyClosePlanet(quiet){
+  const el=document.getElementById('tyPlanet');
+  if(window.W3D && W3D.planetClose) W3D.planetClose();
+  if(el) el.remove();
+  if(TY_PLANET!=null){ TY_PLANET=null; tyGlobeAwake(true); if(!quiet) tySfx('click','tap'); }
+}
+addEventListener('keydown', e=>{ if(e.key==='Escape' && TY_PLANET!=null){ e.preventDefault(); tyClosePlanet(); } });
 function tyCloseCity(quiet){
   const el=document.getElementById('tyCity');
   if(window.W3D && W3D.cityClose) W3D.cityClose();
@@ -11158,9 +11194,8 @@ function tySideBtns(){
       ${b('modal:log','📋','大事記')}
       ${b('modal:learn','🎓','怎麼玩')}
       ${b('sfx', window.SFX&&SFX.on?'🔊':'🔇', window.SFX&&SFX.on?'音效':'靜音')}
-      ${b('space:moon','🌙','看月球', TY_SPACEV===1?'on':'')}
-      ${b('space:mars','🔴','看火星', TY_SPACEV===2?'on':'')}
-      ${TY_SPACEV?b('space:earth','🌍','回地球','on'):''}
+      ${b('space:moon','🌙','月球')}
+      ${b('space:mars','🔴','火星')}
       ${b('zoomin','＋','拉近')}
       ${b('zoomout','－','拉遠')}
     </div>`;
@@ -11938,6 +11973,8 @@ function bindTycoon(root){
     if(a==='zoomin'||a==='zoomout'){ tyZoom(a==='zoomin'?-1:1); return; }
     /* 太空:拉到最遠,鏡頭擺在月球(再按一次:火星)旁邊,地球跟它同框。第三次回到原本的高度。 */
     /* 太空:三顆各自一顆按鈕(第一版只有一顆循環鈕,顯示的是「下一步」,按了看到的不是字上寫的那一顆) */
+    // 月球 / 火星:打開那顆星自己的畫面(可以轉、可以縮放)
+    if(a==='space:moon' || a==='space:mars'){ tyOpenPlanet(a.slice(6)); return; }
     if(a.startsWith('space:')){
       TY_SPACEV={ moon:1, mars:2 }[a.slice(6)] || 0;
       const pov=TY_SPACEV && window.W3D && W3D.spacePov ? W3D.spacePov(TY_SPACEV===1?'moon':'mars') : null;
