@@ -4956,6 +4956,29 @@
     padding:6px 10px; background:rgba(19,34,49,.9); border:2px solid #000; box-shadow:0 3px 0 #000; font-family:'EmpirePixel',var(--sans) }
   .tg-world b{ font-weight:400; font-size:16px; color:#e8f1f8 } .tg-world span{ font-size:12px; color:#9db4c8 } .tg-world em{ font-style:normal; font-size:11px; color:#6b8299 }
 
+  /* ---- 對手出局卡 ---- */
+  .tg-fall{ position:absolute; inset:0; z-index:260; display:flex; align-items:center; justify-content:center; background:rgba(0,0,0,.55); padding:16px }
+  .tg-fall .fl-box{ max-width:360px; width:100%; text-align:center; padding:18px 16px; background:#1a1014; border:3px solid #e05252;
+    box-shadow:0 5px 0 #000, 0 0 0 3px #000; font-family:'EmpirePixel',var(--sans); animation:flIn .45s steps(6) both }
+  .tg-fall .fl-box.win{ border-color:#ffd84a; background:#1d1a0c }
+  .tg-fall .fl-sk{ font-size:40px; line-height:1 } .tg-fall .fl-sk img.pxi{ height:48px }
+  .tg-fall .fl-t{ font-size:22px; color:#fff; margin:8px 0 4px } .tg-fall .fl-s{ font-size:13px; color:#ff9b8c }
+  .tg-fall .win .fl-s{ color:#ffd84a } .tg-fall .fl-d{ font-size:12px; color:#9db4c8; margin:8px 0 12px } .tg-fall .fl-m{ font-size:12px; color:#ffd84a; margin-bottom:10px }
+  @keyframes flIn{ from{ transform:scale(.3); opacity:0 } to{ transform:scale(1); opacity:1 } }
+  .ty-lb .lb.dead{ opacity:.55 } .ty-lb .lb.dead b{ text-decoration:line-through }
+  /* 對手名字:可以點 */
+  .rv-link{ font:inherit; color:inherit; background:none; border:0; padding:0 0 0 4px; cursor:pointer; border-left:4px solid var(--rc); text-align:left }
+  .rv-link:hover{ text-decoration:underline }
+  .rv-hq{ display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap; padding:6px 12px; font-size:13px; color:var(--g-t2,#b7c7d3) }
+  .rv-hq .pxflag{ height:11px; vertical-align:-1px }
+  /* 城市名牌:你的標「你」,對手的標他的顏色與「大本營」 */
+  .tyk .k-me{ text-decoration:none; font-size:10px; padding:0 3px; margin-right:3px; background:#2f8fe0; color:#fff; border:1px solid #000 }
+  .tyk .k-who{ text-decoration:none; display:inline-block; margin-right:3px; padding:0 2px; background:var(--rc); border:1px solid #000 }
+  .tyk .k-hq{ font-style:normal; font-size:9px; margin-left:3px; padding:0 3px; background:rgba(0,0,0,.45); color:#ffd84a }
+  /* 部隊標籤:你 / 對手(同一國兩個對手時靠顏色與頭像分) */
+  .w3d-tag .tg-who{ text-decoration:none; font-size:9px; line-height:1; padding:1px 3px; margin-right:2px; color:#fff; border:1px solid #000; background:var(--rc,#2f8fe0) }
+  .w3d-tag .tg-who.me{ background:#2f8fe0 }
+
   /* ---- 所有動作的回饋 ---- */
   .px-burst{ position:fixed; z-index:10002; pointer-events:none; width:5px; height:5px; background:var(--c); box-shadow:0 0 0 1px #141821;
     animation:pxBurst .6s steps(6) forwards }
@@ -5678,6 +5701,17 @@ const TY_ARCH = {
 
 const tyRival   = id => TY.rivals.find(r=>r.id===id && r.alive!==false);
 const tyRivalsA = () => TY.rivals.filter(r=>r.alive!==false);
+/* 對手出局 —— 使用者:「很多富豪都消失了,如果是破產了、被我打敗了要有明顯的提示」。
+   第一版只寫一行大事記,地圖上的人就這樣不見了。現在:記下是誰、哪一季、被誰吃掉,
+   畫面上跳一張出局卡(TY_FALLQ,不進存檔),富豪榜與對手頁都列在「出局」那一區。 */
+let TY_FALLQ=[];
+function tyRivalDown(r, by, how){
+  if(!r || r.alive===false) return;
+  r.alive=false; r.deadT=TY.t; r.deadBy=by; r.deadHow=how; r.deadNw=r.nw;
+  const killer = by==='me' ? '你' : (TY.rivals.find(x=>x.id===by)||{}).nm || '市場';
+  tyNews(by==='me'?'good':'bad', `💀 ${r.nm}出局`, `${how}。${killer==='你'?'你':killer}接收了他的地盤,富豪榜上少一個人。`);
+  TY_FALLQ.push(r.id);
+}
 /* 他在這個地區有多少勢力(0~100)。你自己的勢力算法一樣,拿資產比重換算。 */
 const tyTurf = (r, reg) => (r.turf && r.turf[reg]) || 0;
 /* 你在一個地區的勢力:那裡的資產佔你淨值的比重,拉到 0~100 的尺度上。
@@ -5765,7 +5799,7 @@ function tyRivalTurn(){
         r.nw += prey.nw*.85;
         for(const k in (prey.turf||{}))
           r.turf[k]=tyClamp(tyTurf(r,k)+tyTurf(prey,k)*.7, 0, 100);
-        prey.alive=false;
+        tyRivalDown(prey, r.id, `被${r.nm}整個買下來`);
         tyLog('rival', `${r.nm}把${prey.nm}整個買下來了。榜上少一個人,而他多了一塊地盤。`, r.id);
         TY_RV_EV.push({ k:'eat', rid:r.id, prey:prey.id, at:prey.home });
       }
@@ -5969,6 +6003,7 @@ function tyReconTarget(site){
   return tyRivalsA().find(r=>r.home===site) || (tyRivalForces().find(f=>f.site===site)||{}).r || null;
 }
 let TY_LAST_RECON=null;                // 給畫面層播偵察機(不進存檔)
+const TY_RECON_PENDING=new Set();      // 偵察機還在飛:情報報告先不秀(畫面狀態)
 function tyRecon(site){
   const blocked=tyBlock('recon', site); if(blocked) return blocked;
   const r=tyReconTarget(site), cost=tyReconCost();
@@ -5977,10 +6012,15 @@ function tyRecon(site){
   tyLog('strike', `🛩 偵察機飛過${tySite(site).nm}:取得${r.nm}三季的情報。`, r.id);
   TY_LAST_RECON={ from:TY.home, to:site, rid:r.id };
   tySave();
+  /* 使用者:「偵察機還沒到目的地就顯示偵查完成」—— 規則上情報這一刻就算數,但畫面要等飛機繞完才回報。
+     沒有地球動畫的時候(測試、退回模式)直接回報。 */
+  if(window.W3D && W3D.ok){ TY_RECON_PENDING.add(r.id); return `<b>🛩 偵察機起飛</b> → ${tySite(site).nm}。飛到了會回報${r.nm}的情報。花費 ${tyM(cost)}。`; }
   return `<b>🛩 偵察完成。</b>${r.nm}的情報三季有效(到 ${tyWhen(TY.t+3)}):對他的打擊 +30%、談判 +8%。花費 ${tyM(cost)}。`;
 }
 /* 情報報告:只用公開的規則推算,不偷看亂數 */
 function tyIntelHTML(r){
+  if(TY_RECON_PENDING.has(r.id)) return `<div class="ty-intel"><div class="p-sec">🛩 情報報告<span>偵察機還在飛……</span></div>
+    <div class="expo-note">飛到${escH(tySite(r.home).nm)}上空繞一圈之後,這裡會出現他的報告。</div></div>`;
   const regs=Object.keys(TY_REGIONS).filter(k=>k!=='off');
   const cand=regs.slice().sort((a,b)=>(TY.reg[b].idx+tyTurf(r,b)/200)-(TY.reg[a].idx+tyTurf(r,a)/200)).slice(0,3);
   const mine=new Set(tyMyRegions());
@@ -6419,7 +6459,7 @@ function tyDeal(k, rid){
       r.nw -= take;
       for(const g in (r.turf||{})) r.turf[g]=tyClamp(tyTurf(r,g)*.55,0,100);
       TY.heat=tyClamp(TY.heat+14,0,120); TY.fame=tyClamp(TY.fame+8,0,100);
-      if(r.nw < 2e8) r.alive=false;
+      if(r.nw < 2e8) tyRivalDown(r, 'me', '被你敵意收購,身家只剩不到 2 億');
       extra = `你吃下他 ${tyM(take)} 的資產,他在每一個地區的勢力都縮水了一半。`
             + `名氣 +8、關注 +14 —— 這種事沒有人會沒看見。`;
       break;
@@ -6732,6 +6772,9 @@ const tyBizCost = (k, site) =>
 const tySite  = id => TY_SITE[id] || TY_SITE.tpe;
 /* 這個地點可以做這件事嗎 */
 const tyCan   = (id,k) => (TY_SITE[id]?.kind||[]).includes(k);
+/* 現金可以放在哪:私人銀行中心(bank),或有證券交易所的城市(ex)。
+   第一版只認 bank —— 東京、上海、法蘭克福都放不了錢,使用者移居東京之後錢被卡在台北。 */
+const tyCanCash = id => tyCan(id,'bank') || tyCan(id,'ex');
 /* 某一類資產可以放在哪些地點 */
 const TY_ASSET_KIND = { stock:'ex', bond:'ex', gold:'vault', estate:'re',
                         fx:'bank', crypto:'ex', oil:'oil', art:'re' };
@@ -7839,7 +7882,7 @@ function tyNeeds0(act, arg){
                cashFor(tyMoveCost()) ];
 
     case 'movecash':
-      return [ tyNb('那裡有銀行體系', tyCan(arg,'bank'), '那裡沒有可以放錢的銀行體系'),
+      return [ tyNb('那裡有銀行或金融市場', tyCanCash(arg), '那裡沒有可以放錢的銀行或金融市場'),
                tyNb('不是錢現在放的地方', TY.cashSite!==arg, '錢已經在這裡了'),
                tyNd('現金', TY.cash, 1e6, tyM) ];
 
@@ -9222,7 +9265,15 @@ function tyPlayLast(){
     // 手機:先收起面板看偵察機飛,繞完再把情報報告打開
     const reopen = TY_MODAL==='pick' && !tySideModal();
     if(reopen){ TY_MODAL=null; renderPage(); }
-    W3D.animRecon(TY_LAST_RECON, ()=>{ if(reopen && TY_PICK){ TY_MODAL='pick'; renderPage(); } });
+    const rid=TY_LAST_RECON.rid;
+    W3D.animRecon(TY_LAST_RECON, ()=>{
+      TY_RECON_PENDING.delete(rid);
+      const rr=tyRival(rid);
+      if(rr) TY_MSG=`<b>🛩 偵察完成。</b>${escH(rr.nm)}的情報三季有效(到 ${tyWhen((TY.intel||{})[rid]||TY.t)}):對他的打擊 +30%、談判 +8%。`;
+      tySfx('deal','land');
+      if(reopen && TY_PICK) TY_MODAL='pick';
+      renderPage();
+    });
     TY_LAST_RECON=null;
   }
 }
@@ -9304,7 +9355,7 @@ function tyDealHTML(k, r){
 let TY_PWR=null;                     // 展開的經濟圈
 function tyPowerTab(){
   const regs=Object.keys(TY_REGIONS).filter(k=>k!=='off');
-  const bar=(x,mx)=>`<div class="b-r${x.me?' me':''}"><span class="b-n">${x.me?'🔵':x.ic||''} ${escH(x.nm)}</span>
+  const bar=(x,mx)=>`<div class="b-r${x.me?' me':''}"><span class="b-n">${x.r?tyRvLink(x.r):`🔵 ${escH(x.nm)}`}</span>
       <span class="b-b"><i style="width:${Math.max(2,x.v/Math.max(1,mx)*100).toFixed(0)}%;background:rgb(${x.col})"></i></span>
       <span class="b-v">${x.v.toFixed(0)}</span></div>`;
   // 全球計數:每個有城市的國家 + 每座城市,誰領先
@@ -9401,6 +9452,8 @@ function tyRivalTab(){
         ${(r.pact||0)>TY.t?`<span class="rl-p">🤝 互不侵犯至 ${tyWhen(r.pact)}</span>`:''}
         ${clash.length?`<span class="rl-c">⚔ 跟你在${clash.map(g=>TY_REGIONS[g].nm).join('、')}正面對上</span>`:''}
       </div>
+      <div class="rv-hq"><span>大本營:${PX.flagHTML?PX.flagHTML(tySite(r.home).iso):''} <b>${escH(tySite(r.home).nm)}</b>(${escH(REGION_NAME[tySite(r.home).iso]||'')}) · ${escH(TY_ARCH[r.arch].nm)}</span>
+        <button type="button" class="ty-b alt" data-ty="gohq" data-k="${r.id}">📍 看大本營</button></div>
       ${tyRivalLast(r)}
       ${tyIntel(r.id)?`<div class="rv-last"><b class="up">🛩 情報中</b>(到 ${tyWhen(TY.intel[r.id])})· 打他 +30%、談判 +8%</div>`:''}
       ${tyTurfHTML(r)}
@@ -9415,8 +9468,9 @@ function tyRivalTab(){
       會在危機那一季斷掉,也會因為你打進他的地盤而記恨。
       <b>關係</b>決定他願不願意跟你談,<b>勢力</b>決定他值不值得你談。</div>
     <div class="ty-cards">${cards}</div>
-    ${dead.length?`<div class="p-sec">已經出局<span>被別人吃掉或自己倒了</span></div>
-      <div class="expo-note">${dead.map(r=>escH(r.nm)).join('、')} —— 他們的地盤已經被瓜分。</div>`:''}
+    ${dead.length?`<div class="p-sec">💀 已經出局<span>${dead.length} 人 · 被別人吃掉或被你收購</span></div>
+      <div class="ty-feed">${dead.map(r=>`<div class="fd bad"><span class="fd-t">${r.deadT!=null?tyWhen(r.deadT):'—'}</span><i class="fd-ic">💀</i>
+        <span class="fd-x"><b>${r.ic||''} ${escH(r.nm)}</b> ${escH(r.deadHow||'退出富豪榜')}${r.deadBy==='me'?' —— 是你幹的':''}</span></div>`).join('')}</div>`:''}
     <div class="expo-note">⚠ 對手的行為只讀公開狀態(景氣、地區指數、雙方淨值、關係),
       沒有任何一條規則是「因為玩家做了什麼所以偷偷懲罰他」。
       談條件的成功率也直接寫在按鈕上 —— 這裡沒有藏起來的骰子。</div>`;
@@ -9438,6 +9492,8 @@ function tySimRank(){
       <span class="nm"><b>${escH(r.nm)}</b><em>${escH(r.tag)}${
         r.home?' · 大本營 '+escH(tySite(r.home).nm):''}</em></span>
       <span class="v">${tyM(r.nw)}</span></div>`).join('')
+    + TY.rivals.filter(r=>r.alive===false).map(r=>`<div class="lb dead"><span class="n">💀</span>
+      <span class="nm"><b>${escH(r.nm)}</b><em>出局 · ${escH(r.deadHow||'退出富豪榜')}</em></span><span class="v">—</span></div>`).join('')
     + `</div><div class="expo-note">榜單看的是「別人查得到的身家」。
         有信託架構的人在這裡永遠比實際窮 —— 現實中的排名也是這樣算的。
         對手的大本營會隨著他們往外擴而改變,那也是你在地圖上看得到的東西。</div>`;
@@ -9933,13 +9989,17 @@ function tyIsoPower0(code, f){
   const myHere=tyIsoSites(code).reduce((a,x)=>a+tySiteStuff(x.id).val,0);
   const myReg=tyMySites().filter(x=>x.reg===reg).reduce((a,x)=>a+tySiteStuff(x.id).val,0);
   const forces=tyRivalForces();
-  const wMe=myHere>0 ? .6+.4*myHere/Math.max(1,myReg) : .3;
+  /* 使用者:「有些國家根本沒有建設(像日韓),為什麼算富豪的勢力範圍?不是應該沒人嗎」——
+     第一版只要在那個經濟圈有勢力,連一棟都沒有的國家也分到三到五成。現在一定要**真的在這個國家有東西**:
+     你:有資產(或駐軍)· 對手:大本營在這國、或駐軍在這國。都沒有的國家就是沒人的地方。 */
+  const myTroops=tyUnits().some(u=>!u.to && tySite(u.site).iso===code);
+  const wMe=myHere>0 ? .6+.4*myHere/Math.max(1,myReg) : myTroops ? .5 : 0;
   const board=[{ me:true, nm:'你', col:'41,151,255', v:tyMyTurf(reg)*wMe, w:wMe }];
   for(const r of tyRivalsA()){
     const t=tyTurf(r,reg); if(t<=0) continue;
     const w = tySite(r.home).iso===code ? 1
-            : forces.some(x=>x.r.id===r.id && tySite(x.site).iso===code) ? .8
-            : sites.length ? .5 : .3;
+            : forces.some(x=>x.r.id===r.id && tySite(x.site).iso===code) ? .8 : 0;
+    if(!w) continue;
     board.push({ r, nm:r.nm, ic:r.ic, col:TY_RVCOL[r.id]||'200,200,210', v:t*w, w });
   }
   board.sort((a,b)=>b.v-a.v);
@@ -10106,7 +10166,7 @@ function tyGlobeMount(){
               const mark = rel>=20?'🤝' : rel<=-20?'⚔' : '';
               el.innerHTML=`<i class="k-ic">${r.ic||'👤'}</i>`
                 + (window.PX&&PX.rivalTower?`<span class="k-px">${PX.img('kp:rv:'+(d._hk||0), PX.rivalTower(d._hk||0), { fit:[16,30], tint:`rgb(${TY_RVCOL[r.id]||'160,160,170'})` })}</span>`:'')
-                + `<b class="k-n">${escH(r.nm)}${mark?` <u class="k-s">${mark}</u>`:''}</b>`;
+                + `<b class="k-n"><u class="k-who" style="--rc:rgb(${TY_RVCOL[r.id]||'160,160,170'})">${r.ic||'👤'}</u>${escH(r.nm)}<em class="k-hq">大本營</em>${mark?` <u class="k-s">${mark}</u>`:''}</b>`;
               el.title=`${r.nm} · ${r.tag} · ${tyM(r.nw)}\n關係 ${tyRelTxt(rel)}(${rel.toFixed(0)})\n`
                      + `勢力:${Object.entries(r.turf||{}).filter(([,v])=>v>2)
                           .sort((a,b)=>b[1]-a[1])
@@ -10130,7 +10190,7 @@ function tyGlobeMount(){
                 .map(b=>{ try{ return PX.img('kp:'+b.c+(b.k||'')+b.f+'@'+(b.h||0), W3D.bldSprite(b), { fit:[16,30] }); }catch(e){ return ''; } }).join(''):'';
               el.innerHTML=`<span class="k-b">${d._blds.map(tyBldHTML).join('')}</span>`
                 + (px?`<span class="k-px">${px}</span>`:'')
-                + `<b class="k-n"><em class="k-lv" title="城市等級">${tySiteLv(d._v)}</em>${
+                + `<b class="k-n"><u class="k-me" title="這是你的">你</u><em class="k-lv" title="城市等級">${tySiteLv(d._v)}</em>${
                     ics?`<u class="k-s">${ics}</u>`:''}${escH(d.nm)}${
                     d._v>1?` <span>${tyM(d._v)}</span>`:''}</b>`;
               el.title=`${d.nm} · ${tyM(d._v)}\n`
@@ -10630,7 +10690,7 @@ function tyIsoPanel(code){
     </div>
     <div class="p-sec">勢力<span>${I.ownerTxt}</span></div>
     <div class="ty-board">${I.board.length?I.board.map(x=>`<div class="b-r${x.me?' me':''}">
-        <span class="b-n">${x.ic||'🔵'} ${escH(x.nm)}</span>
+        <span class="b-n">${x.r?tyRvLink(x.r):`🔵 ${escH(x.nm)}`}</span>
         <span class="b-b"><i style="width:${(x.v/mx*100).toFixed(0)}%;background:rgb(${x.col})"></i></span>
         <span class="b-v">${x.v.toFixed(0)}</span></div>`).join(''):'<div class="empty">這個地區還沒有人有勢力。</div>'}</div>`;
   }
@@ -10755,7 +10815,7 @@ function tyScaleHTML(id){
   const pick=all.slice(0,5);
   if(me>=5) pick.push(all[me]);
   const mx=Math.max(1, all[0].v);
-  const nm=x=>x.me ? `🔵 你 · ${escH(tySite(x.id).nm)}` : `${x.r.ic||''} ${escH(x.r.nm)} · ${escH(tySite(x.id).nm)}`;
+  const nm=x=>x.me ? `🔵 你 · ${escH(tySite(x.id).nm)}` : `${tyRvLink(x.r)} · ${escH(tySite(x.id).nm)}`;
   return `<div class="p-sec">規模比較<span>${me>=0?`你在這裡排全圖第 ${me+1} 高`:'對手大本營'}</span></div>
     <div class="ty-board wide">${pick.map(x=>{
       const i=all.indexOf(x), col=x.me?'41,151,255':(TY_RVCOL[x.r.id]||'200,200,210');
@@ -10801,7 +10861,7 @@ function tySitePanel(id){
         title="${escH(lock?`要先有 ${TY_PARTNERS[lock].nm}`:'買 '+a.nm)}">買 ${a.nm}</button>`
       + (edge?`<span class="a-edge">${edge}</span>`:''), need));
   }
-  if(s.kind.includes('bank') && TY.cashSite!==id)
+  if(tyCanCash(id) && TY.cashSite!==id)
     acts.push(act(tyActBtn('movecash', id, '把現金搬來', ` data-site="${id}"`, 'alt'),
                   tyNeeds('movecash', id)));
   if(s.kind.includes('shell'))
@@ -11380,6 +11440,7 @@ function tycoonPage(){
       ${TY.done?`<div class="tg-end">${tyEndHTML()}</div>`:''}
       ${tyModalHTML()}
       ${tyNewCardHTML()}
+      ${tyFallHTML()}
     </div>
     ${tyHand()}
   </div>`;
@@ -11559,6 +11620,20 @@ function tyHand(){
 }
 /* 新牌解鎖的翻牌 */
 let TY_NC_PLAYED=null;
+/* 對手的名字一律可以點:點了開他的資料卡(身家、關係、大本營在哪、可以談的條件) */
+const tyRvLink = r => `<button type="button" class="rv-link" data-ty="rvinfo" data-k="${r.id}" title="看 ${escH(r.nm)} 的資料與大本營"
+  style="--rc:rgb(${TY_RVCOL[r.id]||'160,160,170'})">${r.ic||''} ${escH(r.nm)}</button>`;
+function tyFallHTML(){
+  const id=TY_FALLQ[0]; if(!id) return '';
+  const r=TY.rivals.find(x=>x.id===id); if(!r){ TY_FALLQ.shift(); return tyFallHTML(); }
+  const killer=r.deadBy==='me'?'你':((TY.rivals.find(x=>x.id===r.deadBy)||{}).nm||'市場');
+  return `<div class="tg-fall" role="alertdialog"><div class="fl-box ${r.deadBy==='me'?'win':''}">
+    <div class="fl-sk">💀</div><div class="fl-t">${r.ic||''} ${escH(r.nm)} 出局</div>
+    <div class="fl-s">${escH(r.deadHow||'退出富豪榜')} · ${tyWhen(r.deadT)}</div>
+    <div class="fl-d">出局前身家 ${tyM(r.deadNw||0)} · 大本營 ${escH(tySite(r.home).nm)} → ${escH(killer)}接收了他的地盤</div>
+    ${TY_FALLQ.length>1?`<div class="fl-m">還有 ${TY_FALLQ.length-1} 個人這一季出局</div>`:''}
+    <button type="button" class="ty-b big" data-ty="fallok">知道了</button></div></div>`;
+}
 function tyNewCardHTML(){
   if(!TY_NEWCARD.length) return '';
   const c=tyCard(TY_NEWCARD[0]);
@@ -11767,7 +11842,14 @@ function tyPickHTML(){
       break; }
     case 'move':
       body=row('', `遷到 ${escH(s.nm)}`, `證券資本利得 ${(tyCg(id,1)*100).toFixed(1)}% · 一般所得 ${(s.tax*100).toFixed(1)}% · 費用 ${tyM(tyMoveCost())} · 人脈 −10`,
-        tyActBtn('movehome', id, '遷過去', ` data-site="${id}"`, 'alt'), tyNeedHTML(tyNeeds('movehome', id),'tight'), `<em class="pk-d">${escH(s.note||'')}</em>`);
+        tyActBtn('movehome', id, '遷過去', ` data-site="${id}"`, 'alt'), tyNeedHTML(tyNeeds('movehome', id),'tight'), `<em class="pk-d">${escH(s.note||'')}</em>`)
+        /* 使用者:「我移居到東京,錢還留在台灣?要怎麼把錢移到其他地方」—— 移居只改稅務居住地;
+           現金放在哪一座城是另一件事(銀行在哪裡),要另外搬。這裡直接給一顆。 */
+        + `<div class="expo-note">⚠ <b>移居只改「稅務居住地」</b>(資本利得稅照這裡算)。你的現金 ${tyM(Math.max(0,TY.cash))} 現在放在
+            <b>${escH(tySite(TY.cashSite).nm)}</b>,不會跟著你搬;公司、房地產也留在原本的城市。</div>`
+        + (TY.cashSite!==id ? row('', `💵 把現金搬到 ${escH(s.nm)}`, tyCanCash(id) ? `電匯與換匯成本 ${tyM(Math.max(0,TY.cash)*.0015)}(0.15%)· 不花行動點`
+              : `${escH(s.nm)}沒有可以放錢的銀行體系 —— 現金只能放在有銀行的城市`,
+            tyActBtn('movecash', id, '搬現金', ` data-site="${id}"`), tyNeedHTML(tyNeeds('movecash', id),'tight'), '') : '');
       break;
     case 'partner': {
       const P=TY_PARTNERS[s.reg];
@@ -12069,6 +12151,9 @@ function bindTycoon(root){
       return;
     }
     if(a==='sfx'){ if(window.SFX) SFX.toggle(); renderPage(); return; }
+    if(a==='fallok'){ TY_FALLQ.shift(); renderPage(); return; }
+    if(a==='rvinfo'){ TY_MODAL='rival'; TY_RIVAL=b.dataset.k; TY_DEAL=null; renderPage(); return; }
+    if(a==='gohq'){ const r=TY.rivals.find(x=>x.id===b.dataset.k); if(r){ TY_MODAL=null; tyPickSite(r.home); } return; }
     if(a==='city'){ const r=b.getBoundingClientRect(); tyOpenCity(b.dataset.k, [r.left+r.width/2, r.top+r.height/2]); return; }
     if(a==='restart'||a==='quit'){
       /* 放棄要確認 —— 這是這一頁唯一一個「按下去就回不去」的動作。
