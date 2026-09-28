@@ -2387,6 +2387,13 @@
   /* 右側斜切的功能鈕 —— 參考畫面那組盾牌 */
   .tg-side{position:absolute;right:0;top:8px;display:flex;flex-direction:column;gap:5px;
     z-index:210}
+  .tg-sb.tg-tog{display:none}
+  @media (max-width:599px){
+    .tg-sb.tg-tog{display:flex;background:linear-gradient(160deg,#3a6a2e,#1e4218)}
+    .tg-side:not(.open) .tg-sb:not(.tg-tog){display:none}
+    .tg-lay:not(.open) .tg-c:not(.on){display:none}
+    .tg-lay:not(.open) .tg-c.on::after{content:' ▾'}
+  }
   .tg-sb{display:flex;flex-direction:column;align-items:center;justify-content:center;
     width:56px;min-height:46px;gap:1px;font:inherit;cursor:pointer;color:var(--g-t);
     background:linear-gradient(160deg,rgba(34,64,92,.92),rgba(22,41,59,.92));
@@ -4449,6 +4456,7 @@
   /* 3D 建築啟用:CSS 積木收起來,名牌從地面往下垂 */
   #tyGlobeHost[data-w3d] .tyk .k-b{display:none}
   .tyk .k-px{display:none}
+  .tyk.cull{opacity:0;pointer-events:none;transition:opacity .15s}
   #tyGlobeHost[data-far="1"] .tyk .k-px{display:inline-flex;align-items:flex-end;gap:1px;margin-right:3px;vertical-align:bottom}
   #tyGlobeHost[data-far="1"] .tyk .k-px img{image-rendering:pixelated;max-height:30px;width:auto;filter:drop-shadow(1px 1px 0 #000)}
   #tyGlobeHost[data-far="1"] .tyk.rv .k-ic{display:none}
@@ -4589,6 +4597,7 @@
     #tyGlobeHost[data-z="far"] .tyk .k-n{font-size:12px}
     #tyGlobeHost[data-z="near"] .tyk .k-n{font-size:15px;padding:4px 12px}
     .w3d-tag{font-size:15px} .w3d-tag b{font-size:13px}
+    #tyGlobeHost[data-far="1"] .w3d-tag{font-size:12px} #tyGlobeHost[data-far="1"] .w3d-tag b{font-size:10px}
     .w3d-ban b{font-size:34px} .w3d-ban em{font-size:13px} .w3d-ban span{font-size:16px} .w3d-ban i{font-size:14px}
     .w3d-float{font-size:15px}
   }
@@ -4650,11 +4659,14 @@
   .w3d-tag.rf{opacity:.92}
 
   /* 遠看:3D 棋子收起來,標籤變成參考畫面那種方形兵種圖示(綠 = 你,紅 = 敵人) */
-  #tyGlobeHost[data-far="1"] .w3d-tag{display:flex;flex-direction:column;align-items:center;gap:1px;
-    min-width:34px;padding:4px 5px 3px;border-radius:4px;font-size:17px;line-height:1.05;
-    background:linear-gradient(180deg,#2f8a3a,#1d5c25);border:2px solid #d8f5c8;
-    box-shadow:0 2px 6px rgba(0,0,0,.6);transform-origin:50% 100%}
-  #tyGlobeHost[data-far="1"] .w3d-tag b{font-size:10.5px;color:#eaffdf}
+  /* 第二版縮小:使用者「圖案太大了,再小一點」—— 直的一大塊改成橫的一小條 */
+  #tyGlobeHost[data-far="1"] .w3d-tag{display:flex;flex-direction:row;align-items:center;gap:1px;
+    min-width:0;padding:1px 3px;border-radius:2px;font-size:10px;line-height:1;
+    background:linear-gradient(180deg,#2f8a3a,#1d5c25);border:1px solid #d8f5c8;
+    box-shadow:0 1px 3px rgba(0,0,0,.6);transform-origin:50% 100%}
+  #tyGlobeHost[data-far="1"] .w3d-tag b{font-size:9px;color:#eaffdf;margin-left:1px}
+  #tyGlobeHost[data-far="1"] .w3d-tag .pxflag{height:7px;margin-right:2px}
+  #tyGlobeHost[data-far="1"] .w3d-tag i.inc{font-size:9px}
   #tyGlobeHost[data-far="1"] .w3d-tag.mv{border-style:dashed}
   #tyGlobeHost[data-space="1"] .w3d-tag,#tyGlobeHost[data-space="1"] .tyu,#tyGlobeHost[data-space="1"] .tyk{visibility:hidden}
   #tyGlobeHost[data-far="1"] .w3d-tag.th{background:linear-gradient(180deg,#b3261e,#7a1510);border-color:#ffd0c8}
@@ -10042,6 +10054,7 @@ function tyGlobeMount(){
             }
             el.className='tyk'+(d._rival?' rv':'')+(d._idle?' idle':'');
             el.style.setProperty('--lane', d._lane||0);
+            el.dataset.v = Math.round((d._v||0)/1e6);      // 名牌讓位用:越值錢越優先(world3d.js)
             if(d._col) el.style.setProperty('--kg', d._col);
             if(d._rival){
               const r=d._rival, rel=r.rel||0;
@@ -10328,7 +10341,10 @@ function tyCityData(id){
            empty:`你在${escH(s.nm)}還沒有任何東西 —— 把建設牌拖到這座城就會蓋在這裡` };
 }
 let TY_CITY=null;
-let TY_SPACEV=0;               // 太空鏡頭:0 地球 / 1 月球 / 2 火星
+let TY_SPACEV=0;
+/* 手機:不常用的功能收起來(使用者:「有些不常用的功能可以幫我收起來,要用的時候再點開」)。
+   右邊一整排按鈕收成一顆「☰ 工具」;左上的圖層只留目前那一個,點它才展開。桌機不收。 */
+let TY_TOOLS_OPEN=false, TY_LAY_OPEN=false;               // 太空鏡頭:0 地球 / 1 月球 / 2 火星
 function tyOpenCity(id, at){
   tyCloseCity(true);
   if(!TY) return;
@@ -11107,7 +11123,8 @@ function tySideBtns(){
       title="${escH(lab)}"><i>${ic}</i><span>${lab}</span>${sub?`<em>${sub}</em>`:''}</button>`;
   /* 縮放按鈕:手機上兩指捏合不好按(而且地球本來就吃拖曳),
      所以照參考的那款遊戲給一組 +/− 。最近可以貼到城市那麼近。 */
-  return `<div class="tg-side">
+  return `<div class="tg-side${TY_TOOLS_OPEN?' open':''}">
+      ${b('tools', TY_TOOLS_OPEN?'✕':'☰', TY_TOOLS_OPEN?'收起':'工具', 'tg-tog')}
       ${b('modal:data','📊','資料')}
       ${b('overview','🌐','總覽')}
       ${b('modal:log','📋','大事記')}
@@ -11235,7 +11252,7 @@ function tycoonPage(){
                   <b>其他功能完全不受影響</b> —— 底下每一顆按鈕都還能按。</div>`
              : `<div id="tyGlobeSlot"></div><div class="tg-scrim"></div>`}
       ${tySideBtns()}
-      <div class="tg-lay">
+      <div class="tg-lay${TY_LAY_OPEN?' open':''}">
         <button type="button" class="tg-c${TY_LAYER==='mine'?' on':''}" data-ty="layer" data-k="mine">我的資產</button>
         <button type="button" class="tg-c${TY_LAYER==='econ'?' on':''}" data-ty="layer" data-k="econ">地區景氣</button>
         <button type="button" class="tg-c${TY_LAYER==='power'?' on':''}" data-ty="layer" data-k="power">勢力範圍</button>
@@ -11869,6 +11886,11 @@ function bindTycoon(root){
       renderPage(); return;
     }
     if(a==='tab'){ TY_MODAL=b.dataset.k; renderPage(); return; }
+    if(a==='tools'){ TY_TOOLS_OPEN=!TY_TOOLS_OPEN; tySfx('click','tap'); renderPage(); return; }
+    // 手機上圖層收起來的時候:點目前那一個 = 展開清單;選了別的就收回去
+    if(a==='layer' && innerWidth<600 && !TY_LAY_OPEN && b.dataset.k===TY_LAYER){ TY_LAY_OPEN=true; renderPage(); return; }
+    if(a==='layer') TY_LAY_OPEN=false;
+    if(b.classList.contains('tg-sb') && !['zoomin','zoomout','sfx','space'].includes(a)) TY_TOOLS_OPEN=false;
     if(a==='layer'){ TY_LAYER=b.dataset.k; if(TYG) TYG.polygonCapColor(tyCountryColor).polygonSideColor(tyCountrySide).polygonAltitude(tyCountryAlt); renderPage(); if(window.W3D) W3D.repaint(); return; }
     if(a==='zoomin'||a==='zoomout'){ tyZoom(a==='zoomin'?-1:1); return; }
     /* 太空:拉到最遠,鏡頭擺在月球(再按一次:火星)旁邊,地球跟它同框。第三次回到原本的高度。 */
