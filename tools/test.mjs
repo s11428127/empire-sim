@@ -339,7 +339,7 @@ test('帝國:破產與起訴這兩個結局真的到得了', async (browser) => 
 test('帝國:每一顆按鈕按下去都要有回應,而且畫面自己會更新', async (browser) => {
   const page = await freshPage(browser, { seed: SEED, hash: '#/tycoon' });
   // 開局前應該是六張劇本卡
-  eq(await page.$$eval('.tg-scn', els => els.length), 6, '開局畫面應該有六個劇本可以選');
+  eq(await page.$$eval('.tg-scn:not(.tester)', els => els.length), 6, '開局畫面應該有六個劇本可以選(另外加一個暫時的測試人員)');
   await page.click('.tg-scn[data-k="heir"]');
   await page.waitForFunction(() => typeof TY === 'object' && TY && TY.scn === 'heir',
                              { timeout: 5000 });
@@ -2209,6 +2209,35 @@ test('帝國第十四輪:航母戰鬥群只能停港口、走海路,有航運加
   near(r.turf, 38, 1e-9, '海權:最強對手勢力 −2');
   ok(r.ship[0] > r.ship[1] && r.ship[1] > 0, `航運:有航母的地區現金流比較高 ${r.ship}`);
   ok(r.rvNavy, '對手只在港口、勢力夠大時有航母');
+  ok(page.__errors.length === 0, `有 JS 錯誤:\n      ${page.__errors.join('\n      ')}`);
+  await page.__ctx.close();
+});
+
+test('帝國第十五輪:測試人員(暫時)—— 無限行動點、全部解鎖、打擊不用冷卻', async (browser) => {
+  const page = await freshPage(browser, { seed: SEED, hash: '#/tycoon' });
+  const r = await page.evaluate(() => {
+    const out = {};
+    TY = null; renderPage();
+    out.inIntro = !!document.querySelector('.tg-scn.tester[data-k="tester"]');
+    tyStart('tester', 7); TY_MODAL = null; renderPage();
+    out.allCards = TY_CARDS.every(c => tyHasCard(c.k));
+    const ap0 = tyApNow();
+    for (const k of ['tech', 'media', 'bank']) tyDo('found', () => tyFound(k, 'tpe'));
+    out.apAfter = tyApNow(); out.ap0 = ap0;
+    out.hand = /∞/.test(document.querySelector('.hd-ap').textContent);
+    tyStrike('missile', 'hsz');
+    out.readyAgain = tyStrikeReady('missile');
+    // 一般角色不受影響
+    tyStart('heir', 7);
+    out.normalAp = tyApMax() <= 9 && !tyHasCard('missile');
+    return out;
+  });
+  ok(r.inIntro, '開局畫面有測試人員');
+  ok(r.allCards, '測試人員所有牌都解鎖');
+  ok(r.apAfter === r.ap0 && r.ap0 >= 99, `行動點用不完:${r.ap0} → ${r.apAfter}`);
+  ok(r.hand, '手牌上顯示 ∞');
+  ok(r.readyAgain, '打擊不用冷卻');
+  ok(r.normalAp, '一般角色照原本的規則');
   ok(page.__errors.length === 0, `有 JS 錯誤:\n      ${page.__errors.join('\n      ')}`);
   await page.__ctx.close();
 });

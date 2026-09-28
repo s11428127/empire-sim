@@ -4456,12 +4456,12 @@
   /* 3D 建築啟用:CSS 積木收起來,名牌從地面往下垂 */
   #tyGlobeHost[data-w3d] .tyk .k-b{display:none}
   .tyk .k-px{display:none}
-  .tyk.cull{opacity:0;pointer-events:none;transition:opacity .15s}
+  #tyGlobeHost .tyk.cull{opacity:0 !important;pointer-events:none !important;transition:opacity .15s}
   #tyGlobeHost[data-far="1"] .tyk .k-px{display:inline-flex;align-items:flex-end;gap:1px;margin-right:3px;vertical-align:bottom}
   #tyGlobeHost[data-far="1"] .tyk .k-px img{image-rendering:pixelated;max-height:30px;width:auto;filter:drop-shadow(1px 1px 0 #000)}
   #tyGlobeHost[data-far="1"] .tyk.rv .k-ic{display:none}
-  #tyGlobeHost[data-w3d] .tyk:not(.rv):not(.idle){transform:translate(-50%,6px)}
-  #tyGlobeHost[data-w3d] .tyk.rv{transform:translate(-50%,6px)}
+  #tyGlobeHost[data-w3d] .tyk:not(.rv):not(.idle){transform:translate(-50%,calc(6px + var(--dy,0px)))}
+  #tyGlobeHost[data-w3d] .tyk.rv{transform:translate(-50%,calc(6px + var(--dy,0px)))}
   #tyGlobeHost[data-w3d] .tyk.rv .k-ic{display:none}
   .tyk .k-lv{font-style:normal;display:inline-block;min-width:13px;margin-right:4px;
     padding:0 3px;border-radius:3px;background:#e0b23c;color:#2a1c02;font-weight:800;
@@ -4577,7 +4577,8 @@
   .tyk.idle .k-n{font-size:10.5px}
   .tyk.rv .k-n{font-size:11px}
   #tyGlobeHost[data-z="far"] .tyk .k-n{font-size:10.5px;padding:2px 6px}
-  #tyGlobeHost[data-z="near"] .tyk .k-n{font-size:13.5px;padding:4px 10px}
+  #tyGlobeHost[data-z="near"] .tyk .k-n{font-size:11.5px;padding:2px 7px}
+  #tyGlobeHost[data-z="near"] .tyk .k-s{display:none}
   .w3d-tag{font-size:13px;padding:3px 6px} .w3d-tag b{font-size:12px}
   /* 手機窄的時候資源列七格擠在一排:數字放大到 14px 會被截成「15.0...」 */
   @media (max-width:420px){ .tg-res .r b{font-size:12.5px;letter-spacing:-.04em} .tg-res .r em{font-size:9.5px} }
@@ -4595,7 +4596,7 @@
     .tyk .k-n{font-size:13.5px;padding:3px 10px}
     .tyk.idle .k-n{font-size:12px} .tyk.rv .k-n{font-size:12.5px}
     #tyGlobeHost[data-z="far"] .tyk .k-n{font-size:12px}
-    #tyGlobeHost[data-z="near"] .tyk .k-n{font-size:15px;padding:4px 12px}
+    #tyGlobeHost[data-z="near"] .tyk .k-n{font-size:13px;padding:3px 9px}
     .w3d-tag{font-size:15px} .w3d-tag b{font-size:13px}
     #tyGlobeHost[data-far="1"] .w3d-tag{font-size:12px} #tyGlobeHost[data-far="1"] .w3d-tag b{font-size:10px}
     .w3d-ban b{font-size:34px} .w3d-ban em{font-size:13px} .w3d-ban span{font-size:16px} .w3d-ban i{font-size:14px}
@@ -4691,7 +4692,7 @@
   #tyGlobeHost[data-z="near"] .tyk.idle{opacity:1}
   .tyk .k-n{box-shadow:0 1px 5px rgba(0,0,0,.6)}
   /* 3D 模式:每座城市正中央站著它的地標,還沒進場的城市名改掛在地標下面 */
-  #tyGlobeHost[data-w3d] .tyk.idle{transform:translate(-50%,10px)}
+  #tyGlobeHost[data-w3d] .tyk.idle{transform:translate(-50%,calc(10px + var(--dy,0px)))}
 
   /* ═══════════ 第五輪:拉線、部隊小卡、爆炸、部隊面板字級 ═══════════ */
   #w3dAim{position:absolute;left:50%;top:56px;transform:translateX(-50%);z-index:220;display:flex;align-items:center;gap:10px;
@@ -4934,6 +4935,9 @@
   .ty-mars .ms.run{ background:#4a3a12; animation:msRun 1s steps(2) infinite } .ty-mars .ms.run span{ color:#ffd84a }
   .ty-mars .ms.lock{ opacity:.55 }
   @keyframes msRun{ 50%{ border-color:#ffd84a } }
+
+  .tg-scn.tester{ border:3px dashed #ffd84a !important; background:#2a2410 !important }
+  .tg-scn.tester .s-h b{ color:#ffd84a }
 
   /* ---- 所有動作的回饋 ---- */
   .px-burst{ position:fixed; z-index:10002; pointer-events:none; width:5px; height:5px; background:var(--c); box-shadow:0 0 0 1px #141821;
@@ -5583,7 +5587,14 @@ const TY_SCN = [
     cash:.3e8, debt:0, credit:40, fame:2, infl:2, biz:null,
     dsc:'最難的一局。沒有信用、沒有人脈、沒有安全網 —— 前三年你只有一件事可做:活著。',
     perk:'所有事業現金流 +25%(你自己下去做);名氣成長加倍;沒有任何人盯著你(關注度成長減半)。' },
+  /* ⚠ 暫時的:使用者要測試用的角色(「之後再刪掉測試人員」)。刪的時候:這一筆、tyTester() 與用到它的地方
+       (tyApMax / tyApNow / tyDo / tyHasCard / tyStrikeReady / 手牌的 ∞)、tyIntro 的 .tester 樣式、測試裡的第十五輪。 */
+  { k:'tester', home:'tpe', nm:'🧪 測試人員', sub:'暫時的:無限行動點、所有牌都解鎖',
+    cash:5000e8, debt:0, credit:100, fame:70, infl:80, biz:'tech',
+    dsc:'給測試用的角色:5000 億現金、行動點用不完、所有牌一開始就在手上、打擊沒有冷卻。測完會刪掉。',
+    perk:'行動點無限;所有卡牌解鎖;飛彈 / 空襲不用等冷卻。其他規則(價格、條件、對手)照常。', tester:true },
 ];
+const tyTester = () => !!TY && TY.scn==='tester';
 const tyScn = () => TY_SCN.find(s=>s.k===TY.scn) || TY_SCN[0];
 
 /* 對手:富豪榜上的另外六個人。他們的成長跟景氣綁在不同的東西上,
@@ -6064,7 +6075,7 @@ function tySpaceTurn(){
   if(m.st>=4) inc+=m.inv*TY_COLONY_YLD;
   return inc;
 }
-const tyStrikeReady = k => ((TY.cd||{})[k]||0) <= TY.t;
+const tyStrikeReady = k => tyTester() || ((TY.cd||{})[k]||0) <= TY.t;
 /* 打哪一個對手:飛彈打他本人(目標城市 = 他的大本營);空襲打那個地區勢力最大的對手 */
 function tyStrikeTarget(k, site){
   const S=TY_SITE[site]; if(!S) return null;
@@ -10054,7 +10065,8 @@ function tyGlobeMount(){
             }
             el.className='tyk'+(d._rival?' rv':'')+(d._idle?' idle':'');
             el.style.setProperty('--lane', d._lane||0);
-            el.dataset.v = Math.round((d._v||0)/1e6);      // 名牌讓位用:越值錢越優先(world3d.js)
+            el.dataset.v = Math.round((d._v||0)/1e6);
+            el.dataset.id = d.id;      // 名牌讓位用:越值錢越優先(world3d.js)
             if(d._col) el.style.setProperty('--kg', d._col);
             if(d._rival){
               const r=d._rival, rel=r.rel||0;
@@ -11210,7 +11222,7 @@ function tyModalHTML(){
 /* ---------- 開局:選劇本(也換成指揮台的樣子) ---------- */
 function tyIntro(){
   const cards=TY_SCN.map(s=>`
-    <button type="button" class="tg-scn" data-ty="start" data-k="${s.k}">
+    <button type="button" class="tg-scn${s.tester?' tester':''}" data-ty="start" data-k="${s.k}">
       <div class="s-h"><b>${s.nm}</b><span>${s.sub}</span></div>
       <div class="s-d">${s.dsc}</div>
       <div class="s-f"><span><em>起始現金</em><b>${tyM(s.cash)}</b></span>
@@ -11294,8 +11306,8 @@ const TY_AP_COST = { found:2, upgrade:1, expand:1, ipo:1, reverse:1, buy:1, shor
   recruit:1, recruitTo:1, deploy:1, strike:2, partner:1, movehome:1, lobby:1, media:1,
   charity:1, trust:1, holdco:1, recon:1, launch:1, mars:2 };
 const tyApCost = act => String(act).startsWith('deal:') ? 1 : (TY_AP_COST[act] || 0);
-const tyApMax  = () => Math.min(9, 6 + Math.floor((TY && TY.infl || 0) / 25));
-function tyApNow(){ if(TY && typeof TY.ap !== 'number') TY.ap = tyApMax(); return TY ? TY.ap : 0; }
+const tyApMax  = () => tyTester() ? 99 : Math.min(9, 6 + Math.floor((TY && TY.infl || 0) / 25));
+function tyApNow(){ if(tyTester()) TY.ap = 99; if(TY && typeof TY.ap !== 'number') TY.ap = tyApMax(); return TY ? TY.ap : 0; }
 let TY_SAVES = 0;                 // tySave 被呼叫的次數:動作有沒有真的做成,看它有沒有存檔
 /* 經由畫面做一個動作:點數夠才做,做成了才扣 */
 function tyDo(act, fn){
@@ -11304,7 +11316,7 @@ function tyDo(act, fn){
   const s0 = TY_SAVES;
   const msg = fn();
   if(TY_SAVES > s0){
-    if(c){ TY.ap = Math.max(0, TY.ap - c); }
+    if(c && !tyTester()){ TY.ap = Math.max(0, TY.ap - c); }       // 測試人員:行動點用不完
     tyCardsSync(); tySave();
   }
   return msg;
@@ -11385,7 +11397,7 @@ function tyCardsSync(){
     if(ok){ TY.cards.push(c.k); TY_NEWCARD.push(c.k); }
   }
 }
-const tyHasCard = k => { const c=tyCard(k); return !!c && (!c.unlock || (TY.cards||[]).includes(k)); };
+const tyHasCard = k => { const c=tyCard(k); return !!c && (tyTester() || !c.unlock || (TY.cards||[]).includes(k)); };
 
 /* 這座城市建得了哪些事業、買得到哪些資產 */
 function tyBuildOpts(id){
@@ -11443,9 +11455,9 @@ function tyHand(){
       <button type="button" class="hd-ov${TY_MODAL==='more'?' on':''}" data-ty="modal:more"><i>☰</i><span>總覽</span>
         ${tyThreats().length?`<u class="dot">${tyThreats().length}</u>`:''}</button>
       <div class="hd-mid">
-        <div class="hd-ap" title="每一季補滿 ${mx} 點(人脈每 25 點多 1 點,最多 9 點)">
+        ${tyTester() ? `<div class="hd-ap" title="測試人員:行動點無限"><b>行動點</b><em>∞ 測試模式</em></div>` : `<div class="hd-ap" title="每一季補滿 ${mx} 點(人脈每 25 點多 1 點,最多 9 點)">
           <b>行動點</b><span class="pips">${Array.from({length:mx},(_,i)=>`<i class="${pip(i)}"></i>`).join('')}</span>
-          <em>${ap} / ${mx}</em></div>
+          <em>${ap} / ${mx}</em></div>`}
         <div class="hd-cards${deal?' deal':''}">${cards.map((c,i)=>tyCardHTML(c,{ i })).join('')}</div>
       </div>
     </div>`;
