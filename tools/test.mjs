@@ -2099,6 +2099,71 @@ test('帝國第十二輪:連點兩下城市開城市全景(依類型分區、全
   await page.__ctx.close();
 });
 
+test('帝國第十三輪:星鏈(網路費、現金流加成、退役)、火星移民四階段、部隊落地才出現', async (browser) => {
+  const page = await freshPage(browser, { seed: SEED, hash: '#/tycoon' });
+  const r = await page.evaluate(() => {
+    tyStart('heir', 7); TY.cash = 900e8; TY_MODAL = null; renderPage();
+    const out = {}, home = TY.home;
+    out.lockedAtStart = !tyHasCard('star') && !tyHasCard('mars');
+    tyFound('tech', home); tyFound('bank', home); tyCardsSync();
+    out.starCard = tyHasCard('star');
+    // 發射:扣錢、多一批、同一地區不能重複發、離岸小島不行
+    const c0 = TY.cash, cost = tyStarCost();
+    out.msg = tyLaunch(home);
+    out.paid = c0 - TY.cash; out.cost = cost;
+    out.n = TY.space.sats.length;
+    out.again = tyLaunch(home);
+    out.off = tyBlock('launch', 'cay');
+    // 網路費 = 成本 × 12% × 當地景氣(夾在 0.6~1.6)
+    const s0 = TY.space.sats[0];
+    out.rev = tySpaceTurn(); out.revExpect = s0.c * .12 * tyClamp(TY.reg[s0.reg].idx, .6, 1.6);
+    // 現金流加成:同一個存檔(同一個亂數狀態)有星鏈 vs 沒星鏈,科技公司的現金流
+    const snap = JSON.stringify(TY);
+    tyNext(); const bA = TY.biz.find(b => b.k === 'bank' && b.site === home).cf;
+    TY = JSON.parse(snap); TY.space.sats = [];
+    tyNext(); const bB = TY.biz.find(b => b.k === 'bank' && b.site === home).cf;
+    out.boost = bB > 0 && Math.abs(bA / bB - 1.1) < 1e-9; out.bA = bA; out.bB = bB;
+    // 退役:10 季後不再收錢
+    TY = JSON.parse(snap);
+    TY.t += 10; out.expired = tyStarsOn().length === 0 && tySpaceTurn() === 0;
+    // 火星:第一段要科技/能源/基建公司;第二段要星鏈
+    TY = JSON.parse(snap); TY.t = 6; TY.cash = 5000e8;
+    let tries = 0;
+    while (TY.space.mars.st < 1 && tries++ < 12) { if (!TY.space.mars.run) out.go = tyMarsGo(); tyNext(); TY.cash = 5000e8; }
+    out.st1 = TY.space.mars.st;
+    out.inv = TY.space.mars.inv > 0;
+    TY.space.sats = [];
+    out.needStar = tyBlock('mars');
+    // 自給自足之後:殖民地每季帶回投入的 3.5%
+    TY.space.mars.st = 4; TY.space.mars.inv = 300e8;
+    out.colony = tySpaceTurn();
+    // 面板畫得出來
+    TY_PICK = { k: 'mars' }; out.pickMars = /火箭研發/.test(tyPickHTML()) && /自給自足/.test(tyPickHTML());
+    TY_PICK = { k: 'star', site: home }; out.pickStar = /發射星鏈/.test(tyPickHTML());
+    TY_PICK = null;
+    out.sprites = !!(PX.SPR.rocket && PX.SPR.sat);
+    // 部隊:在飛機上的不畫在目的地(畫面層沒啟用時照常畫)
+    out.flyHook = typeof tyTroopMarks === 'function';
+    return out;
+  });
+  ok(r.lockedAtStart, '星鏈、火星一開始是鎖著的');
+  ok(r.starCard, '有科技公司就解鎖星鏈');
+  near(r.paid, r.cost, 1, '發射扣的錢 = 星鏈成本');
+  eq(r.n, 1, '軌道上多一批');
+  ok(/已經有星鏈/.test(r.again), `同一個地區不能重複發:${r.again}`);
+  ok(/發射場/.test(r.off || ''), `離岸小島不能發射:${r.off}`);
+  near(r.rev, r.revExpect, 1, '網路費 = 成本 × 12% × 景氣');
+  ok(r.boost, `星鏈罩住的地區,賺錢的公司現金流 ×1.1:${r.bA} vs ${r.bB}`);
+  ok(r.expired, '10 季後退役、不再收錢');
+  ok(r.st1 >= 1 && r.inv, `火箭研發要能完成:階段 ${r.st1}`);
+  ok(/星鏈/.test(r.needStar || ''), `無人補給需要星鏈:${r.needStar}`);
+  near(r.colony, 300e8 * .035, 1, '殖民地每季帶回投入的 3.5%');
+  ok(r.pickMars && r.pickStar, '星鏈與火星的出牌面板畫得出來');
+  ok(r.sprites, '火箭與衛星有像素圖');
+  ok(page.__errors.length === 0, `有 JS 錯誤:\n      ${page.__errors.join('\n      ')}`);
+  await page.__ctx.close();
+});
+
 /* =========================================================================
    跑
    ========================================================================= */

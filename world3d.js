@@ -358,7 +358,10 @@ let patchTimer = 0, patchDirty = false;
    ⚠ 不能太高:範圍一大(超過一百度),曲面的每一格弦會切進球面底下,
      被地球本身擋住,畫面上變成一條橫跨地球的條紋(實際發生過)。 */
 const PATCH_ALT = .62;
-const FAR_ALT = .95;       // 高於這個高度,部隊改用方形兵種圖示
+/* 高於這個高度:3D 模型全部收起來,改成像素圖示(城市名牌上的小建築、部隊的方形兵種圖示)。
+   使用者截圖(歐洲、台灣海峽那個距離):「這個距離還是先顯示圖案,等我再放大再顯示立體的」——
+   第一版 .95 太高,中距離一堆 3D 大樓、戰車、地標擠成一團。 */
+const FAR_ALT = .3;
 
 function featBox(f){
   if(f._box) return f._box;
@@ -616,6 +619,7 @@ const LANDMARK = {
   mex:['aztec','太陽金字塔'], scl:['needle','科斯塔內拉塔',-.1], jnb:['headframe','金礦井架'], lag:['skyline','維多利亞島','#7a9a8a'],
   nbo:['saucer','肯亞塔國際會議中心'], cay:['palm','七哩海灘'], vgb:['palm','維京群島'], bmu:['lighthouse','吉布斯山燈塔'],
 };
+W3D.bldSprite = b => bldSprite(b);
 W3D.landmarkName = id => (LANDMARK[id] || [])[1] || '';
 /* =============================================================================
    像素看板 —— 使用者:「全部變成像素風格,包含所有建築、軍事」
@@ -831,6 +835,7 @@ function buildSite(d){
     SEEN[id] = key;
   }
   if(root.userData.grow) kick();
+  root.visible = !FAR;
   return root;
 }
 
@@ -1740,16 +1745,31 @@ function focusOn(A, B, cb){
 let moveBurst = { t: 0, n: 0 };
 W3D._boom = (lat, lng, big) => boom(lat, lng, big);    // 給截圖驗證用
 W3D._step = () => { const t = performance.now(); animStep(t); animStep(t + 1); };   // 給截圖驗證用:手動推一格
+/* 還在飛機 / 船上的部隊。使用者:「要先搭飛機才會抵達,你剛剛是先抵達再搭飛機」——
+   規則上派出去的部隊下一季到位、地圖畫在目的地;但出發動畫播的時候,目的地不能已經站著它。
+   所以在這個集合裡的部隊,地圖上先不畫(index.html 的 tyTroopMarks 會跳過),落地那一刻才出現。
+   純畫面狀態,不進存檔、不影響規則。 */
+const FLYING = new Set();
+W3D.flying = id => FLYING.has(id);
+const landed = id => {
+  if(!FLYING.delete(id)) return;
+  try{ if(typeof tyGlobeData === 'function') tyGlobeData(); }catch(e){}
+};
 W3D.animMove = function(m){
   if(!W3D.ok || !m) return;
   const A = tySite(m.from), B = tySite(m.to);
+  if(m.id != null){
+    FLYING.add(m.id);
+    setTimeout(() => landed(m.id), 30000);          // 保險:動畫被切掉(分頁藏起來)也不會永遠不見
+    try{ if(typeof tyGlobeData === 'function') tyGlobeData(); }catch(e){}
+  }
   const km = kmLL([A.lat, A.lng], [B.lat, B.lng]);
   // 一次派好幾支(拉線勾了三支):一支一支錯開出發,不要疊成同一架飛機
   const now = performance.now();
   if(now - moveBurst.t > 400) moveBurst.n = 0;
   moveBurst.t = now; const lag = moveBurst.n++ * 900;
   focusOn(A, B, () => setTimeout(() => {
-    const land = () => { floatAt(fxLayer(), B.lat, B.lng, `${TY_UNITS[m.k].ic} 抵達 ${escH(B.nm)}`, 'rv', 0); sfx('hit', 'tap'); fxAt(B.lat, B.lng, 'dust', { z: 3, dur: .7, life: 900, alt: .001 }); };
+    const land = () => { landed(m.id); floatAt(fxLayer(), B.lat, B.lng, `${TY_UNITS[m.k].ic} 抵達 ${escH(B.nm)}`, 'rv', 0); sfx('hit', 'tap'); fxAt(B.lat, B.lng, 'dust', { z: 3, dur: .7, life: 900, alt: .001 }); };
     sfx(m.k === 'raid' ? 'unit' : 'jet');
     if(m.k === 'raid'){
       const pts = routeFor('ground', A, B);
@@ -2041,8 +2061,9 @@ function farMode(){
   FAR = far;
   const host = document.getElementById('tyGlobeHost');
   if(host) host.dataset.far = far ? '1' : '';
-  for(const o of OBJS) if(o.userData.troop || o.userData.lm) o.visible = !far;
+  for(const o of OBJS) o.visible = !far;
 }
+W3D.far = () => !!FAR;
 
 /* =============================================================================
    4. 季與季之間的過場
@@ -2581,8 +2602,8 @@ const SAT_SP = {
          '....keeeeek....', 'bbbbkkkkkkkbbbb', 'cbcb.......cbcb', 'bbbb.......bbbb'],
 };
 /* 體素球:半徑 rad 格,只畫露在外面的面 */
-function vsphere(B, rad, col){
-  const inS = (x, y, z) => (x + .5) ** 2 + (y + .5) ** 2 + (z + .5) ** 2 <= rad * rad;
+function vsphere(B, rad, col, half){
+  const inS = (x, y, z) => (!half || z >= 0) && (x + .5) ** 2 + (y + .5) ** 2 + (z + .5) ** 2 <= rad * rad;
   for(let x = -rad; x < rad; x++) for(let y = -rad; y < rad; y++) for(let z = -rad; z < rad; z++){
     if(!inS(x, y, z)) continue;
     const c = col(x + .5, y + .5, z + .5), X = x + 1, Y = y + 1, Zz = z + 1;
@@ -2621,7 +2642,11 @@ function spaceInit(){
     const satGeo = k => { const sp = PX.S(SAT_SP[k]); const B = VB(); voxAdd(B, sp, null, { x: -sp.w / 2, y: -sp.h / 2, z: -.5 }, 1, true); return vgeo(B); };
     const gS = satGeo('star'), gN = satGeo('nav'), gI = satGeo('iss');
     const add = (g, s, r, inc, raan, ph, w) => { const m = new T.Mesh(g, vmat()); m.scale.setScalar(s); satG.add(m); sats.push({ m, r, inc, raan, ph, w }); };
-    for(let p = 0; p < 3; p++) for(let n = 0; n < 10; n++) add(gS, .42, 132, 53 * Math.PI / 180, p * 2.094, n * .628 + p * .2, .09);
+    /* 星鏈:每一批 = 一個軌道面 8 顆,最多 6 面。沒發射之前軌道上沒有星鏈 —— 發一批就多一圈,看得出來 */
+    for(let p = 0; p < 6; p++) for(let n = 0; n < 8; n++){
+      add(gS, .42, 130 + p * 2, (48 + p * 3) * Math.PI / 180, p * 1.047, n * .785 + p * .3, .09);
+      sats[sats.length - 1].plane = p;
+    }
     add(gI, .5, 142, 51.6 * Math.PI / 180, 1.1, 0, .075);
     add(gN, .6, 196, 55 * Math.PI / 180, .4, 0, .03); add(gN, .6, 196, 55 * Math.PI / 180, 2.5, 2.2, .03);
     const MB = VB(); vsphere(MB, 9, moonCol);
@@ -2629,7 +2654,10 @@ function spaceInit(){
     const RB = VB(); vsphere(RB, 8, marsCol);
     const mars = mk(RB, 2.6); root.add(mars);
     G.scene().add(root);
-    Object.assign(SPACE, { on: true, root, satG, sats, moon, mars });
+    /* 殖民地不黏在火星的自轉上:永遠轉向鏡頭那一側(不然十次有五次在背面,看不到你蓋了什麼) */
+    const colony = new T.O3(); colony.scale.setScalar(2.6); root.add(colony);
+    Object.assign(SPACE, { on: true, root, satG, sats, moon, mars, colony });
+    spaceApply();
     let lastT = 0;
     const tick = now => {
       requestAnimationFrame(tick);
@@ -2651,6 +2679,7 @@ function spaceStep(t){
   if(!SPACE.on) return;
   SPACE.satG.visible = (W3D.alt || 2) >= .9;
   if(SPACE.satG.visible) for(const s of SPACE.sats){
+    if(!s.m.visible) continue;
     const p = orbitPos(s.r, s.inc, s.raan, s.ph + t * s.w);
     s.m.position.set(p[0], p[1], p[2]);
     s.m.quaternion.copy(G.camera().quaternion);      // 太陽能板正對鏡頭:不然在地球邊緣只剩一條線
@@ -2659,7 +2688,85 @@ function spaceStep(t){
   SPACE.moon.position.set(mp[0], mp[1], mp[2]); SPACE.moon.rotation.y = t * .003;
   const rp = orbitPos(650, 2 * Math.PI / 180, 2.2, 5 + t * .0015);
   SPACE.mars.position.set(rp[0], rp[1], rp[2]); SPACE.mars.rotation.y = t * .05;
+  if(SPACE.colony.children.length){
+    const C = SPACE.colony, V3 = C.position.constructor;
+    C.position.copy(SPACE.mars.position);
+    const d = G.camera().position.clone().sub(SPACE.mars.position).normalize();
+    C.quaternion.setFromUnitVectors(new V3(1, 0, 0), d);
+  }
 }
+/* 遊戲狀態 → 太空畫面:幾批星鏈、火星計畫走到哪。index.html 每次畫地圖時呼叫(只讀,不改規則) */
+let SPACE_WANT = { stars: 0, mars: 0, run: 0 }, SPACE_KEY = '';
+W3D.spaceSync = function(w){ SPACE_WANT = w || SPACE_WANT; spaceApply(); };
+function spaceApply(){
+  if(!SPACE.on) return;
+  const w = SPACE_WANT;
+  for(const s of SPACE.sats) if(s.plane != null) s.m.visible = s.plane < (w.stars || 0);
+  const key = (w.mars || 0) + ':' + (w.run || 0);
+  if(key === SPACE_KEY) return;
+  SPACE_KEY = key;
+  // 火星上的殖民地:無人補給 → 一台著陸器;首批登陸 → 三座圓頂 + 旗子;自給自足 → 六座圓頂 + 溫室
+  const C = SPACE.colony;
+  while(C.children.length){ const o = C.children.pop(); o.geometry && o.geometry.dispose(); }
+  const st = w.mars || 0, V3 = SPACE.mars.position.constructor, Q = SPACE.mars.quaternion.constructor;
+  const put = (B, lat, lng) => {
+    const m = new T.Mesh(vgeo(B), vmat());
+    const la = lat * Math.PI / 180, lo = lng * Math.PI / 180;
+    const d = new V3(Math.cos(la) * Math.cos(lo), Math.cos(la) * Math.sin(lo), Math.sin(la));
+    m.position.copy(d).multiplyScalar(7.6);
+    m.quaternion.copy(new Q().setFromUnitVectors(new V3(0, 0, 1), d));
+    m.scale.setScalar(.45);
+    C.add(m);
+  };
+  const dome = (r, glass) => { const B = VB(); vsphere(B, r, (x, y, z) => z > r * .8 || Math.abs(x) < .6 ? [240,240,245] : glass, true); return B; };
+  if(st >= 2 || w.run >= 2){ const B = VB(); vbox(B, -1.5, -1.5, 0, 3, 3, 2, [217,221,230]); vbox(B, -.5, -.5, 2, 1, 1, 2, [229,72,77]);
+    vbox(B, -2.5, -2.5, 0, 1, 1, 1, [80,86,100]); vbox(B, 1.5, 1.5, 0, 1, 1, 1, [80,86,100]); put(B, 8, 20); }
+  if(st >= 3){ put(dome(3, [127,216,255]), 0, 0); put(dome(2, [127,216,255]), -12, 10); put(dome(2, [127,216,255]), 10, -12);
+    const F = VB(); vbox(F, 0, 0, 0, .4, .4, 5, [220,220,230]); vbox(F, .4, -.1, 3.2, 2.4, .3, 1.6, [47,143,224]); put(F, -4, -18); }
+  if(st >= 4){ put(dome(3, [95,208,176]), 18, 8); put(dome(2, [70,196,106]), -20, -4); put(dome(2, [70,196,106]), 4, 24); }
+}
+/* 火箭發射:從城市垂直升空。星鏈 → 升到軌道就散開;火星 → 升空後轉向,一路飛到火星 */
+const ROCKETS = new Set();
+W3D.launch = function(L){
+  if(!W3D.ok || !SPACE.on || !L || !hasPX()) return;
+  const S = tySite(L.site); if(!S) return;
+  const sp = PX.SPR.rocket, B = VB();
+  voxAdd(B, sp, null, { x: -sp.w / 2, y: -1.5, z: 0 }, 3, false);
+  const m = new T.Mesh(vgeo(B), vmat());
+  const c = G.getCoords(S.lat, S.lng, .002 + elevAlt(S.lat, S.lng));
+  const V3 = m.position.constructor, base = new V3(c.x, c.y, c.z), n = base.clone().normalize();
+  m.position.copy(base);
+  SPACE.root.add(m);
+  const r = { m, base, n, kind: L.kind, t0: performance.now(), tgt: new V3(), V3 };
+  ROCKETS.add(r);
+  try{ G.controls().autoRotate = false; G.pointOfView({ lat: S.lat - 6, lng: S.lng, altitude: Math.max(1.1, Math.min(1.8, W3D.alt || 1.4)) }, 900); }catch(e){}
+  tyWake();
+  sfx('launch', 'boom');
+  setTimeout(() => sfx('jet'), 300);
+  for(let i = 0; i < 4; i++) setTimeout(() => fxAt(S.lat, S.lng, i ? 'smoke' : 'boom', { z: 4, dur: .8, life: 1000, alt: .002 }), i * 260);
+  if(ROCKETS.size === 1) requestAnimationFrame(rocketStep);
+};
+function rocketStep(now){
+  for(const r of ROCKETS){
+    const t = (now - r.t0) / 1000, m = r.m;
+    m.scale.setScalar(clamp((W3D.alt || 1) * .42, .15, .8));
+    const up = Math.min(t, 3.2), h = up * up * 4.5;             // 越飛越快
+    if(r.kind === 'mars' && t > 3.2){
+      const f = smooth((t - 3.2) / 5), top = r.base.clone().addScaledVector(r.n, h);
+      r.tgt.copy(SPACE.mars.position);
+      m.position.copy(top).lerp(r.tgt, f);
+      m.lookAt(r.tgt);
+      if(f >= 1){ ROCKETS.delete(r); SPACE.root.remove(m); m.geometry.dispose(); }
+    }else{
+      m.position.copy(r.base).addScaledVector(r.n, h);
+      r.tgt.copy(m.position).addScaledVector(r.n, 10);
+      m.lookAt(r.tgt);
+      if(r.kind !== 'mars' && t > 3.2){ ROCKETS.delete(r); SPACE.root.remove(m); m.geometry.dispose(); }
+    }
+  }
+  if(ROCKETS.size) requestAnimationFrame(rocketStep);
+}
+W3D._rockets = () => ROCKETS.size;
 W3D._space = t => spaceStep(t);          // 給截圖用:手動推到某個時間
 W3D._spaceObj = () => SPACE;
 /* 「看月球 / 看火星」的鏡頭:站在它外側、往旁邊偏一點,讓地球跟它同框 */
