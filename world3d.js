@@ -3428,7 +3428,7 @@ W3D.flyToPlanet = function(k, done){
        從地球飛過來的最後一格畫面跟這裡的第一格畫面是同一個角度 —— 不會「切一次鏡頭」
    建築黏在星球表面固定的經緯度上。只是畫面,不碰遊戲狀態、不用種子亂數。 */
 const PV = { on: false };
-const PV_R = { mars: 30, moon: 26 };                 // 星球畫面的體素半徑
+const PV_R = { mars: 36, moon: 26 };                 // 火星放大(10 塊建地要放得下)                 // 星球畫面的體素半徑
 const BSC = .22;                                    // 建築的縮放:星球大、建築小(跟地球上的城市同一種比例)
 const PVG = {};                                     // 幾何快取(每顆星算一次,之後重用)
 W3D.planetOn = () => PV.on;
@@ -3495,16 +3495,20 @@ W3D.planetOpen = function(host, k, info){
   // 星球(不動)
   /* 基地那一塊(經緯度 0,0 附近)整地:地形在這裡壓平,建築才不會一半埋在山裡、一半懸在坑上 */
   const feat0 = k === 'moon' ? moonFeat : marsFeat, hsc = rad / (k === 'moon' ? MOON_R : MARS_R);
-  const flat = u => { const f0 = feat0(u), d = angD(u, [1, 0, 0]); if(d > .42) return f0;
-    const w = smooth((d - .27) / .15); return { h: f0.h * w + (.45 / hsc) * (1 - w), c: w < .5 ? (k === 'mars' ? [184,96,60] : [158,162,170]) : f0.c }; };
-  cached('p2:' + k, B => vplanet(B, rad, flat, hsc));
+  /* 整地:基地核心(0,0)與每一塊建地的周圍壓平 —— 建地是一塊塊自然的平地,不是排整齊的格子 */
+  const pads = [[1, 0, 0, .27, .15], ...((typeof TY_PLOTS !== 'undefined' && TY_PLOTS[k]) || []).map(q => [...dirOf(q.lat, q.lng), .15, .1])];
+  const flat = u => { const f0 = feat0(u); let best = 1;
+    for(const p of pads){ const d = angD(u, p); if(d < p[3] + p[4]) best = Math.min(best, smooth((d - p[3]) / p[4])); }
+    if(best >= 1) return f0;
+    return { h: f0.h * best + (.45 / hsc) * (1 - best), c: best < .5 ? (k === 'mars' ? [184,96,60] : [158,162,170]) : f0.c }; };
+  cached('p3:' + k, B => vplanet(B, rad, flat, hsc));
   if(k === 'mars'){
     const hm = new T.Phong({ color: 0x000000, emissive: 0xff8a48, transparent: true, opacity: .26, depthWrite: false, side: 1 }); mats.push(hm);
     const hg = sphereGeo(rad * 1.12, 40); geos.push(hg); scene.add(new T.Mesh(hg, hm));
   }
   // 建築:黏在表面
   const picks = [];
-  for(const p of baseParts(k, info.mars || 0, info.run || 0)){
+  for(const p of (k === 'moon' && !info.moonLanded ? [] : baseParts(k, info.mars || 0, info.run || 0))){
     const m = own(p.B);
     const d = new V3(...dirOf(p.lat, p.lng));
     m.position.copy(d).multiplyScalar(rad + 1);
@@ -3512,6 +3516,41 @@ W3D.planetOpen = function(host, k, info){
     m.scale.setScalar(BSC);
     picks.push({ m, nm: p.nm });
   }
+  /* 建地:每一塊一圈樁子 + 中間的旗子(空地白旗、你的藍旗、對手是他的顏色),蓋了的放建築 */
+  const plotG = new T.O3(); scene.add(plotG);
+  const plotPicks = []; let plotKey = '';
+  const plotModel = (B, b, soil) => {
+    if(b === 'he3' || b === 'mine') bTower(B, soil);
+    else if(b === 'port') bPad(B, soil);
+    else if(b === 'relay') bSolar(B, soil);
+    else if(b === 'dome') bHab(B, soil);
+    else if(b === 'green') bGreenhouse(B, soil);
+    else if(b === 'lab'){ bFoundation(B, 10, 10, soil); bDome(B, -1.5, 0, .3, 2.6); vbox(B, 2.5, -.3, .3, .5, .5, 8, [200,200,210]); vbox(B, 1.8, -1, 8.3, 2, 2, .4, [238,242,247]); }
+  };
+  const buildPlots = plots => {
+    const key = JSON.stringify((plots || []).map(p => [p.o, p.b]));
+    if(key === plotKey) return; plotKey = key;
+    while(plotG.children.length){ const o = plotG.children.pop(); o.geometry && o.geometry.dispose(); }
+    plotPicks.length = 0;
+    const soil = k === 'mars' ? [184,96,60] : [158,162,170];
+    (plots || []).forEach((p, i) => {
+      const B = VB(), col = p.col ? p.col.split(',').map(Number) : [238,242,247];
+      // 一圈樁子(8 根)標出建地範圍
+      for(let a = 0; a < 8; a++){ const t = a / 8 * Math.PI * 2; vbox(B, Math.cos(t) * 13 - .5, Math.sin(t) * 13 - .5, 0, 1, 1, 2.2, p.o ? col : [230,230,236]); }
+      if(p.b) plotModel(B, p.b, soil);
+      const fx = p.b ? 9 : 0;                               // 旗子:空地在正中央,蓋了的放在建築旁邊
+      vbox(B, fx, -9, 0, .5, .5, 9, [220,220,230]); vbox(B, fx + .5, -9.1, 6, 4, .3, 2.6, col);
+      const g = vgeo(B), m = new T.Mesh(g, mat);
+      const d = new V3(...dirOf(p.lat, p.lng));
+      m.position.copy(d).multiplyScalar(rad + 1);
+      m.quaternion.setFromUnitVectors(new V3(0, 0, 1), d);
+      m.scale.setScalar(BSC);
+      plotG.add(m);
+      plotPicks.push({ m, i, tag: p.tag || '' });
+    });
+  };
+  buildPlots(info.plots);
+  W3D.planetPlots = inf => { if(inf) buildPlots(inf.plots); };
   /* 背景:地球、另一顆星、火衛 —— 位置照太空場景的真實相對位置(同一把尺,換到星球的座標系) */
   const inv = SPACE.on ? SPACE[k].quaternion.clone().invert() : new Q();
   const toLocal = w => w.clone().sub(SPACE[k].position).applyQuaternion(inv).multiplyScalar(f);
@@ -3619,6 +3658,10 @@ W3D.planetOpen = function(host, k, info){
   let sel = null;
   function pickAt(cx, cy){
     const r = host.getBoundingClientRect(), x = cx - r.left, y = cy - r.top;
+    // 建地優先:點到一塊建地 → 開出牌面板(蓋、收購、登月)
+    let bp = null, bpd = 60;
+    for(const p of plotPicks){ const w = p.m.getWorldPosition(new V3()); if(w.dot(cam.position) < rad * rad * .9) continue; const s = proj(w); const d = Math.hypot(s[0] - x, s[1] - y); if(d < bpd){ bpd = d; bp = p; } }
+    if(bp){ sel = bp.m; tip.hidden = false; tip.textContent = bp.tag; try{ if(typeof tySpacePlot === 'function') tySpacePlot(k, bp.i); }catch(e){} return; }
     let best = null, bd = 50;
     for(const p of picks){ const w = p.m.getWorldPosition(new V3()); if(w.dot(cam.position) < rad * rad * .9) continue; const s = proj(w); const d = Math.hypot(s[0] - x, s[1] - y); if(d < bd){ bd = d; best = p; } }
     sel = best ? best.m : null; tip.hidden = !best; if(best){ tip.textContent = best.nm; sfx('pick', 'tap'); }
@@ -3677,7 +3720,9 @@ W3D.planetOpen = function(host, k, info){
   };
   raf = requestAnimationFrame(frame);
   PV.on = true; PV.k = k;
-  PV.stat = { k, parts: picks.map(p => p.nm), moons: moons.length, bg: bg.map(b => b.k), rad };
+  PV.stat = { k, parts: picks.map(p => p.nm), moons: moons.length, bg: bg.map(b => b.k), rad, plots: () => plotPicks.length };
+  W3D._plotScreen = i => { const p = plotPicks.find(q => q.i === i); if(!p) return null; const w = p.m.getWorldPosition(new V3()); const s = proj(w); const r = host.getBoundingClientRect(); return { x: s[0] + r.left, y: s[1] + r.top, front: w.dot(cam.position) > rad * rad }; };
+  W3D._planetLook = i => { const p = plotPicks.find(q => q.i === i); if(!p) return; setFromDir(p.m.getWorldPosition(new V3()).normalize()); tween = null; };
   PV.close = () => {
     cancelAnimationFrame(raf); if(ro) ro.disconnect();
     cvs.removeEventListener('wheel', onWheel);

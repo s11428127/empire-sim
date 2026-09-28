@@ -4951,7 +4951,9 @@
   .tg-pv .cv-tip{ position:absolute; left:0; top:0; padding:4px 8px; background:#fff8dc; color:#141821; border:3px solid #000;
     box-shadow:0 3px 0 #000; font-size:13px; white-space:nowrap; pointer-events:none; font-family:'EmpirePixel',var(--sans) }
   .tycon[data-world] #tyGlobeSlot,.tycon[data-world] .tg-lay{ visibility:hidden }
-  .tycon[data-world][data-modal] .tg-pv{ visibility:hidden }
+  /* ⚠ 地球的標籤自己設了 visibility:visible,會穿過父層的 hidden 疊到火星上(開側欄時看得到) */
+  .tycon[data-world] #tyGlobeSlot *,.tycon[data-world] .tg-lay *{ visibility:hidden !important }
+  .tycon[data-world][data-modal]:not([data-side]) .tg-pv{ visibility:hidden }
   .tg-world{ position:absolute; left:8px; top:8px; z-index:205; display:flex; flex-direction:column; gap:2px; max-width:min(70vw,520px);
     padding:6px 10px; background:rgba(19,34,49,.9); border:2px solid #000; box-shadow:0 3px 0 #000; font-family:'EmpirePixel',var(--sans) }
   .tg-world b{ font-weight:400; font-size:16px; color:#e8f1f8 } .tg-world span{ font-size:12px; color:#9db4c8 } .tg-world em{ font-style:normal; font-size:11px; color:#6b8299 }
@@ -6074,7 +6076,7 @@ function tySpace(){
 const tyStarCost = () => Math.max(6e8, tyNW()*.012);
 const tyStarsOn = () => tySpace().sats.filter(s=>s.until>TY.t);
 const tyStarAt = reg => tyStarsOn().find(s=>s.reg===reg) || null;
-const tyStarRev = s => s.c*TY_STAR_REV*tyClamp(TY.reg[s.reg].idx, .6, 1.6);
+const tyStarRev = s => s.c*TY_STAR_REV*tyClamp(TY.reg[s.reg].idx, .6, 1.6)*(TY.space && TY.space.plots && tyMyBuilt('moon','relay') ? 1.25 : 1);
 let TY_LAST_LAUNCH=null;                   // 給畫面層播火箭(不進存檔)
 function tyLaunch(site){
   const blocked=tyBlock('launch', site); if(blocked) return blocked;
@@ -6089,10 +6091,11 @@ function tyLaunch(site){
        + `那裡你的公司現金流 +${TY_STAR_BOOST*100}%。${TY_STAR_LIFE} 季後退役(${tyWhen(TY.t+TY_STAR_LIFE)})。花費 ${tyM(cost)}。`;
 }
 const tyMarsNext = () => TY_MARS[tySpace().mars.st] || null;
+const tyMarsCost = () => { const d=tyMarsNext(); return d ? d.c()*(TY.space && tyMyBuilt('moon','port') ? .75 : 1) : 0; };
 const tyMarsOdds = () => { const m=tySpace().mars, d=TY_MARS[m.run?m.run.st-1:m.st]; return d ? Math.min(.95, d.p + (m.fails||0)*.05) : 0; };
 function tyMarsGo(){
   const blocked=tyBlock('mars'); if(blocked) return blocked;
-  const m=tySpace().mars, d=tyMarsNext(), cost=d.c();
+  const m=tySpace().mars, d=tyMarsNext(), cost=tyMarsCost();
   TY.cash-=cost; m.inv+=cost;
   m.run={ st:m.st+1, done:TY.t+d.q, c:cost };
   tyLog('biz', `${d.ic} 火星計畫第 ${m.st+1} 階段「${d.nm}」啟動,${d.q} 季後見分曉。`);
@@ -6115,6 +6118,8 @@ function tySpaceTurn(){
     const d=TY_MARS[m.run.st-1], odds=tyMarsOdds();
     if(tyRnd()<odds){
       m.st=m.run.st; m.fails=0;
+      if(m.st===3) tySpaceMs('mars','me');
+      if(m.st===4) tySpaceMs('colony','me');
       TY.fame=tyClamp(TY.fame+d.fame,0,100);
       if(d.infl) TY.infl=tyClamp(TY.infl+d.infl,0,100);
       tyNews('good',`${d.ic} 火星計畫:${d.nm}成功`, m.st>=4
@@ -6131,6 +6136,136 @@ function tySpaceTurn(){
   }
   if(m.st>=4) inc+=m.inv*TY_COLONY_YLD;
   return inc;
+}
+/* =========================================================================
+   太空建地與太空競賽 —— 使用者:「固定的建地(比較好平衡、像大富翁的格子),自然一點;
+   火星計畫當前置任務,走完才能在火星蓋;每季付補給費;會影響最後排名」
+   -------------------------------------------------------------------------
+   · 建地是固定的:月球 6 塊、火星 10 塊,散在星球上(不排成格子),每一塊有名字(真實的地名)
+   · 月球:先「登月」(一次性,之後月球建地全部開放);火星:火星計畫四段走完才能蓋
+   · 一塊建地蓋一棟,每一棟有自己的效果(收入 / 折扣 / 加成),每季要付補給費(造價的 2%)——
+     付不出來的那一季,太空建築全部停擺(沒有收入)
+   · 太空建築算進身家(造價的九成)→ 直接影響排名;十年結束時建地最多(至少 3 塊)的人是「太空霸主」
+   · 太空競賽:身家夠大的對手也會登月、登火、搶建地(擲骰只在第 9 季以後、而且只有身家 ≥ 60 億的對手才擲)。
+     第一個登月 / 登火星 / 蓋出殖民地的人拿里程碑(名氣 +10,或對手身家 +5%)
+   · 搶地:對手的建地可以強行收購(造價 1.5 倍、他記恨 −25、冷卻 2 季),建築跟著換手
+   ========================================================================= */
+const TY_PLOTS = {
+  moon: [ { nm:'靜海', lat:8, lng:22 }, { nm:'風暴洋', lat:-6, lng:-48 }, { nm:'雨海', lat:32, lng:-18 },
+          { nm:'第谷坑外緣', lat:-38, lng:12 }, { nm:'危海', lat:16, lng:64 }, { nm:'南極艾特肯', lat:-58, lng:-30 } ],
+  mars: [ { nm:'伊利瑟姆平原', lat:14, lng:52 }, { nm:'阿西達利亞平原', lat:40, lng:-22 }, { nm:'水手谷口', lat:-12, lng:78 },
+          { nm:'奧林帕斯山麓', lat:26, lng:-60 }, { nm:'希臘平原', lat:-40, lng:36 }, { nm:'烏托邦平原', lat:44, lng:28 },
+          { nm:'蓋爾隕石坑', lat:-6, lng:-28 }, { nm:'阿拉伯台地', lat:20, lng:-6 }, { nm:'阿蓋爾平原', lat:-46, lng:-50 }, { nm:'北極冠邊緣', lat:66, lng:10 } ],
+};
+const TY_SPB = {
+  moon: {
+    he3:   { nm:'氦-3 礦場', ic:'⛏', c:()=>Math.max(40e8, tyNW()*.03), inc:.07, dsc:'核融合的燃料。每季收入 = 造價的 7%。' },
+    port:  { nm:'月球太空港', ic:'🚀', c:()=>Math.max(50e8, tyNW()*.035), inc:.02, dsc:'在月球加油再出發:火星計畫每一段便宜 25%,所有太空補給費少 20%。' },
+    relay: { nm:'深空通訊站', ic:'📡', c:()=>Math.max(35e8, tyNW()*.025), inc:.03, dsc:'星鏈的網路費 +25%(每一批)。' },
+  },
+  mars: {
+    dome:  { nm:'殖民圓頂', ic:'🏠', c:()=>Math.max(80e8, tyNW()*.05), inc:.04, fame:2, dsc:'更多人住上火星:每季名氣 +2、收入 = 造價的 4%。' },
+    mine:  { nm:'稀土礦場', ic:'⛏', c:()=>Math.max(100e8, tyNW()*.06), inc:.09, dsc:'地球上越來越少的東西。每季收入 = 造價的 9%(太空裡最高)。' },
+    green: { nm:'溫室農場', ic:'🌱', c:()=>Math.max(60e8, tyNW()*.04), inc:.03, dsc:'殖民地自己種吃的:火星上所有建築的補給費少 40%。' },
+    lab:   { nm:'研究站', ic:'🔬', c:()=>Math.max(70e8, tyNW()*.045), inc:.02, dsc:'每季行動點上限 +1(最多 +2)。' },
+  },
+};
+const TY_SP_SUPPLY = .02, TY_SP_VAL = .9;
+function tyPlots(w){
+  const sp=tySpace();
+  sp.plots = sp.plots || {};
+  sp.plots[w] = sp.plots[w] || TY_PLOTS[w].map(()=>({ o:null, b:null, c:0 }));
+  return sp.plots[w];
+}
+const tyPlotsOf = (who, w) => (w ? [w] : ['moon','mars']).reduce((a,x)=>a+(TY.space ? tyPlots(x).filter(p=>p.o===who).length : 0), 0);
+const tyMyBuilt = (w, b) => TY.space ? tyPlots(w).some(p=>p.o==='me' && p.b===b) : false;
+const tySpaceVal = () => TY.space ? ['moon','mars'].reduce((a,w)=>a+tyPlots(w).filter(p=>p.o==='me').reduce((s,p)=>s+p.c*TY_SP_VAL,0),0) : 0;
+const tyCanBuildOn = w => w==='moon' ? !!(TY.space && TY.space.moon) : !!(TY.space && TY.space.mars.st>=4);
+const tyMoonCost = () => Math.max(25e8, tyNW()*.025);
+function tySpaceMs(k, who){
+  const sp=tySpace(); sp.ms=sp.ms||{};
+  if(sp.ms[k]) return;
+  sp.ms[k]=who;
+  const nm={ moon:'第一個登上月球', mars:'第一個登上火星', colony:'第一座火星殖民地' }[k];
+  if(who==='me'){ TY.fame=tyClamp(TY.fame+10,0,100); tyNews('good', `🏆 太空競賽:你是${nm}的人`, '全世界的頭條。名氣 +10。'); }
+  else { const r=TY.rivals.find(x=>x.id===who); if(r){ r.nw*=1.05; tyNews('bad', `🏆 太空競賽:${r.nm}搶先成為${nm}的人`, `他的身家跟著漲了 5%。`); } }
+}
+function tyMoonLand(){
+  const blocked=tyBlock('moonland'); if(blocked) return blocked;
+  const cost=tyMoonCost(), sp=tySpace();
+  TY.cash-=cost; sp.moon=true;
+  tySpaceMs('moon','me');
+  tyLog('biz', `🌙 登月成功:月球的 ${TY_PLOTS.moon.length} 塊建地開放了。`);
+  if(typeof TY_PLANET==='undefined' || TY_PLANET==null) TY_LAST_LAUNCH={ site:TY.home, kind:'star' };   // 在月球畫面上登月就不切回地球播火箭
+  tySave();
+  return `<b>🌙 登月成功。</b>花費 ${tyM(cost)}。月球上的建地開放了 —— 點月球上的建地來蓋。`;
+}
+function tySpaceBuild(w, i, b){
+  const blocked=tyBlock('spacebuild', { w, i, b }); if(blocked) return blocked;
+  const d=TY_SPB[w][b], cost=d.c(), p=tyPlots(w)[i];
+  TY.cash-=cost; p.o='me'; p.b=b; p.c=cost; p.t=TY.t;
+  tyLog('biz', `${d.ic} 在${w==='moon'?'月球':'火星'}的${TY_PLOTS[w][i].nm}蓋了${d.nm}(${tyM(cost)})。`);
+  tySave();
+  return `<b>${d.ic} ${d.nm}蓋好了。</b>${TY_PLOTS[w][i].nm} · 花費 ${tyM(cost)} · 每季補給 ${tyM(tyPlotSupply(w, cost))}。`;
+}
+function tySpaceGrab(w, i){
+  const blocked=tyBlock('spacegrab', { w, i }); if(blocked) return blocked;
+  const p=tyPlots(w)[i], r=tyRival(p.o), cost=p.c*1.5;
+  TY.cash-=cost;
+  if(r){ r.nw+=cost*.5; r.rel=tyClamp((r.rel||0)-25,-100,100); }
+  TY.cd=TY.cd||{}; TY.cd.spacegrab=TY.t+2;
+  p.o='me'; p.t=TY.t;
+  tyLog('rival', `🚩 強行收購${r?r.nm:'對手'}在${TY_PLOTS[w][i].nm}的${TY_SPB[w][p.b].nm}(${tyM(cost)})。`, r&&r.id);
+  tySave();
+  return `<b>🚩 ${TY_PLOTS[w][i].nm}是你的了。</b>花費 ${tyM(cost)}${r?`,${escH(r.nm)}記恨 −25`:''}。兩季內不能再搶。`;
+}
+/* 補給費:造價 2%;月球太空港 −20%(全部)、火星溫室 −40%(火星) */
+function tyPlotSupply(w, c){
+  let k=TY_SP_SUPPLY;
+  if(tyMyBuilt('moon','port')) k*=.8;
+  if(w==='mars' && tyMyBuilt('mars','green')) k*=.6;
+  return c*k;
+}
+/* 每季:補給費 → 收入(付不出來整季停擺)、名氣;對手的太空競賽 */
+function tySpacePlotsTurn(){
+  if(!TY.space || !TY.space.plots) return 0;
+  let fee=0, inc=0, fame=0;
+  for(const w of ['moon','mars']) for(const p of tyPlots(w)){
+    if(p.o!=='me' || !p.b) continue;
+    const d=TY_SPB[w][p.b];
+    fee+=tyPlotSupply(w, p.c); inc+=p.c*d.inc; fame+=d.fame||0;
+  }
+  if(!fee) return 0;
+  if(TY.cash < fee){
+    TY.space.stalled=TY.t;
+    tyNews('bad','🚀 太空補給斷了',`這一季付不出 ${tyM(fee)} 的補給費 —— 月球與火星上的建築全部停擺,沒有收入。`);
+    return 0;
+  }
+  TY.cash-=fee; TY.space.fee=fee; TY.space.stalled=null;
+  TY.fame=tyClamp(TY.fame+fame,0,100);
+  return inc;
+}
+const tySpaceKing = () => { const me=tyPlotsOf('me'); return me>=3 && TY.rivals.every(r=>tyPlotsOf(r.id)<me); };
+function tySpaceRace(){
+  if(TY.t<8) return;
+  for(const r of tyRivalsA()){
+    if(r.nw<60e8) continue;
+    r.sp=r.sp||{ moon:false, mars:false };
+    const roll=tyRnd();
+    const free=w=>tyPlots(w).map((p,i)=>p.o?null:i).filter(i=>i!=null);
+    const claim=w=>{ const f=free(w); if(!f.length) return false;
+      const i=f[Math.floor(tyRnd()*f.length)], bs=Object.keys(TY_SPB[w]), b=bs[Math.floor(tyRnd()*bs.length)];
+      const c=TY_SPB[w][b].c()*.6*Math.max(.5, r.nw/Math.max(1,tyNW()));
+      const p=tyPlots(w)[i]; p.o=r.id; p.b=b; p.c=Math.max(20e8, c); p.t=TY.t;
+      tyNews('bad',`🚩 ${r.nm}佔了${w==='moon'?'月球':'火星'}的${TY_PLOTS[w][i].nm}`,`蓋了一座${TY_SPB[w][b].nm}。太空建地先搶先贏 —— 你可以強行收購,但他會記恨。`);
+      return true; };
+    if(!r.sp.moon){ if(roll<.10){ r.sp.moon=true; tySpaceMs('moon', r.id); tyLog('rival', `🌙 ${r.nm}登上月球了。`, r.id); } }
+    else if(roll<.14) claim('moon');
+    else if(TY.t>=16 && !r.sp.mars && roll<.20){ r.sp.mars=true; tySpaceMs('mars', r.id); tyLog('rival', `🔴 ${r.nm}登上火星了。`, r.id); }
+    else if(r.sp.mars && roll<.28) claim('mars');
+  }
+  // 對手的太空建地讓他的身家每季多長一點(每塊 0.5%)
+  for(const w of ['moon','mars']) for(const p of tyPlots(w)){ const r=p.o&&p.o!=='me'?tyRival(p.o):null; if(r) r.nw*=1.005; else if(p.o && p.o!=='me'){ p.o=null; p.b=null; } }
 }
 const tyStrikeReady = k => tyTester() || ((TY.cd||{})[k]||0) <= TY.t;
 /* 打哪一個對手:飛彈打他本人(目標城市 = 他的大本營);空襲打那個地區勢力最大的對手 */
@@ -6915,7 +7050,7 @@ function tyBizVal(b){
 }
 
 const tyBizTotal = () => TY.biz.reduce((s,b)=>s+tyBizVal(b)*b.own, 0);
-const tyNW = () => TY.cash + tyAssetVal() + tyBizTotal() - TY.debt;
+const tyNW = () => TY.cash + tyAssetVal() + tyBizTotal() - TY.debt + tySpaceVal();     // 太空建築算進身家(影響排名)
 
 /* 可以抵押借到多少:每一類資產的成數不同,事業只算七成的估值,
    信用分數決定你能不能借到上限。放空的部位不但不能抵押,還要佔用額度。 */
@@ -7083,6 +7218,7 @@ function tyNext(){
     if(d.float) TY.cash += b.cap*d.float*.012;       // 浮存金:保費先進來的那筆錢
   }
   inc += tySpaceTurn();                 // 星鏈網路費、火星殖民地(也算營收,一樣課稅)
+  inc += tySpacePlotsTurn();            // 月球 / 火星建地:先付補給費,付得出來才有收入
   TY.cash += inc;
 
   /* ---- 4. 利息 ----
@@ -7122,6 +7258,7 @@ function tyNext(){
      他們也住在地圖上,而且成長跟自己大本營所在地區的指數綁在一起 ——
      所以「這一季誰在漲」同時是一個景氣訊號和一個地理訊號。 */
   tyRivalTurn();
+  if(TY.space || TY.t>=8){ tySpace(); tySpaceRace(); }        // 太空競賽(第 9 季起,身家 ≥ 60 億的對手)
 
   /* ---- 資本部隊:到達、維持費、駐紮效果、對手部隊的攻防 ---- */
   tyUnitsTurn();
@@ -7943,6 +8080,27 @@ function tyNeeds0(act, arg){
                     `已經有 ${TY_STAR_MAX} 批在運作(上限),等其中一批退役`),
                cashFor(tyStarCost()) ];
     }
+    case 'moonland': {
+      const sp=tySpace();
+      return [ tyNb('還沒登月', !sp.moon, '你已經登上月球了'),
+               tyNb('有星鏈(月球通訊)', tyStarsOn().length>0 || sp.mars.st>=1, '登月要先有一批星鏈、或火箭研發完成'),
+               cashFor(tyMoonCost()) ];
+    }
+    case 'spacebuild': {
+      const { w, i, b }=arg||{}, p=w?tyPlots(w)[i]:null, d=w&&TY_SPB[w][b];
+      if(!p || !d) return [ tyNb('有這塊建地', false, '找不到這塊建地') ];
+      return [ tyNb(w==='moon'?'已經登月':'火星計畫走完(自給自足)', tyCanBuildOn(w), w==='moon'?'要先登月才能在月球上蓋':'火星計畫四段走完(自給自足)才能在火星上蓋'),
+               tyNb('建地是空的', !p.o, p.o==='me'?'這塊已經是你的了':'這塊被對手佔了 —— 可以強行收購'),
+               cashFor(d.c()) ];
+    }
+    case 'spacegrab': {
+      const { w, i }=arg||{}, p=w?tyPlots(w)[i]:null;
+      if(!p) return [ tyNb('有這塊建地', false, '找不到這塊建地') ];
+      return [ tyNb('對手的建地', !!(p.o && p.o!=='me'), '這塊不是對手的'),
+               tyNb('收購冷卻完成', tyStrikeReady('spacegrab'), `${tyWhen((TY.cd||{}).spacegrab||0)} 才能再搶`),
+               tyNb(w==='moon'?'已經登月':'火星計畫走完', tyCanBuildOn(w), '你還沒辦法到那顆星上'),
+               cashFor(p.c*1.5) ];
+    }
     case 'mars': {
       const m=tySpace().mars, d=tyMarsNext();
       const out=[ tyNb('計畫還沒完成', !!d, '火星殖民地已經自給自足了'),
@@ -7950,7 +8108,7 @@ function tyNeeds0(act, arg){
       if(d && m.st===0) out.push(tyNb('有科技 / 能源 / 基建公司', TY.biz.some(b=>['tech','energy','infra'].includes(b.k)),
                                      '火箭研發要有一家科技、能源或基建公司'));
       if(d && m.st===1) out.push(tyNb('有星鏈(火星通訊)', tyStarsOn().length>0, '無人補給要跟地球通訊 —— 先發射一批星鏈'));
-      if(d) out.push(cashFor(d.c()));
+      if(d) out.push(cashFor(tyMarsCost()));
       return out;
     }
     case 'recon': {
@@ -9556,6 +9714,7 @@ function tyEndHTML(){
       <div class="e-t">${title}</div>
       ${TY.endTxt?`<div class="e-w">${TY.endTxt}</div>`:''}
       ${TY.space && TY.space.mars.st>=4 ? '<div class="e-w">🚀 <b>火星首富</b> —— 你把人送上火星,而且讓殖民地自己活下去。</div>' : ''}
+      ${tySpaceKing() ? `<div class="e-w">🌌 <b>太空霸主</b> —— 月球與火星上你佔了 ${tyPlotsOf('me')} 塊建地,比任何人都多。</div>` : ''}
       <div class="e-b">${tyBio().map(l=>'<p>'+l+'</p>').join('')}</div>
       <button type="button" class="ty-b big" data-ty="restart">再玩一局(換一個起點)</button>
     </div>`;
@@ -10470,11 +10629,61 @@ function tyOpenCity(id, at){
   tySfx('build','land');
 }
 function tyWorldBadge(){
+  const sp=TY.space, st=sp?sp.mars.st:0, run=sp&&sp.mars.run?sp.mars.run.st:0, w=TY_PLANET;
+  const nm=w==='moon'?'🌙 月球':'🔴 火星';
+  const gate = w==='moon' ? (sp&&sp.moon ? '已登月 · 建地開放' : '還沒登月 —— 點任何一塊建地,從那裡登月')
+    : st>=4 ? '火星殖民地自給自足 · 建地開放' : st>=3 ? '首批登陸 · 火星計畫走完(自給自足)才能蓋' : run ? `火星計畫第 ${run} 階段進行中 · 走完才能蓋` : '出「火星計畫」牌:四段走完才能在火星蓋';
+  const P=tyPlots(w), mine=P.filter(p=>p.o==='me').length, rv=P.filter(p=>p.o&&p.o!=='me').length;
+  return `<div class="tg-world"><b>${nm}</b><span>${gate}</span>
+    <span>建地 ${P.length} 塊:你 <b class="up">${mine}</b> · 對手 <b class="down">${rv}</b> · 空 ${P.length-mine-rv}${sp&&sp.fee?` · 每季補給 ${tyM(sp.fee)}`:''}${sp&&sp.stalled===TY.t?' · <b class="down">補給斷了,停擺中</b>':''}</span>
+    <em>點建地蓋東西 · 拖曳移動 · 滾輪 / 雙指縮放 · 連點兩下背景的地球飛回去</em></div>`;
+}
+/* 星球畫面要的資料(只讀):建地的位置、誰的、蓋了什麼 */
+function tyPlanetInfo(w){
   const sp=TY.space, st=sp?sp.mars.st:0, run=sp&&sp.mars.run?sp.mars.run.st:0;
-  const nm=TY_PLANET==='moon'?'🌙 月球':'🔴 火星';
-  const sub=TY_PLANET==='moon' ? '月球基地(外型;玩法之後討論)'
-    : st>=4 ? '火星殖民地 · 自給自足' : st>=3 ? '火星殖民地 · 首批登陸' : st>=2||run>=2 ? '無人補給已送達' : run ? `火星計畫第 ${run} 階段進行中` : '還沒有任何東西 —— 出「火星計畫」牌開始';
-  return `<div class="tg-world"><b>${nm}</b><span>${sub}</span><em>拖曳移動 · 滾輪 / 雙指縮放 · 點建築 · 連點兩下背景的地球飛回去</em></div>`;
+  const plots=TY_PLOTS[w].map((q,i)=>{ const p=tyPlots(w)[i];
+    return { lat:q.lat, lng:q.lng, nm:q.nm, o:p.o, b:p.b, col:p.o==='me'?'47,143,224':p.o?(TY_RVCOL[p.o]||'200,200,210'):null,
+             tag:`${q.nm}${p.b?` · ${TY_SPB[w][p.b].ic} ${TY_SPB[w][p.b].nm}`:' · 空地'}${p.o?` · ${p.o==='me'?'你的':((tyRival(p.o)||{}).nm||'')+'的'}`:''}` }; });
+  return { mars:st, run, moonLanded:!!(sp&&sp.moon), plots };
+}
+/* 點星球上的建地 → 出牌面板(蓋、收購、登月) */
+function tySpacePlot(w, i){ TY_PICK={ k:'plot', w, i }; TY_MODAL='pick'; renderPage(); tySfx('pick','tap'); }
+function tyPlotHTML(P){
+  const w=P.w, i=P.i, q=TY_PLOTS[w][i], p=tyPlots(w)[i], wn=w==='moon'?'月球':'火星';
+  const row=(img,nm,sub,btn,need,extra)=>`<div class="pk-o">${img?`<span class="pk-img">${img}</span>`:''}
+      <div class="pk-t"><b>${nm}</b><span>${sub||''}</span>${extra||''}${need||''}</div><div class="pk-b">${btn}</div></div>`;
+  let body='';
+  if(!tyCanBuildOn(w)){
+    body = w==='moon'
+      ? row('', '🌙 登月', `一次性花費 ${tyM(tyMoonCost())} · 之後月球 ${TY_PLOTS.moon.length} 塊建地全部開放 · 第一個登月的人名氣 +10`,
+          tyActBtn('moonland', null, '登月', '', 'warn'), tyNeedHTML(tyNeeds('moonland'),'tight'), '')
+      : `<div class="expo-note">🔴 火星的建地要等<b>火星計畫四段走完</b>(自給自足)才開放。現在:第 ${tySpace().mars.st} / 4 段。
+          出「火星計畫」牌推進。</div>`;
+  }
+  if(p.o==='me'){
+    const d=TY_SPB[w][p.b];
+    body+=`<div class="expo-note">${d.ic} <b>${escH(d.nm)}</b>(你的,${tyWhen(p.t)} 蓋的)· 造價 ${tyM(p.c)} · 每季收入 <b class="up">${tyM(p.c*d.inc)}</b>
+      · 補給 ${tyM(tyPlotSupply(w,p.c))}<br>${escH(d.dsc)}</div>`;
+  }else if(p.o){
+    const r=tyRival(p.o), d=TY_SPB[w][p.b];
+    body+=`<div class="expo-note">${r?tyRvLink(r):'對手'}的 ${d.ic} ${escH(d.nm)}(造價 ${tyM(p.c)})</div>`
+      + row('', `🚩 強行收購`, `花費 ${tyM(p.c*1.5)}(造價 1.5 倍)· 建築跟著換手 · 他記恨 −25 · 冷卻 2 季`,
+          tyActBtn('spacegrab', { w, i }, '收購', ` data-w="${w}" data-i="${i}"`, 'warn'), tyNeedHTML(tyNeeds('spacegrab', { w, i }),'tight'), '');
+  }else if(tyCanBuildOn(w)){
+    body+=Object.entries(TY_SPB[w]).map(([b,d])=>{ const c=d.c();
+      return row(`<span style="font-size:28px">${d.ic}</span>`, `${d.ic} ${escH(d.nm)}`,
+        `造價 ${tyM(c)} · 每季收入約 <b class="up">${tyM(c*d.inc)}</b> · 補給 ${tyM(tyPlotSupply(w,c))}`,
+        tyActBtn('spacebuild', { w, i, b }, '蓋', ` data-w="${w}" data-i="${i}" data-b="${b}"`), tyNeedHTML(tyNeeds('spacebuild', { w, i, b }),'tight'),
+        `<em class="pk-d">${escH(d.dsc)}</em>`); }).join('');
+  }
+  const ms=(TY.space&&TY.space.ms)||{}, who=x=>x==='me'?'你':x?((TY.rivals.find(r=>r.id===x)||{}).nm||'?'):'—';
+  return `<div class="pk-h"><div><b>${w==='moon'?'🌙':'🔴'} ${escH(q.nm)}</b> · ${wn}第 ${i+1} 號建地
+      <p>固定的建地(像大富翁的格子):一塊蓋一棟,先搶先贏。太空建築算進身家、每季付補給費(造價 2%),付不出來整季停擺。</p>
+      <span class="pk-ap">這一季還有 <b>${tyApNow()}</b> 點行動點 · 蓋 / 收購 / 登月各 2 點</span></div></div>
+    <div class="pk-list">${body}</div>
+    <div class="p-sec">🏆 太空競賽<span>第一個達成的人拿名氣 +10</span></div>
+    <div class="ty-facts"><div><em>第一個登月</em><b>${escH(who(ms.moon))}</b></div><div><em>第一個登火星</em><b>${escH(who(ms.mars))}</b></div>
+      <div><em>第一座火星殖民地</em><b>${escH(who(ms.colony))}</b></div><div><em>太空建地</em><b>你 ${tyPlotsOf('me')} · 最多的對手 ${Math.max(0,...TY.rivals.map(r=>tyPlotsOf(r.id)))}</b></div></div>`;
 }
 /* 月球 / 火星:嵌在地圖那一格裡(頂欄、資源列、手牌都還在),操作跟地球一樣。
    畫布掛在一個常駐的容器上,renderPage 重畫之後再搬回地圖裡(跟地球同一套作法),不會每次重建 WebGL。 */
@@ -10483,6 +10692,7 @@ function tyPlanetMount(){
   if(TY_PLANET==null || !TY_PV_HOST) return;
   const map=document.querySelector('.tg-map');
   if(map && TY_PV_HOST.parentNode!==map) map.insertBefore(TY_PV_HOST, map.firstChild);
+  if(window.W3D && W3D.planetOn && W3D.planetOn() && W3D.planetPlots) W3D.planetPlots(tyPlanetInfo(TY_PLANET));   // 蓋了 / 被搶了 → 星球上跟著變
 }
 function tyOpenPlanet(k, opt){
   opt=opt||{};
@@ -10498,7 +10708,7 @@ function tyOpenPlanet(k, opt){
   tyGlobeAwake(false);
   const sp=TY.space, st=sp?sp.mars.st:0, run=sp&&sp.mars.run?sp.mars.run.st:0;
   const from = opt.from && opt.from.dir ? opt.from : null;
-  const ok=!!(window.W3D && W3D.planetOpen && W3D.planetOpen(TY_PV_HOST, k, { mars:st, run, landing:!!opt.landing, from }));
+  const ok=!!(window.W3D && W3D.planetOpen && W3D.planetOpen(TY_PV_HOST, k, { ...tyPlanetInfo(k), landing:!!opt.landing, from }));
   if(!ok) TY_PV_HOST.innerHTML='<div class="cv-zl z-empty" style="position:static;margin:24px auto">3D 畫面需要地球的繪圖程式庫 —— 現在連不到。</div>';
   if(!from || sw) tySfx('launch','tap');
 }
@@ -11455,9 +11665,10 @@ function tycoonPage(){
    ========================================================================= */
 const TY_AP_COST = { found:2, upgrade:1, expand:1, ipo:1, reverse:1, buy:1, short:1,
   recruit:1, recruitTo:1, deploy:1, strike:2, partner:1, movehome:1, lobby:1, media:1,
-  charity:1, trust:1, holdco:1, recon:1, launch:1, mars:2 };
+  charity:1, trust:1, holdco:1, recon:1, launch:1, mars:2, moonland:2, spacebuild:2, spacegrab:2 };
 const tyApCost = act => String(act).startsWith('deal:') ? 1 : (TY_AP_COST[act] || 0);
-const tyApMax  = () => tyTester() ? 99 : Math.min(9, 6 + Math.floor((TY && TY.infl || 0) / 25));
+const tyApMax  = () => tyTester() ? 99 : Math.min(9, 6 + Math.floor((TY && TY.infl || 0) / 25))
+  + (TY && TY.space && TY.space.plots ? Math.min(2, tyPlots('mars').filter(p=>p.o==='me' && p.b==='lab').length) : 0);   // 火星研究站
 function tyApNow(){ if(tyTester()) TY.ap = 99; if(TY && typeof TY.ap !== 'number') TY.ap = tyApMax(); return TY ? TY.ap : 0; }
 let TY_SAVES = 0;                 // tySave 被呼叫的次數:動作有沒有真的做成,看它有沒有存檔
 /* 經由畫面做一個動作:點數夠才做,做成了才扣 */
@@ -11752,6 +11963,7 @@ function tyCardHint(c, id){
 /* ---- 拖到城市之後的選項 ---- */
 function tyPickHTML(){
   const P=TY_PICK; if(!P) return '<div class="empty">沒有選牌。</div>';
+  if(P.k==='plot') return tyPlotHTML(P);
   const c=tyCard(P.k); if(!c) return '';
   const head=`<div class="pk-h">${tyCardHTML(c)}<div><b>${escH(c.nm)}</b>${P.site?` → ${escH(tySite(P.site).nm)}`:''}
       <p>${escH(c.dsc)}</p><span class="pk-ap">這一季還有 <b>${tyApNow()}</b> 點行動點 · 這張牌 ${c.ap} 點</span></div></div>`;
@@ -11944,6 +12156,9 @@ const TY_ACT = {
   recruitTo:e=>tyRecruitTo(e.dataset.k, e.dataset.site),
   recon:  e=>tyRecon(e.dataset.site),
   launch: e=>tyLaunch(e.dataset.site),
+  moonland: ()=>tyMoonLand(),
+  spacebuild: e=>tySpaceBuild(e.dataset.w, +e.dataset.i, e.dataset.b),
+  spacegrab: e=>tySpaceGrab(e.dataset.w, +e.dataset.i),
   mars:   ()=>tyMarsGo(),
   deploy: e=>tyDeploy(+e.dataset.id, e.dataset.site || TY_DEP[e.dataset.id]),
   disband:e=>tyDisband(+e.dataset.id),
