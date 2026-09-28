@@ -1388,6 +1388,20 @@ function tagsOn(){
   if(TROOPS.length && !tagLoop){ tagLoop = true; requestAnimationFrame(tagStep); }
 }
 /* 城市名牌的位置(globe.gl 的 HTML 圖層)。量版面很貴,所以 250ms 才量一次 */
+/* 一個 3D 物件在螢幕上的「半徑」(像素):佔地半徑 × 目前的縮放,投影到畫面上量出來。
+   名牌與部隊標籤要掛在模型**底下**,不能蓋在模型身上(使用者:「牌子跟圖案不要擋到立體的建築」)。 */
+let RIGHT = null, PA = null, PB = null;
+function screenR(o, cam, w, h){
+  if(!o.visible || !o.parent) return 0;
+  const V3 = o.position.constructor;
+  RIGHT = RIGHT || new V3(); PA = PA || new V3(); PB = PB || new V3();
+  RIGHT.setFromMatrixColumn(cam.matrixWorld, 0);
+  o.getWorldPosition(PA);
+  const L = (o.userData.rx || 8) * PXU * o.scale.x;
+  PB.copy(PA).addScaledVector(RIGHT, L);
+  PA.project(cam); PB.project(cam);
+  return Math.hypot((PB.x - PA.x) / 2 * w, (PB.y - PA.y) / 2 * h);
+}
 /* 城市名牌互相讓位 —— 使用者截圖:台北、新竹、對手名字疊在一起,「台北的字很擠」。
    地圖軟體的做法:名牌重疊時,比較不重要的那一個先藏起來(拉近、分開了自然又出現)。
    重要度:你的城市(越值錢越前面)> 對手大本營 > 還沒進場的城市。每 300ms 量一次,只動 class,不動位置。 */
@@ -1396,6 +1410,20 @@ setInterval(() => {
   const host = document.getElementById('tyGlobeHost'); if(!host) return;
   const els = [...host.querySelectorAll('.tyk')];
   if(!els.length) return;
+  // 先把名牌往下推到模型底下(每座城:中間那一棟的螢幕半徑)
+  const DY = Object.create(null);
+  if(!FAR){ try{
+    const cam = G.camera(), cv = G.renderer().domElement, w = cv.clientWidth, h = cv.clientHeight;
+    for(const o of OBJS){
+      if(o.userData.troop || o.userData.lm || (o.userData.at && o.userData.at.slot)) continue;
+      const id = o.userData.site && o.userData.site.id; if(!id) continue;
+      DY[id] = Math.max(DY[id] || 0, screenR(o, cam, w, h));
+    }
+  }catch(e){} }
+  for(const e of els){
+    const dy = Math.round(Math.min(90, (DY[e.dataset.id] || 0) * .55)) + 'px';
+    if(e.style.getPropertyValue('--dy') !== dy) e.style.setProperty('--dy', dy);
+  }
   const rank = e => e.classList.contains('idle') ? 0 : e.classList.contains('rv') ? 1e15 : 1e18 + (+e.dataset.v || 0);
   els.sort((a, b) => rank(b) - rank(a));
   const keep = [];
@@ -1440,7 +1468,10 @@ function tagStep(){
     o.getWorldPosition(V);
     const vis = V.dot(cam.position) > R * R * 1.001;
     V.project(cam);
-    const sx = (V.x + 1) / 2 * w, sy = (1 - V.y) / 2 * h;
+    const sx = (V.x + 1) / 2 * w, sy0 = (1 - V.y) / 2 * h;
+    // 掛在模型的底下,不蓋住模型(每 10 幀量一次螢幕半徑就夠)
+    if(!o._rT || ++o._rT > 10){ o._rT = 1; o._sr = screenR(o, cam, w, h); }
+    const sy = sy0 + Math.min(80, (o._sr || 0) * .6);
     if(!el._w || el._wt !== el.innerHTML){ el._w = el.offsetWidth || 40; el._h = el.offsetHeight || 18; el._wt = el.innerHTML; }
     const bw = el._w, bh = el._h;
     let x = sx - bw / 2, y = sy + 4;
