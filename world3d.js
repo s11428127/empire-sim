@@ -1141,6 +1141,7 @@ function installTilt(){
   W3D._logical = logical;
 
   ctl.update = function(dt){
+    if(CHASE){ const r0 = orig(dt); if(chaseCam(cam)){ last.copy(cam.position); return r0; } }   // 火箭追焦中
     if(cam.position.distanceToSquared(last) > 1e-10) logical.copy(cam.position);
     cam.position.copy(logical);
     cam.up.set(0, 1, 0);
@@ -3186,6 +3187,38 @@ let FOLLOW = null, followT = 0;
 W3D.spaceFollow = k => { FOLLOW = k || null; followT = performance.now(); };
 /* 火箭發射:從城市垂直升空。星鏈 → 升到軌道就散開;火星 → 升空後轉向,一路飛到火星 */
 const ROCKETS = new Set();
+/* 使用者:「火箭發射的時候鏡頭要跟著火箭移動」—— 追焦鏡頭。
+   globe.gl 的鏡頭平常一定是「繞著地球、看著球心」(傾斜鏡頭也是在那之上算的);追焦的時候
+   在 installTilt 的 update 最後把鏡頭直接擺到火箭旁邊、看著火箭,結束後再交還給原本的控制器。
+     升空  鏡頭在發射場南邊一點、跟著火箭一起往上爬,看得到火箭、尾焰、底下的城市
+     轉向火星(火星計畫)  鏡頭跑到火箭後上方,看著前方 —— 火星在畫面裡越來越大
+     結束  星鏈:回到發射城市上空;火星:停在「看火星」的位置並鎖定 */
+let CHASE = null;
+W3D.chasing = () => !!CHASE;
+function chaseCam(cam){
+  const r = CHASE;
+  if(!r || !r.cp) return false;
+  cam.position.copy(r.cp); cam.up.copy(r.cu); cam.lookAt(r.cl);
+  W3D.alt = cam.position.length() / R - 1;
+  return true;
+}
+function chaseEnd(r){
+  if(CHASE !== r) return;
+  CHASE = null;
+  setTimeout(() => { try{ farMode(); }catch(e){} }, 1700);     // 名牌照新的高度決定要不要再出來
+  try{
+    const cam = G.camera();
+    if(W3D._logical){ const p = cam.position.clone(); if(p.length() > 880) p.setLength(880); if(p.length() < 110) p.setLength(110); W3D._logical.copy(p); cam.position.copy(p); }
+    cam.up.set(0, 1, 0); cam.lookAt(0, 0, 0);
+    if(r.kind === 'mars'){
+      const pov = W3D.spacePov('mars');
+      if(pov) G.pointOfView(pov, 1500);
+      FOLLOW = 'mars'; followT = performance.now() + 1600;         // 到了之後鎖在火星
+      try{ if(typeof TY_SPACEV !== 'undefined') TY_SPACEV = 2; }catch(e){}
+    }else G.pointOfView({ lat: r.S.lat, lng: r.S.lng, altitude: 1.4 }, 1500);
+  }catch(e){}
+  tyWake();
+}
 W3D.launch = function(L){
   if(!W3D.ok || !SPACE.on || !L || !hasPX()) return;
   const S = tySite(L.site); if(!S) return;
@@ -3194,11 +3227,16 @@ W3D.launch = function(L){
   const m = new T.Mesh(vgeo(B), vmat());
   const c = G.getCoords(S.lat, S.lng, .002 + elevAlt(S.lat, S.lng));
   const V3 = m.position.constructor, base = new V3(c.x, c.y, c.z), n = base.clone().normalize();
+  // 鏡頭的「南」:從北往下(地表切面上)
+  const south = new V3(0, -1, 0).addScaledVector(n, n.y); if(south.lengthSq() < 1e-6) south.set(0, 0, 1); south.normalize();
   m.position.copy(base);
   SPACE.root.add(m);
-  const r = { m, base, n, kind: L.kind, t0: performance.now(), tgt: new V3(), V3 };
+  const r = { m, base, n, south, S, kind: L.kind, t0: performance.now(), tgt: new V3(), V3,
+              cp: null, cu: n.clone(), cl: new V3(), dir: new V3() };
   ROCKETS.add(r);
-  try{ G.controls().autoRotate = false; G.pointOfView({ lat: S.lat - 6, lng: S.lng, altitude: Math.max(1.1, Math.min(1.8, W3D.alt || 1.4)) }, 900); }catch(e){}
+  FOLLOW = null;
+  if(!reduced()){ CHASE = r; try{ G.controls().autoRotate = false; }catch(e){} }
+  else try{ G.pointOfView({ lat: S.lat, lng: S.lng, altitude: 1.3 }, 900); }catch(e){}
   tyWake();
   sfx('launch', 'boom');
   setTimeout(() => sfx('jet'), 300);
@@ -3207,30 +3245,35 @@ W3D.launch = function(L){
 };
 function rocketStep(now){
   for(const r of ROCKETS){
-    const t = (now - r.t0) / 1000, m = r.m;
-    m.scale.setScalar(clamp((W3D.alt || 1) * .42, .15, .8));
+    const t = W3D._rocketT != null ? W3D._rocketT : (now - r.t0) / 1000, m = r.m;     // _rocketT:截圖驗證用,凍結在某一秒
+    m.scale.setScalar(CHASE === r ? .2 + Math.min(40, (t < 3.2 ? t * t * 4.5 : 46)) * .004 : clamp((W3D.alt || 1) * .42, .15, .8));
+    if(CHASE === r && r.cp && !r.zoomed){ r.zoomed = true; try{ W3D.onZoom({ altitude: W3D.alt }); }catch(e){} }   // 近看:城市的 3D 模型與地形要出來
     const up = Math.min(t, 3.2), h = up * up * 4.5;             // 越飛越快
     if(r.kind === 'mars' && t > 3.2){
-      /* 使用者:「發射火箭的時候鏡頭會跟著動畫移動到火星」—— 升空完、轉向火星的那一刻,
-         鏡頭跟著拉到「看火星」的位置(跟側邊太空鈕同一個鏡頭),飛行時間 5 秒剛好同步。 */
-      if(!r.cam){
-        r.cam = true;
-        const pov = W3D.spacePov('mars');
-        if(pov){ try{ G.controls().autoRotate = false; G.pointOfView(pov, 5000); }catch(e){} tyWake(); }
-        FOLLOW = 'mars'; followT = performance.now() + 4000;      // 飛到之後鏡頭鎖在火星
-        try{ if(typeof TY_SPACEV !== 'undefined') TY_SPACEV = 2; }catch(e){}    // 側邊鈕變成「回地球」
-      }
-      const f = smooth((t - 3.2) / 5), top = r.base.clone().addScaledVector(r.n, h);
+      const f = smooth((t - 3.2) / 5.5), top = r.base.clone().addScaledVector(r.n, h);
       r.tgt.copy(SPACE.mars.position);
-      m.position.copy(top).lerp(r.tgt, f);
+      m.position.copy(top).lerp(r.tgt, f * .97);                  // 停在火星外面一點,不要鑽進去
       m.lookAt(r.tgt);
-      if(f >= 1){ ROCKETS.delete(r); SPACE.root.remove(m); m.geometry.dispose(); sfx('upgrade', 'land');
+      // 追焦:火箭後上方,看著前面(火星在畫面裡越來越大)
+      r.dir.copy(r.tgt).sub(m.position).normalize();
+      // 飛向火星的時候地球在鏡頭後面:地上的名牌 / 部隊標籤投影會跑到太空裡,先收起來
+      { const hs = document.getElementById('tyGlobeHost'); if(hs && hs.dataset.space !== '1') hs.dataset.space = '1'; }
+      r.cp = (r.cp || new r.V3()).copy(m.position).addScaledVector(r.dir, -16).addScaledVector(r.n, 5);
+      r.cl.copy(m.position).addScaledVector(r.dir, 30); r.cu.copy(r.n);
+      if(f >= 1){ chaseEnd(r); ROCKETS.delete(r); SPACE.root.remove(m); m.geometry.dispose(); sfx('upgrade', 'land');
         try{ if(typeof renderPage === 'function' && typeof TY_MODAL !== 'undefined' && !TY_MODAL) renderPage(); }catch(e){} }
     }else{
       m.position.copy(r.base).addScaledVector(r.n, h);
       r.tgt.copy(m.position).addScaledVector(r.n, 10);
       m.lookAt(r.tgt);
-      if(r.kind !== 'mars' && t > 3.2){ ROCKETS.delete(r); SPACE.root.remove(m); m.geometry.dispose(); }
+      // 追焦:發射場南邊一點、比火箭高一點,跟著一起往上爬
+      /* 鏡頭比火箭低一點、越飛拉得越遠,水平看過去:火箭在畫面上半、地球的弧線在下半
+         (鏡頭越高,地平線就越往下沉 —— 鏡頭留在火箭三成的高度、拉遠,兩個才塞得進同一個畫面) */
+      const hc = h * .3 + 1;
+      r.cp = (r.cp || new r.V3()).copy(r.base).addScaledVector(r.n, hc).addScaledVector(r.south, 11 + h * 1.5);
+      r.cl.copy(r.base).addScaledVector(r.n, h * .55 + 1.5); r.cu.copy(r.n);     // 看向火箭與地面中間偏上
+      { const hs = document.getElementById('tyGlobeHost'); if(hs && hs.dataset.space !== '1') hs.dataset.space = '1'; }   // 追焦時地上的名牌先收起來
+      if(r.kind !== 'mars' && t > 3.6){ chaseEnd(r); ROCKETS.delete(r); SPACE.root.remove(m); m.geometry.dispose(); }
     }
   }
   if(ROCKETS.size) requestAnimationFrame(rocketStep);
