@@ -2358,6 +2358,34 @@ test('帝國第十八輪:對手出局有明顯提示、對手名字點得開、�
   await page.__ctx.close();
 });
 
+test('帝國第十九輪:國家顏色 = 經濟圈第一名(有人在才上色),你領先的城市是你的顏色', async (browser) => {
+  const page = await freshPage(browser, { seed: SEED, hash: '#/tycoon' });
+  const r = await page.evaluate(() => {
+    tyStart('tester', 7); TY_MODAL = null; TY_LAYER = 'power';
+    const out = {};
+    const zheng = tyRivalsA().find(x => x.home === 'hkg');
+    const reg = tySite('sha').reg;
+    for (const x of tyRivalsA()) if (x.turf) x.turf[reg] = 0;
+    zheng.turf[reg] = 60;                           // 鄭天賜是這個經濟圈的第一名(大本營在香港,不在中國)
+    TY_PWC = null;
+    out.emptyBefore = !(tyIsoPower('CN') || {}).top || !tyIsoPower('CN').present;
+    tyPartner('cn'); tyFound('dev', 'sha');          // 你在上海蓋了東西 → 中國有人了
+    TY_PWC = null;
+    const P = tyIsoPower('CN');
+    out.top = P.top && P.top.r && P.top.r.id === zheng.id;
+    out.col = tyCountryColor({ properties: { ISO_A2: 'CN' } }).includes(TY_RVCOL[zheng.id]);
+    out.city = tyCityColor('sha').includes('41,151,255');   // 上海:你在那裡的規模贏 → 你的顏色
+    out.txt = tyIsoInfo('CN').ownerTxt;
+    return out;
+  });
+  ok(r.top, '中國的第一名 = 經濟圈勢力第一名(鄭天賜)');
+  ok(r.col, '中國整國塗鄭天賜的顏色');
+  ok(r.city, '你領先的上海是你的顏色');
+  ok(/鄭天賜/.test(r.txt), `國家說明也寫他:${r.txt}`);
+  ok(page.__errors.length === 0, `有 JS 錯誤:\n      ${page.__errors.join('\n      ')}`);
+  await page.__ctx.close();
+});
+
 /* =========================================================================
    跑
    ========================================================================= */

@@ -9985,24 +9985,18 @@ function tyIsoMajority(code){
 }
 function tyIsoPower0(code, f){
   const reg=tyIsoReg(code, f); if(!reg) return null;
-  const sites=TY_SITES.filter(x=>x.iso===code);
   const myHere=tyIsoSites(code).reduce((a,x)=>a+tySiteStuff(x.id).val,0);
-  const myReg=tyMySites().filter(x=>x.reg===reg).reduce((a,x)=>a+tySiteStuff(x.id).val,0);
   const forces=tyRivalForces();
-  /* 使用者:「有些國家根本沒有建設(像日韓),為什麼算富豪的勢力範圍?不是應該沒人嗎」——
-     第一版只要在那個經濟圈有勢力,連一棟都沒有的國家也分到三到五成。現在一定要**真的在這個國家有東西**:
-     你:有資產(或駐軍)· 對手:大本營在這國、或駐軍在這國。都沒有的國家就是沒人的地方。 */
-  const myTroops=tyUnits().some(u=>!u.to && tySite(u.site).iso===code);
-  const wMe=myHere>0 ? .6+.4*myHere/Math.max(1,myReg) : myTroops ? .5 : 0;
-  const board=[{ me:true, nm:'你', col:'41,151,255', v:tyMyTurf(reg)*wMe, w:wMe }];
-  for(const r of tyRivalsA()){
-    const t=tyTurf(r,reg); if(t<=0) continue;
-    const w = tySite(r.home).iso===code ? 1
-            : forces.some(x=>x.r.id===r.id && tySite(x.site).iso===code) ? .8 : 0;
-    if(!w) continue;
-    board.push({ r, nm:r.nm, ic:r.ic, col:TY_RVCOL[r.id]||'200,200,210', v:t*w, w });
-  }
-  board.sort((a,b)=>b.v-a.v);
+  /* 國家的顏色 = 這個國家所在經濟圈的勢力第一名(跟面板上寫的「X 的天下」同一個數字)。
+     使用者:「中國的勢力第一名是鄭天賜,中國其他地方都應該是他的;我勢力比較高的城市才是我的顏色」——
+     城市一座一座另外上色(tyCityColor,在國家顏色上面),國家這一層只看經濟圈。
+     但一定要有人真的在這個國家(第二十五輪:「日韓根本沒有建設,為什麼算富豪的」):
+     你有資產或駐軍、或某個對手的大本營 / 駐軍在這國 —— 都沒有就是沒人的地方,不上色。 */
+  const present = myHere>0 || tyUnits().some(u=>!u.to && tySite(u.site).iso===code)
+    || tyRivalsA().some(r=>tySite(r.home).iso===code) || forces.some(x=>tySite(x.site).iso===code);
+  const board=[{ me:true, nm:'你', col:'41,151,255', v:tyMyTurf(reg) },
+    ...tyRivalsA().map(r=>({ r, nm:r.nm, ic:r.ic, col:TY_RVCOL[r.id]||'200,200,210', v:tyTurf(r,reg) }))]
+    .filter(x=>x.me || x.v>0).sort((a,b)=>b.v-a.v);
   const maj=tyIsoMajority(code);
   if(maj){
     // 過半的城市是你的 → 這個國家是你的:你排第一,顏色至少有中等深度
@@ -10012,7 +10006,7 @@ function tyIsoPower0(code, f){
     board.sort((a,b)=>b.v-a.v);
   }
   const top=board[0];
-  return { reg, board, top: top && top.v>2 ? top : null, maj };
+  return { reg, board, top: present && top && top.v>2 ? top : null, maj, present };
 }
 function tyCityPower(id){
   if(!TY) return null;
@@ -10051,7 +10045,7 @@ function tyCountryColor(feat){
     if(!P || !P.top) return 'rgba(150,180,205,.05)';
     /* ⚠ 上限 .34 不是隨便挑的:再深一點整片國家會變成實色,
        國界、你自己的建築、地名全部被蓋掉 —— 那就不是地圖了。 */
-    const a=(.07+Math.min(1,P.top.v/70)*.27).toFixed(3);
+    const a=(.16+Math.min(1,P.top.v/60)*.26).toFixed(3);     // 第二版調深一點:淡到跟地形分不出來(使用者截圖裡中國看起來沒上色)
     return `rgba(${P.top.col},${a})`;
   }
   if(TY_LAYER==='econ'){
@@ -10630,6 +10624,7 @@ function tyIsoInfo(code, f){
     regNm:R.nm, idxTxt:`${idx>=1?'+':''}${((idx-1)*100).toFixed(1)}%`,
     polTxt: pol>=.8?'高':pol>=.45?'中':'低',
     ownerTxt: tyIsoMajority(code) ? `你的天下(佔領 ${tyIsoMajority(code).mine} / ${tyIsoMajority(code).n} 座城市)`
+             : !(tyIsoPower(code)||{}).present ? '沒人的地方(沒有任何人在這裡建設或駐軍)'
              : own.r ? `${own.r.ic||''} ${escH(own.r.nm)}的天下(勢力 ${own.v.toFixed(0)})`
              : own.me>2 ? `你的天下(勢力 ${own.me.toFixed(0)})` : '沒有人獨大',
     board };
