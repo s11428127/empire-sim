@@ -3250,11 +3250,9 @@ function chaseEnd(r){
     if(W3D._logical){ const p = cam.position.clone(); if(p.length() > 880) p.setLength(880); if(p.length() < 110) p.setLength(110); W3D._logical.copy(p); cam.position.copy(p); }
     cam.up.set(0, 1, 0); cam.lookAt(0, 0, 0);
     if(r.kind === 'mars'){
-      const pov = W3D.spacePov('mars');
-      if(pov) G.pointOfView(pov, 1500);
-      FOLLOW = 'mars'; followT = performance.now() + 1600;         // 到了之後鎖在火星
-      setTimeout(() => { try{ if(typeof tyOpenPlanet === 'function') tyOpenPlanet('mars'); }catch(e){} }, 1700);   // 然後直接進火星畫面
-      try{ if(typeof TY_SPACEV !== 'undefined') TY_SPACEV = 2; }catch(e){}
+      // 到了:直接進火星畫面,播著陸(地球這邊的鏡頭不鎖在火星 —— 回地球時才回得去)
+      FOLLOW = null;
+      try{ if(typeof tyOpenPlanet === 'function') tyOpenPlanet('mars', { landing: true }); }catch(e){}
     }else G.pointOfView({ lat: r.S.lat, lng: r.S.lng, altitude: 1.4 }, 1500);
   }catch(e){}
   tyWake();
@@ -3271,7 +3269,7 @@ W3D.launch = function(L){
   const south = new V3(0, -1, 0).addScaledVector(n, n.y); if(south.lengthSq() < 1e-6) south.set(0, 0, 1); south.normalize();
   m.position.copy(base);
   SPACE.root.add(m);
-  const r = { m, base, n, south, S, kind: L.kind, t0: performance.now(), tgt: new V3(), V3,
+  const r = { m, base, n: n.clone(), n0: n, south, S, kind: L.kind, t0: performance.now(), tgt: new V3(), V3,
               cp: null, cu: n.clone(), cl: new V3(), dir: new V3() };
   ROCKETS.add(r);
   FOLLOW = null;
@@ -3290,17 +3288,26 @@ function rocketStep(now){
     if(CHASE === r && r.cp && !r.zoomed){ r.zoomed = true; try{ W3D.onZoom({ altitude: W3D.alt }); }catch(e){} }   // 近看:城市的 3D 模型與地形要出來
     const up = Math.min(t, 3.2), h = up * up * 4.5;             // 越飛越快
     if(r.kind === 'mars' && t > 3.2){
-      const f = smooth((t - 3.2) / 5.5), top = r.base.clone().addScaledVector(r.n, h);
+      /* 使用者:「鏡頭和火星會直接切穿地球,不合理」—— 第一版是直線飛過去,火星在地球另一邊時就穿過地球。
+         改成繞著地球外側飛:方向從發射點慢慢轉向火星(球面內插)、同時離地球越來越遠 → 永遠在地球外面。 */
+      const f = smooth((t - 3.2) / 6), top = r.base.clone().addScaledVector(r.n0, h), rT = top.length();
       r.tgt.copy(SPACE.mars.position);
-      const stop = r.tgt.clone().sub(top).setLength(Math.max(0, r.tgt.distanceTo(top) - PLANET_R('mars') * 1.3));
-      m.position.copy(top).addScaledVector(stop, f);             // 停在火星外面(大氣層外),不要鑽進去
-      m.lookAt(r.tgt);
+      const mD = r.tgt.clone().normalize(), rM = r.tgt.length() - PLANET_R('mars') * 1.5;
+      const ang = Math.acos(clamp(r.n0.dot(mD), -1, 1));
+      const ax = r.n0.clone().cross(mD); if(ax.lengthSq() < 1e-8) ax.set(0, 1, 0); ax.normalize();
+      const pos = (u) => { const q = new (G.camera().quaternion.constructor)().setFromAxisAngle(ax, ang * smooth(u));
+        return r.n0.clone().applyQuaternion(q).multiplyScalar(rT + (rM - rT) * u * u); };      // 先繞、後衝
+      m.position.copy(pos(f));
+      const ahead = pos(Math.min(1, f + .02));
+      m.lookAt(ahead);
       // 追焦:火箭後上方,看著前面(火星在畫面裡越來越大)
-      r.dir.copy(r.tgt).sub(m.position).normalize();
+      r.dir.copy(ahead).sub(m.position).normalize();
+      if(r.dir.lengthSq() < 1e-8) r.dir.copy(mD);
+      r.n.lerp(m.position.clone().normalize(), .08).normalize();       // 鏡頭的「上」跟著火箭所在的位置轉
       // 飛向火星的時候地球在鏡頭後面:地上的名牌 / 部隊標籤投影會跑到太空裡,先收起來
       { const hs = document.getElementById('tyGlobeHost'); if(hs && hs.dataset.space !== '1') hs.dataset.space = '1'; }
       r.cp = (r.cp || new r.V3()).copy(m.position).addScaledVector(r.dir, -16).addScaledVector(r.n, 5);
-      r.cl.copy(m.position).addScaledVector(r.dir, 30); r.cu.copy(r.n);
+      r.cl.copy(m.position).addScaledVector(r.dir, 20).lerp(r.tgt, clamp((f - .5) * 2, 0, 1)); r.cu.copy(r.n);   // 後半段轉頭看火星
       if(f >= 1){ chaseEnd(r); ROCKETS.delete(r); SPACE.root.remove(m); m.geometry.dispose(); sfx('upgrade', 'land');
         try{ if(typeof renderPage === 'function' && typeof TY_MODAL !== 'undefined' && !TY_MODAL) renderPage(); }catch(e){} }
     }else{
@@ -3343,6 +3350,33 @@ W3D.spacePov = function(k){
   return { lat: g.lat, lng: g.lng, altitude: d / R - 1 };
 };
 W3D.spaceInit = spaceInit;
+/* 地球畫面上點到的是不是月球 / 火星(連點兩下飛過去用):投影到螢幕,在星球的圓裡(再多 18px)就算 */
+W3D.pickSpace = function(cx, cy){
+  if(!SPACE.on || !G) return null;
+  try{
+    const cam = G.camera(), el = G.renderer().domElement, rc = el.getBoundingClientRect();
+    const x = cx - rc.left, y = cy - rc.top, V3 = cam.position.constructor;
+    let best = null, bd = 1e9;
+    for(const k of ['moon', 'mars']){
+      const o = SPACE[k], p = o.position.clone();
+      if(p.clone().sub(cam.position).dot(new V3(0, 0, -1).applyQuaternion(cam.quaternion)) <= 0) continue;   // 在鏡頭後面
+      const e = p.clone().add(new V3(1, 0, 0).applyQuaternion(cam.quaternion).multiplyScalar(PLANET_R(k)));
+      p.project(cam); e.project(cam);
+      const sx = (p.x + 1) / 2 * rc.width, sy = (1 - p.y) / 2 * rc.height, sr = Math.hypot((e.x - p.x) / 2 * rc.width, (e.y - p.y) / 2 * rc.height);
+      const d = Math.hypot(sx - x, sy - y);
+      if(d < sr + 18 && d < bd){ bd = d; best = k; }
+    }
+    return best;
+  }catch(e){ return null; }
+};
+/* 從地球飛過去:鏡頭用 globe.gl 的經緯度 + 高度補間(不會穿過地球),到了再打開那顆星的畫面 */
+W3D.flyToPlanet = function(k, done){
+  FOLLOW = null;
+  const pov = W3D.spacePov(k); if(!pov){ done && done(); return; }
+  try{ G.controls().autoRotate = false; G.pointOfView(pov, 1800); }catch(e){}
+  tyWake(); sfx('launch', 'tap');
+  setTimeout(() => done && done(), 1850);
+};
 
 /* 星空改成像素星星(方的、一格一格,少數亮星有十字光) */
 (function(){
@@ -3378,6 +3412,7 @@ W3D.spaceInit = spaceInit;
    只是畫面,不碰遊戲狀態、不用種子亂數。
    ============================================================================= */
 const PV = { on: false };
+let EARTH_B = null;
 W3D.planetOn = () => PV.on;
 W3D.planetStat = () => PV.on ? PV.stat : null;
 /* 基地的零件清單(經緯度 + 名字),星球畫面與地球旁的小星球共用 */
@@ -3449,13 +3484,31 @@ W3D.planetOpen = function(host, k, info){
       const m = mk(B); m.scale.setScalar(.6); moons.push({ m, dist, w }); };
     lump(2.4, 31, rad * 2.2, .25); lump(1.7, 41, rad * 3.1, .1);
   }
+  /* 遠方的地球(不跟著星球轉):連點兩下它 = 回地球。顏色照真的國界(W3D.featAt),第一次算完就記住 */
+  if(!EARTH_B){ EARTH_B = VB(); vplanet(EARTH_B, 7, u => { const lat = Math.asin(u[2]) * 180 / Math.PI, lng = Math.atan2(u[1], u[0]) * 180 / Math.PI;
+    const land = !!W3D.featAt(lat, lng); return { h: land ? .4 : 0, c: Math.abs(lat) > 70 ? [236,240,246] : land ? (Math.abs(lat) < 25 && snoise(u[0]*4,u[1]*4,u[2]*4,5) > .55 ? [196,170,110] : [86,150,72]) : [52,110,190] }; }); }
+  const earth = new T.Mesh(vgeo(EARTH_B), mat); geos.push(earth.geometry); scene.add(earth);
+  earth.position.set(-rad * 7, rad * 3.2, -rad * 10); earth.rotation.set(.4, 0, .3);
   const cvs = rd.domElement; cvs.className = 'cv-canvas'; host.appendChild(cvs);
   const tip = document.createElement('div'); tip.className = 'cv-tip'; tip.hidden = true; host.appendChild(tip);
   // 一開始把第一棟建築轉到正對鏡頭、稍微往下一點(看得到它,也看得到地平線)
   planet.rotation.set(0, 0, 0);
   const Q = planet.quaternion.constructor, qa = new Q(), qb = new Q();
   planet.quaternion.setFromUnitVectors(new V3(1, 0, 0), new V3(0, -.25, 1).normalize());   // 基地在畫面中間偏下
-  let dist = 0, W = 1, H = 1, vx = 0, vy = 0, last = performance.now(), fitW = 1;
+  /* 著陸動畫(火星計畫的火箭剛到):登陸艇從高空一路減速降到登陸場 —— 反推火焰、落地揚起一圈沙塵、鏡頭貼近 */
+  let LAND = null;
+  if(info && info.landing){
+    const site = k === 'mars' && (((info.mars || 0) >= 2) || ((info.run || 0) >= 2)) ? [-14, 22] : [0, 0];
+    const d = new V3(...dirOf(site[0], site[1]));
+    planet.quaternion.setFromUnitVectors(d, new V3(0, .62, .78).normalize());      // 登陸場在畫面上方偏地平線:看得到登陸艇從上面一路降下來
+    const sp = PX.SPR.rocket, LB = VB(); voxAdd(LB, sp, null, { x: -sp.w / 2, y: -1.5, z: 0 }, 3, false);
+    const lander = mk(LB, planet); lander.scale.setScalar(.5);
+    lander.quaternion.setFromUnitVectors(new V3(0, 0, 1), d);
+    const FB = VB(); vbox(FB, -1.2, -1.2, -5, 2.4, 2.4, 5, [255,170,60]); vbox(FB, -.6, -.6, -8, 1.2, 1.2, 3, [255,230,120]);
+    const flame = mk(FB, lander);
+    LAND = { d, lander, flame, t0: performance.now(), dust: [], done: false };
+  }
+  let dist = 0, W = 1, H = 1, back = null, vx = 0, vy = 0, last = performance.now(), fitW = 1;
   const MIN = rad * 1.6;
   let MAX = rad * 8;
   const fit = () => {
@@ -3465,7 +3518,7 @@ W3D.planetOpen = function(host, k, info){
     rd.setSize(W, H, false);
     // 預設:整顆星剛好塞進畫面(直式手機左右比較窄,站遠一點)
     fitW = Math.max(1, 1.05 / cam.aspect); MAX = rad * 8 * fitW;
-    if(!dist) dist = rad * 3.6 * fitW;
+    if(!dist) dist = rad * (info && info.landing ? 3 : 3.6) * fitW;
   };
   fit();
   const ro = typeof ResizeObserver === 'function' ? new ResizeObserver(fit) : null; if(ro) ro.observe(host);
@@ -3488,7 +3541,20 @@ W3D.planetOpen = function(host, k, info){
     moved += Math.abs(dx) + Math.abs(dy);
     spin(dx, dy); vx = dx; vy = dy;
   };
-  const onUp = e => { ptrs.delete(e.pointerId); pinch = 0; if(moved < 8 && e.target === cvs) pickAt(e.clientX, e.clientY); };
+  let lastTap = 0;
+  const onUp = e => { ptrs.delete(e.pointerId); pinch = 0;
+    if(moved < 8 && e.target === cvs){
+      const now = performance.now(), onEarth = hitEarth(e.clientX, e.clientY);
+      if(onEarth && now - lastTap < 450){ W3D.planetBack(); return; }
+      lastTap = onEarth ? now : 0;
+      if(!onEarth) pickAt(e.clientX, e.clientY); else { tip.hidden = false; tip.textContent = '🌍 地球 —— 連點兩下飛回去'; sel = { m: earth }; }
+    } };
+  function hitEarth(cx, cy){
+    const r = host.getBoundingClientRect(), s0 = proj(earth.position), s1 = proj(earth.position.clone().add(new V3(7, 0, 0)));
+    return Math.hypot(s0[0] - (cx - r.left), s0[1] - (cy - r.top)) < Math.hypot(s1[0] - s0[0], s1[1] - s0[1]) + 22;
+  }
+  /* 回地球:先拉遠(離開這顆星),再關掉畫面、地球那邊從太空拉回來 */
+  W3D.planetBack = () => { if(back) return; back = performance.now(); sfx('launch', 'tap'); };
   const onWheel = e => { e.preventDefault(); dist = clamp(dist * Math.exp(e.deltaY * .0012), MIN, MAX); };
   cvs.addEventListener('pointerdown', onDown); cvs.addEventListener('pointermove', onMove);
   cvs.addEventListener('pointerup', onUp); cvs.addEventListener('pointercancel', onUp);
@@ -3510,6 +3576,26 @@ W3D.planetOpen = function(host, k, info){
     if(document.hidden) return;
     const dt = Math.min(.1, (now - last) / 1000); last = now;
     if(!ptrs.size && (Math.abs(vx) + Math.abs(vy) > .05)){ spin(vx, vy); vx *= .9; vy *= .9; }     // 放開後的慣性
+    if(back){ const u = (now - back) / 700; dist *= 1.09; if(u >= 1){ back = null; try{ if(typeof tyClosePlanet === 'function') tyClosePlanet(); }catch(e){} return; } }
+    if(LAND && !LAND.done){
+      const u = clamp((now - LAND.t0) / 3200, 0, 1), e = 1 - Math.pow(1 - u, 3);        // 越接近地面越慢
+      LAND.lander.position.copy(LAND.d).multiplyScalar(rad + 2.4 + (1 - e) * rad * 1.6);
+      LAND.flame.visible = u < 1 && ((now / 70) | 0) % 2 === 0;
+      LAND.flame.scale.set(1, 1, .6 + (1 - e) * .8);
+      if(u >= 1){
+        LAND.done = true; LAND.flame.visible = false;
+        sfx('drop', 'land'); setTimeout(() => sfx('upgrade', 'tap'), 400);
+        tip.hidden = false; tip.textContent = '🚀 著陸成功'; sel = { m: LAND.lander };
+        for(let i = 0; i < 10; i++){ const B = VB(); vbox(B, -.6, -.6, 0, 1.2, 1.2, 1.2, k === 'mars' ? [214,140,96] : [200,204,210]);
+          const m = mk(B, planet); const a = i / 10 * Math.PI * 2; LAND.dust.push({ m, a, t0: now }); }
+      }
+    }
+    if(LAND) for(const p of LAND.dust){                     // 落地的沙塵:往外散、變小、消失
+      const u = (now - p.t0) / 900; if(u > 1){ p.m.visible = false; continue; }
+      const t1 = new V3(-LAND.d.y, LAND.d.x, 0).normalize(), t2 = LAND.d.clone().cross(t1);
+      p.m.position.copy(LAND.d).multiplyScalar(rad + 2.8 + u * 1.5).addScaledVector(t1, Math.cos(p.a) * u * 6).addScaledVector(t2, Math.sin(p.a) * u * 6);
+      p.m.scale.setScalar(Math.max(.05, 1 - u));
+    }
     cam.position.set(0, 0, dist); cam.up.set(0, 1, 0); cam.lookAt(0, 0, 0);
     for(const o of moons){ const a = now / 1000 * o.w; o.m.position.set(Math.cos(a) * o.dist, Math.sin(a) * o.dist * .25, Math.sin(a) * o.dist); o.m.rotation.y = a; }
     rd.render(scene, cam);

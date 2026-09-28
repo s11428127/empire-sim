@@ -10163,6 +10163,9 @@ function tyGlobeMount(){
       if(window.W3D) W3D.onZoom(pov);
     });
     // (第一版:閒置九秒後自己轉起來。使用者覺得鏡頭會亂跑,已經拿掉。)
+    { const g=document.getElementById('tyGlobe'); let d0=null;
+      g.addEventListener('pointerdown', e=>{ d0=[e.clientX,e.clientY]; }, {passive:true});
+      g.addEventListener('pointerup', e=>{ if(d0 && Math.hypot(e.clientX-d0[0], e.clientY-d0[1])<8) tyGlobeSpaceTap(e); d0=null; }, {passive:true}); }
   }
 
   const el=document.getElementById('tyGlobe');
@@ -10402,7 +10405,7 @@ function tyOpenCity(id, at){
 }
 /* 月球 / 火星的獨立畫面(可以轉、可以放大縮小,之後要在上面蓋東西)。版面跟城市全景同一套。 */
 let TY_PLANET=null;
-function tyOpenPlanet(k){
+function tyOpenPlanet(k, opt){
   tyCloseCity(true); tyClosePlanet(true);
   if(!TY) return;
   TY_PLANET=k;
@@ -10418,10 +10421,10 @@ function tyOpenPlanet(k){
     <div class="cv-host" id="tyPlanetHost"></div>
     <div class="cv-leg"><em>拖曳轉動星球 · 滾輪 / 雙指縮放 · 點建築看是什麼 · Esc 回地球</em></div>`;
   el.addEventListener('click', e=>{ const b=e.target.closest('[data-pv]'); if(!b) return;
-    if(b.dataset.pv==='close') tyClosePlanet(); else tyOpenPlanet(b.dataset.pv); });
+    if(b.dataset.pv==='close'){ if(window.W3D && W3D.planetBack && W3D.planetOn()) W3D.planetBack(); else tyClosePlanet(); } else tyOpenPlanet(b.dataset.pv); });
   document.body.appendChild(el);
   tyGlobeAwake(false);
-  const ok=!!(window.W3D && W3D.planetOpen && W3D.planetOpen(el.querySelector('#tyPlanetHost'), k, { mars:st, run }));
+  const ok=!!(window.W3D && W3D.planetOpen && W3D.planetOpen(el.querySelector('#tyPlanetHost'), k, { mars:st, run, landing:!!(opt&&opt.landing) }));
   if(!ok) el.querySelector('#tyPlanetHost').innerHTML='<div class="cv-zl z-empty" style="position:static;margin:24px auto">3D 畫面需要地球的繪圖程式庫 —— 現在連不到。</div>';
   tySfx('launch','tap');
 }
@@ -10429,9 +10432,25 @@ function tyClosePlanet(quiet){
   const el=document.getElementById('tyPlanet');
   if(window.W3D && W3D.planetClose) W3D.planetClose();
   if(el) el.remove();
-  if(TY_PLANET!=null){ TY_PLANET=null; tyGlobeAwake(true); if(!quiet) tySfx('click','tap'); }
+  if(TY_PLANET!=null){
+    TY_PLANET=null; tyGlobeAwake(true); if(!quiet) tySfx('click','tap');
+    /* 回地球:解除太空鏡頭鎖定,鏡頭從太空拉回你的大本營上空。
+       (第一版火星計畫之後 FOLLOW 還鎖在火星 —— 按回地球還是停在火星) */
+    TY_SPACEV=0;
+    if(window.W3D && W3D.spaceFollow) W3D.spaceFollow(null);
+    if(!quiet && TYG){ const h=tySite(TY.home); try{ TYG.pointOfView({ lat:h.lat, lng:h.lng, altitude:tyFitAlt() }, 1600); }catch(e){} }
+  }
 }
 addEventListener('keydown', e=>{ if(e.key==='Escape' && TY_PLANET!=null){ e.preventDefault(); tyClosePlanet(); } });
+/* 地球畫面上連點兩下月球或火星 → 鏡頭飛過去、打開那顆星的畫面 */
+let TY_SPTAP={ k:null, t:0 };
+function tyGlobeSpaceTap(ev){
+  if(!window.W3D || !W3D.pickSpace || TY_PLANET!=null) return;
+  const k=W3D.pickSpace(ev.clientX, ev.clientY);
+  const now=Date.now();
+  if(k && TY_SPTAP.k===k && now-TY_SPTAP.t<450){ TY_SPTAP={ k:null, t:0 }; W3D.flyToPlanet(k, ()=>tyOpenPlanet(k)); return; }
+  TY_SPTAP={ k, t:k?now:0 };
+}
 function tyCloseCity(quiet){
   const el=document.getElementById('tyCity');
   if(window.W3D && W3D.cityClose) W3D.cityClose();
