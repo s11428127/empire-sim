@@ -749,6 +749,8 @@ def('💻', ['.kkkkkkk.','.kccccck.','.kccccck.','.kccccck.','.kkkkkkk.','kggggg
 def('⛽', ['.kkkkk...','.kwwwk...','.kkkkkk..','.krrrk.k.','.krrrk.k.','.krrrkk..','.krrrk...','kkkkkkk..']);
 def('📦', ['.........','.kkkkkkk.','kmmmMmmmk','kkkkkkkkk','kmmmMmmmk','kmmmMmmmk','kmmmMmmmk','kmmmMmmmk','kkkkkkkkk']);
 def('🌱', ['.........','.kk...kk.','knnk.knnk','.kNnkknNk','..kkNkk..','....k....','...kmk...','..kmmmk..','.kkkkkkk.']);
+def('🌙', ['...kkk...','..kyyk...','.kyyk....','.kyk.....','.kyk.....','.kyyk....','..kyyk.k.','...kyyyk.','....kkk..']);
+def('🔴', ['...kkk...','.kkrrrkk.','.krRrrrk.','krrrrRrrk','krRrrrrrk','krrrrrRrk','.krrRrrk.','.kkrrrkk.','...kkk...']);
 def('🏨', ['.kkkkkkk.','.kyryryk.','.kkkkkkk.','.kolollk.','.koooook.','.kolollk.','.koooook.','.kolkllk.','kkkkMkkkk']);
 def('🛰', ['kbk......','bcbk.....','kbkbk....','..kkek...','...kyek..','....kekbk','.....kbcb','......kbk','.........']);
 def('🏠🏘', ['....k....','...krk...','..krrrk..','.krrrrrk.','kkkkkkkkk','.kwwwwwk.','.kwbwMwk.','.kwwwMwk.','.kkkkkkk.']);

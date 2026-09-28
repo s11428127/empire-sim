@@ -2077,7 +2077,7 @@ test('帝國第十二輪:連點兩下城市開城市全景(依類型分區、全
     document.querySelector('#tyCity [data-cv="close"]').click();
     out.btnClose = !document.getElementById('tyCity');
     // 規則函式沒有被城市全景動到:同一個存檔前後一樣
-    out.space = !!document.querySelector('[data-ty="space"]');
+    out.space = !!document.querySelector('[data-ty="space:moon"]');
     out.icons = ['🏙', '🛰', '🏨'].every(k => !!PX.ICON[k]);
     return out;
   });
