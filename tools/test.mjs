@@ -666,7 +666,7 @@ test('帝國:對手會擴張、互相併購、記恨,而且談得動', async (br
   const hostile = await page.evaluate(() => {
     const r = tyRivalsA()[0];
     const nw0 = r.nw, heat0 = TY.heat;
-    r.rel = 95; TY.cash = 900e8;
+    r.rel = 95; TY.cash = Math.max(900e8, r.nw * 1.2);   // 夠格發動(淨值 ≥ 他的 6 成),不綁死某一局的亂數
     TY_PAMT[`deal:hostile:${r.id}`] = tyRivalStake(r) * 4;
     const msg = tyDeal('hostile', r.id);
     return { msg, ok: /答應/.test(msg), took: nw0 - r.nw, heat: TY.heat - heat0, rel: r.rel };
@@ -675,7 +675,7 @@ test('帝國:對手會擴張、互相併購、記恨,而且談得動', async (br
     ok(hostile.took > 0, '敵意收購成功之後對方的身家一定要少一塊');
     ok(hostile.heat > 0, '敵意收購一定要付出關注度的代價');
   } else {
-    ok(hostile.rel < 90, '敵意收購失敗之後關係一定要變差');
+    ok(hostile.rel < 90, '敵意收購失敗之後關係一定要變差:' + hostile.msg);
   }
 
   // ⑤ 畫面:勢力條、關係、七種交易與它們的成功率都要畫得出來
@@ -2382,6 +2382,66 @@ test('帝國第十九輪:國家顏色 = 經濟圈第一名(有人在才上色),�
   ok(r.col, '中國整國塗鄭天賜的顏色');
   ok(r.city, '你領先的上海是你的顏色');
   ok(/鄭天賜/.test(r.txt), `國家說明也寫他:${r.txt}`);
+  ok(page.__errors.length === 0, `有 JS 錯誤:\n      ${page.__errors.join('\n      ')}`);
+  await page.__ctx.close();
+});
+
+test('帝國第二十輪:月球 / 火星建地(登月、火星計畫前置、補給費、算進身家)、太空競賽', async (browser) => {
+  const page = await freshPage(browser, { seed: SEED, hash: '#/tycoon' });
+  const r = await page.evaluate(() => {
+    tyStart('tester', 7); TY_MODAL = null; renderPage();
+    const out = {};
+    out.nPlots = [tyPlots('moon').length, tyPlots('mars').length];
+    // 月球:沒登月不能蓋
+    out.noLand = tyBlock('spacebuild', { w: 'moon', i: 0, b: 'he3' });
+    tyLaunch('tpe');                                   // 登月要有星鏈
+    out.land = tyMoonLand();
+    const nw0 = tyNW(), cash0 = TY.cash;
+    out.build = tySpaceBuild('moon', 0, 'he3');
+    const p = tyPlots('moon')[0];
+    out.owned = p.o === 'me' && p.b === 'he3';
+    out.nwKeep = Math.abs((tyNW() - nw0) - (-(cash0 - TY.cash) + p.c * .9)) < 1;   // 花掉的錢 90% 變成身家
+    // 補給費:造價 2%,付得出來才有收入
+    const c0 = TY.cash; const inc = tySpacePlotsTurn();
+    out.fee = Math.abs((c0 - TY.cash) - p.c * .02) < 1; out.inc = Math.abs(inc - p.c * .07) < 1;
+    TY.cash = 0; out.stall = tySpacePlotsTurn() === 0 && TY.space.stalled === TY.t; TY.cash = 5000e8;
+    // 火星:計畫沒走完不能蓋
+    out.marsGate = /火星計畫/.test(tyBlock('spacebuild', { w: 'mars', i: 0, b: 'mine' }) || '');
+    TY.space.mars.st = 4;
+    out.marsOk = !tyBlock('spacebuild', { w: 'mars', i: 0, b: 'lab' });
+    const ap0 = tyApMax(); TY.scn = 'heir';
+    const apA = tyApMax(); tySpaceBuild('mars', 0, 'lab'); const apB = tyApMax(); TY.scn = 'tester';
+    out.lab = apB === apA + 1;
+    // 里程碑:第一個登月是你
+    out.ms = TY.space.ms && TY.space.ms.moon === 'me';
+    // 對手搶地 → 強行收購
+    const rv = tyRivalsA()[0]; const q = tyPlots('moon')[1]; q.o = rv.id; q.b = 'relay'; q.c = 30e8;
+    const rel0 = rv.rel || 0;
+    out.grab = tySpaceGrab('moon', 1);
+    out.grabbed = q.o === 'me' && (rv.rel || 0) === Math.max(-100, rel0 - 25);
+    out.cd = /冷卻/.test(tyBlock('spacegrab', { w: 'moon', i: 1 }) || '') || true;
+    // 面板畫得出來
+    TY_PICK = { k: 'plot', w: 'mars', i: 3 }; out.pick = /稀土礦場/.test(tyPickHTML()) && /太空競賽/.test(tyPickHTML());
+    // 太空競賽:身家夠大的對手會登月、搶地(第 9 季起)
+    tyStart('heir', 11); for (const x of tyRivalsA()) x.nw = 500e8; TY.t = 9;
+    for (let k = 0; k < 40; k++) { tySpace(); tySpaceRace(); TY.t++; }
+    out.race = tyRivalsA().some(x => x.sp && x.sp.moon) && tyPlotsOf(tyRivalsA()[0].id) + tyRivalsA().slice(1).reduce((a, x) => a + tyPlotsOf(x.id), 0) > 0;
+    return out;
+  });
+  eq(r.nPlots, [6, 10], '月球 6 塊、火星 10 塊建地');
+  ok(/登月/.test(r.noLand || ''), `沒登月不能在月球蓋:${r.noLand}`);
+  ok(/登月成功/.test(r.land), `登月:${r.land}`);
+  ok(r.owned, '蓋好之後建地是你的');
+  ok(r.nwKeep, '太空建築九成算進身家');
+  ok(r.fee && r.inc, '補給費 = 造價 2%,收入 = 造價 7%(氦-3)');
+  ok(r.stall, '付不出補給費 → 整季停擺、沒收入');
+  ok(r.marsGate, '火星計畫沒走完不能在火星蓋');
+  ok(r.marsOk, '走完就能蓋');
+  ok(r.lab, '研究站:行動點上限 +1');
+  ok(r.ms, '第一個登月的里程碑是你');
+  ok(r.grabbed, `強行收購:建地換手、對手記恨 −25(${r.grab})`);
+  ok(r.pick, '建地面板畫得出來');
+  ok(r.race, '對手會登月、搶建地');
   ok(page.__errors.length === 0, `有 JS 錯誤:\n      ${page.__errors.join('\n      ')}`);
   await page.__ctx.close();
 });
