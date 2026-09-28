@@ -4939,6 +4939,8 @@
   .tg-scn.tester{ border:3px dashed #ffd84a !important; background:#2a2410 !important }
   .tg-scn.tester .s-h b{ color:#ffd84a }
 
+  .pk-o.pk-gate{ border:2px solid #ffd84a; background:#2a2410 }
+
   /* ---- 所有動作的回饋 ---- */
   .px-burst{ position:fixed; z-index:10002; pointer-events:none; width:5px; height:5px; background:var(--c); box-shadow:0 0 0 1px #141821;
     animation:pxBurst .6s steps(6) forwards }
@@ -9902,6 +9904,14 @@ function tyIsoPower(code, f){
   if(ck in C) return C[ck];
   return (C[ck]=tyIsoPower0(code, f));
 }
+/* 使用者:「如果一個國家超過一半的城市都被我佔領,那個國家的勢力範圍就會變成我的」。
+   佔領 = 那座城市的勢力第一名是你(tyCityPower:你在那裡的規模贏過對手的大本營與駐軍)。 */
+function tyIsoMajority(code){
+  const sites=TY_SITES.filter(x=>x.iso===code);
+  if(!sites.length) return null;
+  const mine=sites.filter(x=>{ const c=tyCityPower(x.id); return c && c.top && c.top.me; }).length;
+  return mine*2>sites.length ? { mine, n:sites.length } : null;
+}
 function tyIsoPower0(code, f){
   const reg=tyIsoReg(code, f); if(!reg) return null;
   const sites=TY_SITES.filter(x=>x.iso===code);
@@ -9918,8 +9928,16 @@ function tyIsoPower0(code, f){
     board.push({ r, nm:r.nm, ic:r.ic, col:TY_RVCOL[r.id]||'200,200,210', v:t*w, w });
   }
   board.sort((a,b)=>b.v-a.v);
+  const maj=tyIsoMajority(code);
+  if(maj){
+    // 過半的城市是你的 → 這個國家是你的:你排第一,顏色至少有中等深度
+    const me=board.find(x=>x.me);
+    me.v=Math.max(me.v, (board[0]&&!board[0].me ? board[0].v+1 : 0), 35);
+    me.maj=maj;
+    board.sort((a,b)=>b.v-a.v);
+  }
   const top=board[0];
-  return { reg, board, top: top && top.v>2 ? top : null };
+  return { reg, board, top: top && top.v>2 ? top : null, maj };
 }
 function tyCityPower(id){
   if(!TY) return null;
@@ -10478,7 +10496,8 @@ function tyIsoInfo(code, f){
   return { reg, near, here, R, st, idx, pol,
     regNm:R.nm, idxTxt:`${idx>=1?'+':''}${((idx-1)*100).toFixed(1)}%`,
     polTxt: pol>=.8?'高':pol>=.45?'中':'低',
-    ownerTxt: own.r ? `${own.r.ic||''} ${escH(own.r.nm)}的天下(勢力 ${own.v.toFixed(0)})`
+    ownerTxt: tyIsoMajority(code) ? `你的天下(佔領 ${tyIsoMajority(code).mine} / ${tyIsoMajority(code).n} 座城市)`
+             : own.r ? `${own.r.ic||''} ${escH(own.r.nm)}的天下(勢力 ${own.v.toFixed(0)})`
              : own.me>2 ? `你的天下(勢力 ${own.me.toFixed(0)})` : '沒有人獨大',
     board };
 }
@@ -11601,7 +11620,7 @@ function tyPickHTML(){
   switch(c.k){
     case 'build': {
       const opts=tyBuildOpts(id);
-      body=opts.map(k=>{
+      body=tyPartnerGate(id)+opts.map(k=>{
         const d=TY_BIZ[k], cost=tyBizCost(k,id);
         const cf=d.shell?0:cost*(d.fameCf ? .015+TY.fame/100*.20 : d.cf)*tySpecMul(id,'biz',k,'cf')*tyClamp(tyRegIdx(s.reg),.3,2.2);
         const img=PX.img('pk:biz:'+k, k==='shell'?PX.SPR.shell:PX.bizTower(k,.35), { fit:[56,64] });
@@ -11616,7 +11635,7 @@ function tyPickHTML(){
     case 'invest': {
       const chips=[['.1','10%'],['.25','25%'],['.5','50%'],['1','全部']].map(([v,t])=>
         `<button type="button" class="ty-chip${TY_AMT==null&&Math.abs(TY_SIZE-+v)<1e-9?' on':''}" data-ty="size" data-v="${v}">${t}</button>`).join('');
-      body=`<div class="ty-sizebar"><span>每次下多少現金</span>${chips}</div>`+tyInvestOpts(id).map(a=>{
+      body=tyPartnerGate(id)+`<div class="ty-sizebar"><span>每次下多少現金</span>${chips}</div>`+tyInvestOpts(id).map(a=>{
         const img=PX.img('pk:as:'+a.k, PX.assetSprite(a.k), { fit:[56,64] });
         const p=TY.pos.find(x=>x.k===a.k && x.site===id);
         return row(img, `${a.ic} ${escH(a.nm)}`, tyBuyPreview(a.k, id),
@@ -11705,6 +11724,19 @@ function tyPickHTML(){
       body=tyPlayCard('charity','成立慈善基金會','關注 −16 起跳 · 名氣 +5 起跳','一個正在蓋醫院的人,比較不像一個要被查的人。',{label:'捐出去'}); break;
   }
   return head+`<div class="pk-list">${body}</div>`;
+}
+
+/* 政策風險高的地區(中國大陸與香港、非洲、拉丁美洲)要先有在地夥伴才蓋得了、買得了房地產。
+   使用者:「為什麼我不能在香港建設」—— 條件寫在每一顆按鈕底下,但沒有路可以直接解決。
+   所以出牌面板最上面直接擺一顆「找在地夥伴」,找完面板留著,馬上就能蓋。 */
+function tyPartnerGate(id){
+  const par=tyNeedPartner(id); if(!par) return '';
+  const P=TY_PARTNERS[par];
+  return `<div class="pk-o pk-gate"><span class="pk-img">${PX.img('pk:partner', PX.SPR.flag, { fit:[56,64], tint:'#46c46a' })}</span>
+    <div class="pk-t"><b>🤝 ${escH(TY_REGIONS[par].nm)}要先有在地夥伴</b>
+      <span>政策風險高的地區:外人不能直接開公司、買房地產。找 ${escH(P.nm)}(${escH(P.tag)})合資,之後這個地區的事業現金流被抽 ${(P.cut*100).toFixed(0)}%。
+        跟那裡的對手談成「合資」也算。</span>${tyNeedHTML(tyNeeds('partner', par),'tight')}</div>
+    <div class="pk-b">${tyActBtn('partner', par, `找夥伴 ${tyM(tyPartnerCost())}`, ` data-reg="${par}"`, 'alt')}</div></div>`;
 }
 
 /* 太空計畫一覽:星鏈每一批 + 火星四個階段(火星牌的面板;星鏈牌底下也附一份) */
@@ -11967,12 +11999,12 @@ function bindTycoon(root){
     if(!fn) return;
     TY_LAST_MOVE=null; TY_LAST_STRIKE=null; TY_LAST_RECON=null; TY_LAST_LAUNCH=null;
     const s0=TY_SAVES;
-    const play = TY_MODAL==='pick' && TY_PICK ? { k:TY_PICK.k, site:TY_PICK.site, label:tyCardLabel(TY_PICK.k, b) } : null;
+    const play = TY_MODAL==='pick' && TY_PICK && a!=='partner' ? { k:TY_PICK.k, site:TY_PICK.site, label:tyCardLabel(TY_PICK.k, b) } : null;
     TY_MSG = tyDo(a, ()=>fn(b)) || '';
     /* 出牌的選項面板:做成了就收起來,讓你看到地圖上多出來的那一棟(或飛出去的那一架) */
     const done = TY_SAVES>s0;
     const br=b.getBoundingClientRect();
-    if(TY_MODAL==='pick' && done && !(play && play.k==='recon')) TY_MODAL=null;   // 偵察:留著面板看情報報告
+    if(TY_MODAL==='pick' && done && a!=='partner' && !(play && play.k==='recon')) TY_MODAL=null;   // 找完夥伴:面板留著,馬上就能蓋   // 偵察:留著面板看情報報告
     renderPage();
     if(play && done) tyCardFly(play.k, play.site, play.label);
     else if(done){ tyBurst(br.left+br.width/2, br.top+br.height/2); tySfx(/buy|found|expand|upgrade|ipo/.test(a)?'coin':'hit','tap'); }

@@ -2242,6 +2242,42 @@ test('帝國第十五輪:測試人員(暫時)—— 無限行動點、全部解�
   await page.__ctx.close();
 });
 
+test('帝國第十六輪:香港要在地夥伴(面板上直接找)、一國過半城市是你的 → 整國勢力變你的', async (browser) => {
+  const page = await freshPage(browser, { seed: SEED, hash: '#/tycoon' });
+  const r = await page.evaluate(() => {
+    tyStart('tester', 7); TY_MODAL = null; renderPage();
+    const out = {};
+    TY_PICK = { k: 'build', site: 'hkg' };
+    const h0 = tyPickHTML();
+    out.gate = /在地夥伴/.test(h0) && /data-ty="partner"/.test(h0);
+    out.blocked = tyBlock('found', { k: 'dev', site: 'hkg' });
+    tyPartner('cn');
+    out.gateGone = !/pk-gate/.test(tyPickHTML());
+    out.okNow = !tyBlock('found', { k: 'dev', site: 'hkg' });
+    TY_PICK = null;
+    // 中國 4 座城市(香港、上海、深圳、北京):佔 2 座不算,佔 3 座整國變你的
+    const cn = TY_SITES.filter(x => x.iso === 'CN').map(x => x.id);
+    out.cnN = cn.length;
+    const free = cn.filter(id => !tyRivalsA().some(r0 => r0.home === id));
+    tyFound('dev', free[0]); tyFound('bank', free[1]);
+    TY_PWC = null; out.two = tyIsoMajority('CN');
+    tyFound('tech', free[2]);
+    TY_PWC = null; const P = tyIsoPower('CN');
+    out.three = tyIsoMajority('CN'); out.topMe = !!(P.top && P.top.me);
+    out.txt = tyIsoInfo('CN').ownerTxt;
+    return out;
+  });
+  ok(r.gate, '香港的建設面板最上面要有「找在地夥伴」');
+  ok(/在地夥伴/.test(r.blocked || ''), `沒有夥伴時說清楚原因:${r.blocked}`);
+  ok(r.gateGone && r.okNow, '找完夥伴就能在香港蓋');
+  ok(r.cnN >= 3, `中國至少三座城市:${r.cnN}`);
+  ok(!r.two || r.cnN < 4, '佔兩座(沒過半)不算');
+  ok(r.three && r.topMe, '過半 → 整國勢力是你的');
+  ok(/你的天下/.test(r.txt), `國家說明寫你的天下:${r.txt}`);
+  ok(page.__errors.length === 0, `有 JS 錯誤:\n      ${page.__errors.join('\n      ')}`);
+  await page.__ctx.close();
+});
+
 /* =========================================================================
    跑
    ========================================================================= */
