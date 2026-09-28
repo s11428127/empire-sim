@@ -2436,6 +2436,9 @@
 
   .tg-end{position:absolute;inset:auto 12px 46px 12px;z-index:220;max-height:70%;
     overflow-y:auto}
+  /* 結算卡原本只有一成不透明,疊在地球上字全部糊在國旗標籤裡(第二十八輪截圖)—— 改成實心 */
+  .tg-end .ty-end{background:#0f1c2a;border:3px solid #000;box-shadow:0 0 0 2px rgba(var(--accent-rgb),.55),0 12px 40px rgba(0,0,0,.6);margin:0}
+  .tg-end .ty-end.bad{box-shadow:0 0 0 2px rgba(var(--alert-rgb),.6),0 12px 40px rgba(0,0,0,.6)}
 
   /* ---- 底部功能列 ---- */
   .tg-nav{display:flex;flex:0 0 auto;background:linear-gradient(180deg,#16293b,#101f2d);
@@ -4582,6 +4585,8 @@
   .w3d-tag{font-size:13px;padding:3px 6px} .w3d-tag b{font-size:12px}
   /* 手機窄的時候資源列七格擠在一排:數字放大到 14px 會被截成「15.0...」 */
   @media (max-width:420px){ .tg-res .r b{font-size:12.5px;letter-spacing:-.04em} .tg-res .r em{font-size:9.5px} }
+  /* 320px:景氣那一格會蓋住「台北 / 劇本名」(第二十八輪截圖)。景氣在下面的跑馬燈也有寫,這裡先讓位 */
+  @media (max-width:360px){ .tg-top .tg-reg{display:none} }
   @media (min-width:900px){
     .tg-id b{font-size:17px}
     .tg-pill,.tg-reg{font-size:14px}
@@ -4864,8 +4869,21 @@
   .hd-ov.on{ background:#25455f; box-shadow:0 3px 0 #000, inset 0 0 0 2px #4fc3f7 }
   .hd-ov .dot{ position:absolute; top:-6px; right:-6px; min-width:18px; height:18px; background:#e05252; color:#fff;
     font-size:12px; display:flex; align-items:center; justify-content:center; text-decoration:none; border:2px solid #000 }
-  .hd-mid{ flex:1; min-width:0; display:flex; flex-direction:column; gap:5px }
+  .hd-mid{ flex:1; min-width:0; display:flex; flex-direction:column; gap:5px; position:relative }
   .hd-ap{ display:flex; align-items:center; gap:8px; font-size:12px; color:#9db4c8; line-height:1 }
+  .hd-todo{ position:absolute; top:4px; right:8px; font:inherit; font-size:12px; line-height:1; padding:4px 8px; cursor:pointer;
+    background:#1b2a3a; color:#cfe3f5; border:2px solid #000; box-shadow:inset 0 0 0 1px rgba(255,255,255,.12) }
+  .hd-todo b{ color:#ffd60a; font-weight:400 }
+  .td-list{ display:grid; gap:6px; margin-top:8px }
+  .td-row{ display:flex; align-items:center; gap:8px; padding:8px 10px; background:rgba(255,255,255,.04); border-left:4px solid #3a4b5e }
+  .td-row.lv3{ border-left-color:#ff453a; background:rgba(255,69,58,.08) }
+  .td-row.lv2{ border-left-color:#ffd60a }
+  .td-row > i{ font-style:normal; flex:none; width:22px; text-align:center }
+  .td-row > span{ flex:1; min-width:0; font-size:13px; line-height:1.45 }
+  .td-row > .ty-b{ flex:none; width:auto; padding:6px 10px; font-size:12px }
+  .hd-todo.hot{ background:#5a1d1d; color:#fff }
+  .hd-todo.on{ outline:2px solid #2997ff }
+  .hd-end{ position:absolute; top:6px; right:112px; font-size:11px; color:#7fd8ff; line-height:1 }
   .hd-ap b{ color:#e8f1f8; font-weight:400 }
   .hd-ap .pips{ display:flex; gap:3px }
   .hd-ap .pips i{ width:12px; height:12px; background:#1a2a38; border:2px solid #000 }
@@ -5692,6 +5710,27 @@ const TY_RIVALS = [
   { id:'r6', nm:'Marie Lefèvre', tag:'精品集團', ic:'👑', arch:'luxury',
     b:.024, s:.45, lev:.25, agg:.25, home:'par', turf:{eu:55, jp:15} },
 ];
+/* 新富豪:場上剩不到五個人時,第 13 季起每季 15% 機率冒出一個(最多三個)。
+   使用者:「我要讓玩家可以一直玩」—— 對手互相吃掉之後,榜上不能越來越空。 */
+const TY_RIVALS_NEW = [
+  { id:'r7', nm:'朴智浩',         tag:'遊戲與娛樂', ic:'🎮', arch:'tech',
+    b:.026, s:1.0, lev:.35, agg:.45, home:'seo', turf:{jp:30} },
+  { id:'r8', nm:'Arjun Mehta',    tag:'電信巨頭',   ic:'📡', arch:'mfg',
+    b:.022, s:.6, lev:.45, agg:.40, home:'bom', turf:{sa:40} },
+  { id:'r9', nm:'Lucía Ferreira', tag:'農業與物流', ic:'🌾', arch:'energy',
+    b:.020, s:.4, lev:.30, agg:.35, home:'sao', turf:{latam:40} },
+];
+function tyRivalNewcomer(){
+  if(TY.t<12 || tyRivalsA().length>=5) return;
+  const d=TY_RIVALS_NEW.find(x=>!TY.rivals.some(r=>r.id===x.id)); if(!d) return;
+  if(tyRnd()>=.15) return;
+  const nws=tyRivalsA().map(r=>r.nw).sort((a,b)=>a-b);
+  const med=nws.length ? nws[Math.floor(nws.length/2)] : tyNW();
+  const r={ ...d, turf:{...d.turf}, nw:Math.max(20e8, med*(.35+tyRnd()*.3)), rel:0, heat:0, pact:0, alive:true, hist:[], born:TY.t };
+  TY.rivals.push(r);
+  tyNews('macro', `🆕 新富豪崛起:${r.nm}`, `${r.tag},大本營在${tySite(r.home).nm},身家 ${tyM(r.nw)}。富豪榜上又多一個人。`);
+  tyLog('rival', `🆕 ${r.nm}(${r.tag})從${tySite(r.home).nm}崛起,擠進富豪榜。`, r.id);
+}
 const TY_ARCH = {
   estate: { nm:'地產', rate:-.9, senti:.4, oil:0,   ic:'🏙' },
   tech:   { nm:'科技', rate:-1.4, senti:1.3, oil:0, ic:'🚀' },
@@ -5742,6 +5781,7 @@ let TY_RV_EV=[];
 function tyRivalTurn(){
   const M=TY.macro;
   TY_RV_EV=[];
+  tyRivalNewcomer();
   for(const r of tyRivalsA()){
     const A=TY_ARCH[r.arch]||TY_ARCH.estate;
     /* 成長:基礎 + 流派對景氣的敏感度 + 他勢力所在地區的指數 + 槓桿放大的雜訊。
@@ -5754,6 +5794,12 @@ function tyRivalTurn(){
                 + A.oil*((TY.px.oil/100)-1)*.03;
     r.nw *= 1 + r.b + macro + (ri-1)*.06 + tyG()*.05*(1+r.lev);
     r.nw = Math.max(5e7, r.nw);
+    /* 身家掉到 2 億以下就退出富豪榜(規則寫在對手頁上;以前只有敵意收購那條路會檢查) */
+    if(r.nw < 2e8){
+      const hitByMe=(TY.strikes||[]).some(x=>x.rid===r.id && TY.t-x.t<=2);
+      tyRivalDown(r, hitByMe?'me':'market', hitByMe?'被你打到撐不下去':'身家跌破 2 億,退出富豪榜');
+      continue;
+    }
     r.rel = tyClamp((r.rel||0)*.94, -100, 100);     // 恩怨會淡,但不會歸零
     r.heat = tyClamp((r.heat||0)*.95, 0, 100);
     (r.hist=r.hist||[]).push(r.nw);
@@ -5794,9 +5840,13 @@ function tyRivalTurn(){
         tyLog('rival', `${r.nm}打進${TY_REGIONS[pick].nm} —— 你在那裡的現金流會被壓一段時間。`, r.id);
       }else tyLog('rival', `${r.nm}往${TY_REGIONS[pick].nm}擴張(勢力 ${was.toFixed(0)} → ${tyTurf(r,pick).toFixed(0)})。`, r.id);
     }else if(roll < .46){
-      /* ② 大吃小:併掉一個比自己小很多的對手。勢力相加。 */
-      const prey=tyRivalsA().filter(x=>x.id!==r.id && x.nw < r.nw*.45)
-        .sort((a,b)=>b.nw-a.nw)[0];
+      /* ② 大吃小:併掉一個比自己小很多的對手。勢力相加。
+         ⚠ 第二十八輪量測:原本「第 3 季起、12%、比他小 55% 就能吃」—— 18 局裡有 13 局到第 40 季
+         只剩一個對手,好幾個人第 3~7 季就被吃掉(使用者:「玩到後面很多富豪都消失了」)。
+         現在:第 10 季起、要小到三成以下、一季最多一件、場上至少留四個人;其餘的機率改成擴張。 */
+      const prey = TY.t>=10 && !TY_RV_EV.some(e=>e.k==='eat') && tyRivalsA().length>4
+        ? tyRivalsA().filter(x=>x.id!==r.id && x.nw < r.nw*.3).sort((a,b)=>b.nw-a.nw)[0] : null;
+      if(!prey){ r.turf=r.turf||{}; const reg=tySite(r.home).reg; r.turf[reg]=tyClamp(tyTurf(r,reg)+3, 0, 100); }
       if(prey){
         r.nw += prey.nw*.85;
         for(const k in (prey.turf||{}))
@@ -6180,7 +6230,7 @@ function tyPlots(w){
 const tyPlotsOf = (who, w) => (w ? [w] : ['moon','mars']).reduce((a,x)=>a+(TY.space ? tyPlots(x).filter(p=>p.o===who).length : 0), 0);
 const tyMyBuilt = (w, b) => TY.space ? tyPlots(w).some(p=>p.o==='me' && p.b===b) : false;
 const tySpaceVal = () => TY.space ? ['moon','mars'].reduce((a,w)=>a+tyPlots(w).filter(p=>p.o==='me').reduce((s,p)=>s+p.c*TY_SP_VAL,0),0) : 0;
-const tyCanBuildOn = w => w==='moon' ? !!(TY.space && TY.space.moon) : !!(TY.space && TY.space.mars.st>=4);
+const tyCanBuildOn = w => tyTester() || (w==='moon' ? !!(TY.space && TY.space.moon) : !!(TY.space && TY.space.mars.st>=4));   // 測試人員:全部解鎖
 const tyMoonCost = () => Math.max(25e8, tyNW()*.025);
 function tySpaceMs(k, who){
   const sp=tySpace(); sp.ms=sp.ms||{};
@@ -6253,7 +6303,11 @@ function tySpaceRace(){
     r.sp=r.sp||{ moon:false, mars:false };
     const roll=tyRnd();
     const free=w=>tyPlots(w).map((p,i)=>p.o?null:i).filter(i=>i!=null);
+    /* ⚠ 量測:原本對手會把月球 6 塊全部佔光(18 局裡 14 局),玩家晚一點登月就一塊都沒有。
+       現在對手合計最多佔一半、每個人每顆星最多 2 塊 —— 先搶先贏,但一定留位子給你。 */
     const claim=w=>{ const f=free(w); if(!f.length) return false;
+      const rv=tyPlots(w).filter(p=>p.o && p.o!=='me').length;
+      if(rv*2>=TY_PLOTS[w].length || tyPlotsOf(r.id, w)>=2) return false;
       const i=f[Math.floor(tyRnd()*f.length)], bs=Object.keys(TY_SPB[w]), b=bs[Math.floor(tyRnd()*bs.length)];
       const c=TY_SPB[w][b].c()*.6*Math.max(.5, r.nw/Math.max(1,tyNW()));
       const p=tyPlots(w)[i]; p.o=r.id; p.b=b; p.c=Math.max(20e8, c); p.t=TY.t;
@@ -6290,6 +6344,7 @@ function tyStrike(k, site){
     const hit=r.nw*(.04+tyRnd()*.04)*fat;
     const gain=Math.min(hit*.2, cost*1.5);
     r.nw-=hit; TY.cash+=gain;
+    if(r.nw<2e8) tyRivalDown(r, 'me', '被你的做空飛彈打到身家不到 2 億');
     r.rel=tyClamp((r.rel||0)-30,-100,100);
     TY.heat=tyClamp(TY.heat+8,0,120);
     txt=`${r.nm}的身家被打掉 <b>${tyM(hit)}</b>${fatTxt},你的空單賺回 ${tyM(gain)}(花費 ${tyM(cost)})。`
@@ -6436,16 +6491,32 @@ const TY_DEALS = {
   lobby: { nm:'政治聯手', ic:'🏛', money:true, rel:+16,
     dsc:'兩邊的說客走同一條路。人脈一起上去,關注度也是 —— 兩個人一起遊說比一個人顯眼。',
     base:()=>Math.max(1.5e8, tyNW()*.03) },
+  merge: { nm:'全面併吞', ic:'👑', money:true, rel:-15,
+    dsc:'把他整個帝國買下來:他出局,大本營變成你的一家公司、他在月球 / 火星的建地也歸你、他派出來的部隊全部撤回。'
+       +'要你的身家至少是他的 1.5 倍,價錢是他身家的九成起跳。',
+    base:()=>0 },
   hostile: { nm:'敵意收購', ic:'⚔', money:true, rel:-45,
     dsc:'不談了,直接對他的控股公司出價。成功就吃掉他一大塊身家與地盤;失敗會賠掉錢、名氣,'
        +'而且他從此是你的敵人。這是這一頁最貴也最危險的一顆按鈕。',
     base:()=>0 },
 };
 
+/* 收購來的資產變成一家在他大本營的公司。
+   ⚠ 第二十八輪:以前直接把「吃下的金額」當投入資本 —— 但公司估值約是資本的 1.8 倍,
+   等於花 0.40 買到值 0.8 的東西。現在反推資本,讓這家公司**當下的估值 = 吃下的金額**。 */
+function tyAcqBiz(r, take){
+  const k = r.arch==='tech'?'tech':r.arch==='energy'||r.arch==='mine'?'energy':'dev', site=r.home;
+  const b={ id:TY.bizId++, k, site, cap:1e8, own:1, pub:false, cf:0, born:TY.t };
+  const unit=Math.max(1e6, tyBizVal(b));
+  b.cap=Math.max(1e7, take*1e8/unit);
+  TY.biz.push(b);
+  return b;
+}
 /* 這一筆要出多少錢。base 是「行情」,出到行情的兩倍差不多就穩了。 */
 function tyDealPrice(k, r){
   const d=TY_DEALS[k];
   if(k==='hostile') return Math.max(tyRivalStake(r)*1.15, 5e8);
+  if(k==='merge')   return Math.max(r.nw*.9, 10e8);
   if(k==='buy')     return tyRivalBizVal(r)*1.2;
   if(!d.money)      return 0;
   return d.base();
@@ -6472,6 +6543,7 @@ function tyDealOdds(k, r, amt){
     // 你的併購小組已經駐在他大本營的地區:每一支 +10%,最多 +30%
     p += Math.min(.3, .1*tyUnitN(tyUnitsIn(tySite(r.home).reg),'raid'));
   }
+  if(k==='merge') p -= .10;                            // 整個人被買走,沒有人會輕易點頭
   if(k==='pact' && (r.pact||0)>TY.t) p += .2;          // 已經有過約的比較好續
   if(tyIntel(r.id)) p += .08;                           // 偵察過:知道他要什麼
   return tyClamp(p, .05, .95);
@@ -6497,7 +6569,7 @@ function tyDeal(k, rid){
   if(!ok){
     const burn = Math.min(TY.cash, amt*.12);
     TY.cash -= burn;
-    r.rel = tyClamp((r.rel||0) - (k==='hostile'?22:4), -100, 100);
+    r.rel = tyClamp((r.rel||0) - (k==='hostile'?22:k==='merge'?12:4), -100, 100);
     if(k==='hostile'){ TY.fame=tyClamp(TY.fame-6,0,100); TY.heat=tyClamp(TY.heat+8,0,120); }
     tyLog('rival', `跟${r.nm}談「${d.nm}」破局。`);
     tySave();
@@ -6584,13 +6656,23 @@ function tyDeal(k, rid){
       extra = `人脈 +${up.toFixed(0)}、關注 +5。兩個人一起遊說比一個人有效,也比一個人顯眼。`;
       break;
     }
+    case 'merge': {
+      const take=r.nw*.85, site=r.home;
+      tyAcqBiz(r, take);
+      for(const w of ['moon','mars']) if(TY.space) for(const q of tyPlots(w)) if(q.o===r.id) q.o='me';
+      TY.threats=(TY.threats||[]).filter(x=>x.rid!==r.id);
+      TY.heat=tyClamp(TY.heat+20,0,120); TY.fame=tyClamp(TY.fame+12,0,100);
+      tyRivalDown(r, 'me', '被你全面併吞');
+      r.nw=0;
+      extra = `他的帝國整個是你的了:${tySite(site).nm}多一家值 ${tyM(take)} 的公司,`
+            + `他的太空建地歸你、派出來的部隊撤回。名氣 +12、關注 +20 —— 全世界都在看。`;
+      break;
+    }
     case 'hostile': {
       const take=r.nw*.45;
-      TY.nwGrab=(TY.nwGrab||0)+take;
       /* 吃下來的東西變成一家在他大本營的公司 —— 那才是「勢力」真正易主。 */
       const site=r.home;
-      TY.biz.push({ id:TY.bizId++, k: r.arch==='tech'?'tech':r.arch==='energy'?'energy':'dev',
-                    site, cap:take, own:1, pub:false, cf:0, born:TY.t });
+      tyAcqBiz(r, take);
       r.nw -= take;
       for(const g in (r.turf||{})) r.turf[g]=tyClamp(tyTurf(r,g)*.55,0,100);
       TY.heat=tyClamp(TY.heat+14,0,120); TY.fame=tyClamp(TY.fame+8,0,100);
@@ -7276,7 +7358,7 @@ function tyNext(){
   }
   /* t 是「第幾季」的索引:t=0 是 2026 Q1。所以第 40 季是 t=39,不是 t=40 ——
      寫成 >=TY_QN 的話畫面上會出現「第 41 / 40 季 · 2036 Q1」,多跑了一季。 */
-  if(!TY.done && TY.t>=TY_QN-1) tyEnd('done','');
+  if(!TY.done && !TY.endless && TY.t>=TY_QN-1) tyEnd('done','');      // 無盡模式(十年結算後選「繼續玩」)不再到期
   TY.ap=tyApMax();                     // 新的一季:行動點補滿(卡牌那一段)
   tyCardsSync();
   tySave();
@@ -7785,7 +7867,7 @@ function tyShort(k, site){
   return `在${tySite(site).nm}放空 ${a.nm} ${tyM(amt)}。價格漲上去你就要賠,而且沒有上限。`;
 }
 function tyCover(k){
-  const a=tyAsset(k);
+  const a=tyAsset(k); if(!a) return '';
   const list=TY.pos.filter(p=>p.k===k&&p.q<0);
   if(!list.length) return `${a.nm} 沒有空單要回補。`;
   let cost=0;
@@ -7884,6 +7966,9 @@ const TY_MONEY = {
   'deal:lobby':  { lab:'各出多少', min:()=>3e7, max:()=>Math.max(0,TY.cash),
     def:r=>Math.min(Math.max(0,TY.cash), tyDealPrice('lobby',r)),
     hint:r=>`行情約 ${tyM(tyDealPrice('lobby',r))}` },
+  'deal:merge':  { lab:'併吞出價', min:()=>10e8, max:()=>Math.max(0,TY.cash),
+    def:r=>Math.min(Math.max(0,TY.cash), tyDealPrice('merge',r)),
+    hint:r=>`他整個身家 ${tyM(r.nw)} · 行情是九成` },
   'deal:hostile':{ lab:'收購出價', min:()=>5e8, max:()=>Math.max(0,TY.cash),
     def:r=>Math.min(Math.max(0,TY.cash), tyDealPrice('hostile',r)),
     hint:r=>`他名下賣得動的那一塊約 ${tyM(tyRivalStake(r))}` },
@@ -8031,7 +8116,7 @@ function tyNeeds0(act, arg){
 
     /* ---- 談條件 ---- */
     case 'deal:pact': case 'deal:jv': case 'deal:buy': case 'deal:anchor':
-    case 'deal:lobby': case 'deal:hostile': {
+    case 'deal:lobby': case 'deal:hostile': case 'deal:merge': {
       const r=arg; if(!r) return [];
       const key=act.slice(5), amt=tyAmtOf(act, r, `deal:${key}:${r.id}`);
       const out=[ tyNb(`${r.nm}還在場上`, r.alive!==false, `${r.nm}已經不在榜上了`) ];
@@ -8039,6 +8124,11 @@ function tyNeeds0(act, arg){
       if(key==='anchor')  out.push(tyNb('目前沒有基石投資人', !(TY.anchor&&TY.anchor.until>TY.t),
                                         '你已經有一位基石投資人了'));
       if(key==='hostile') out.push(tyNd('你的淨值', tyShownNW(), r.nw*.6, tyM));
+      if(key==='merge')   out.push(tyNd('你的淨值(要他的 1.5 倍)', tyShownNW(), r.nw*1.5, tyM));
+      /* 出價下限:以前關係拉滿 + 規模優勢,出一成的價也有七成機率 —— 花 0.08 買到 0.45 的公司。
+         現在併吞至少出行情(他身家九成)、敵意收購至少出行情的八成:加價才會提高成功率,壓價不行。 */
+      if(key==='merge')   out.push(tyNd('出價(至少行情)', amt, tyDealPrice('merge', r), tyM));
+      if(key==='hostile') out.push(tyNd('出價(至少行情的八成)', amt, tyDealPrice('hostile', r)*.8, tyM));
       out.push(cashFor(Math.max(amt, TY_MONEY[act].min())));
       return out;
     }
@@ -8229,7 +8319,7 @@ function tyAmtPreview(act, arg, key){
     }
     /* ---- 談條件 ---- */
     case 'deal:pact': case 'deal:jv': case 'deal:buy':
-    case 'deal:anchor': case 'deal:lobby': case 'deal:hostile': {
+    case 'deal:anchor': case 'deal:lobby': case 'deal:hostile': case 'deal:merge': {
       const r=arg, key=act.slice(5);
       const want=tyDealPrice(key, r), p=tyDealOdds(key, r, amt);
       const ratio=amt/Math.max(1,want);
@@ -8247,6 +8337,7 @@ function tyAmtPreview(act, arg, key){
       }
       if(key==='buy')     return base + ` · 談成後多一家投入資本 ${tyM(amt*.85)} 的事業`;
       if(key==='hostile') return base + ` · 談成後吃下他 ${tyM(r.nw*.45)}、關注 +14`;
+      if(key==='merge')   return base + ` · 談成後他出局、你多一家值 ${tyM(r.nw*.85)} 的公司、關注 +20`;
       if(key==='lobby')   return base + ` · 人脈 +${tyBuyPts(amt, TY_DEALS.lobby.base(), 10, 22).toFixed(0)}`;
       return base;
     }
@@ -9488,7 +9579,7 @@ function tyDealHTML(k, r){
   const amt=money ? tyAmtOf(act, r, key) : 0;
   const p=tyDealOdds(k, r, amt);
   const open=TY_DEAL===k;
-  return `<div class="rv-deal${open?' open':''}${k==='hostile'?' warn':''}">
+  return `<div class="rv-deal${open?' open':''}${k==='hostile'||k==='merge'?' warn':''}">
     <button type="button" class="rv-dh" data-ty="dealx" data-k="${k}"
       aria-expanded="${open?'true':'false'}">
       <i>${d.ic}</i><b>${escH(d.nm)}</b>
@@ -9499,7 +9590,7 @@ function tyDealHTML(k, r){
       ${money?tyAmtBox(act, r, key):''}
       ${tyNeedHTML(tyNeeds(act, r))}
       ${tyActBtn(act, r, money?`出 ${tyM(amt)} 去談`:'去談',
-                 ` data-r="${r.id}"`, k==='hostile'?'warn':'')}
+                 ` data-r="${r.id}"`, k==='hostile'||k==='merge'?'warn':'')}
       <div class="rv-note">成功率 <b>${(p*100).toFixed(0)}%</b> —— 由關係
         (${(r.rel||0).toFixed(0)})、你出的價相對行情、以及雙方的規模決定。
         ${money?'加價會提高成功率,但談不成也會付掉一成二的顧問費。':''}
@@ -9617,14 +9708,19 @@ function tyRivalTab(){
       ${tyTurfHTML(r)}
       ${open && tyIntel(r.id) ? tyIntelHTML(r) : ''}
       ${open?`<div class="rv-deals">${Object.keys(TY_DEALS).map(k=>tyDealHTML(k,r)).join('')}</div>`
-            :`<div class="rv-more">點一下展開七種可以跟他談的條件</div>`}
+            :`<div class="rv-more">點一下展開 ${Object.keys(TY_DEALS).length} 種可以跟他談的條件(包括併吞他)</div>`}
     </div>`;
   }).join('');
 
   return `${tyRivalFeed()}
-    <div class="expo-note">六個人跟你玩同一場遊戲。他們會擴張、會互相併購、
-      會在危機那一季斷掉,也會因為你打進他的地盤而記恨。
+    <div class="expo-note">這些人跟你玩同一場遊戲。他們會擴張、會互相併購、
+      會在危機那一季斷掉,也會因為你打進他的地盤而記恨;場上人少了,會有新富豪崛起。
       <b>關係</b>決定他願不願意跟你談,<b>勢力</b>決定他值不值得你談。</div>
+    <div class="expo-note"><b>怎麼把一個對手弄出局</b>(身家掉到 2 億以下就出局,他的地盤歸你):<br>
+      ① <b>👑 全面併吞</b> —— 你的身家是他的 1.5 倍以上,出他身家九成的價:他直接出局,大本營變成你的公司、太空建地歸你。<br>
+      ② <b>⚔ 敵意收購</b> —— 身家是他的 0.6 倍就能出手,每次吃掉他 45%;先派「併購小組」駐進他的地區,成功率每支 +10%。<br>
+      ③ <b>🚀 飛彈 / 空襲</b> —— 每發削他幾 % 的身家或勢力(先派偵察機 +30%)。打不死人,但能把他削到小得可以併吞。<br>
+      關係越好越談得成(先做「互不侵犯」「合資」把關係拉上去,再談併吞)。</div>
     <div class="ty-cards">${cards}</div>
     ${dead.length?`<div class="p-sec">💀 已經出局<span>${dead.length} 人 · 被別人吃掉或被你收購</span></div>
       <div class="ty-feed">${dead.map(r=>`<div class="fd bad"><span class="fd-t">${r.deadT!=null?tyWhen(r.deadT):'—'}</span><i class="fd-ic">💀</i>
@@ -9713,10 +9809,13 @@ function tyEndHTML(){
   return `<div class="ty-end ${how==='done'?'ok':'bad'}">
       <div class="e-t">${title}</div>
       ${TY.endTxt?`<div class="e-w">${TY.endTxt}</div>`:''}
+      ${TY.final?`<div class="e-w">♾ 十年結算時:第 <b>${TY.final.rank}</b> 名、身家 ${tyM(TY.final.nw)} · 之後多玩了 ${TY.t-TY.final.t} 季</div>`:''}
       ${TY.space && TY.space.mars.st>=4 ? '<div class="e-w">🚀 <b>火星首富</b> —— 你把人送上火星,而且讓殖民地自己活下去。</div>' : ''}
       ${tySpaceKing() ? `<div class="e-w">🌌 <b>太空霸主</b> —— 月球與火星上你佔了 ${tyPlotsOf('me')} 塊建地,比任何人都多。</div>` : ''}
       <div class="e-b">${tyBio().map(l=>'<p>'+l+'</p>').join('')}</div>
-      <button type="button" class="ty-b big" data-ty="restart">再玩一局(換一個起點)</button>
+      ${how==='done'?`<button type="button" class="ty-b big" data-ty="endless">繼續玩下去(不限季數)</button>
+        <div class="e-w" style="font-size:12px">十年的成績已經記下來了。繼續玩:同一個世界接著跑,對手、太空、部隊都照常,直到你起訴或破產為止。</div>`:''}
+      <button type="button" class="ty-b ${how==='done'?'alt':'big'}" data-ty="restart">再玩一局(換一個起點)</button>
     </div>`;
 }
 
@@ -10073,7 +10172,8 @@ function tyTroopMarks(){
 /* 每個對手一個顏色 —— 地圖、勢力條、對手卡上都是同一個,
    不然「這塊地是誰的」要靠記名字。 */
 const TY_RVCOL = { r1:'255,149,0', r2:'94,132,255', r3:'52,199,89',
-                   r4:'255,214,10', r5:'191,90,242', r6:'255,105,160' };
+                   r4:'255,214,10', r5:'191,90,242', r6:'255,105,160',
+                   r7:'0,199,190', r8:'196,160,110', r9:'214,96,96' };
 /* 這個國家屬於哪一個經濟圈。有城市的直接用城市的;沒有城市的(蒙古、哈薩克…)
    歸到國土中心最近的那座城市的地區。算一次就記住 —— 國家不會搬家。
    使用者要的是「整張地圖都有顏色」,而不是只有 44 座城市所在的國家有。 */
@@ -10165,7 +10265,7 @@ function tyIsoPower0(code, f){
     board.sort((a,b)=>b.v-a.v);
   }
   const top=board[0];
-  return { reg, board, top: present && top && top.v>2 ? top : null, maj, present };
+  return { reg, board, top: present && top && top.v>0 ? top : null, maj, present };
 }
 function tyCityPower(id){
   if(!TY) return null;
@@ -10194,6 +10294,21 @@ function tyCityColor(id){
   const tot=c.board.reduce((a,x)=>a+x.v,0);
   const a=(.35+.35*c.top.v/Math.max(1,tot)).toFixed(3);   // 越是一個人獨大越深
   return `rgba(${c.top.col},${a})`;
+}
+/* 勢力圈:每座有人的城市外面畫一圈「這一帶是誰的」。
+   使用者:「我的勢力範圍沒有顯示」—— 城市的真實行政區(上海只有幾十公里寬)在一般縮放下只剩幾個像素,
+   等於看不到。所以另外畫一個圈:半徑跟著那座城的規模長(140~420 公里),顏色是那座城的第一名。 */
+function tyCityZones(){
+  if(!TY || TY_LAYER!=='power') return [];
+  const out=[];
+  for(const s of TY_SITES){
+    const c=tyCityPower(s.id); if(!c) continue;
+    const tot=c.board.reduce((a,x)=>a+x.v,0), sh=c.top.v/Math.max(1,tot);
+    const km=tyClamp(170+100*Math.log10(Math.max(1,c.top.v/1e9)), 170, 460);
+    out.push({ id:s.id, lat:s.lat, lng:s.lng, km:Math.round(km), col:c.top.col, a:+((c.top.me?.34:.24)+.22*sh).toFixed(3), me:!!c.top.me });
+  }
+  // 你的畫在最上面(跟對手重疊的時候看得到自己的)
+  return out.sort((a,b)=>(a.me?1:0)-(b.me?1:0));
 }
 function tyCountryColor(feat){
   const code=iso(feat);
@@ -10657,8 +10772,9 @@ function tyPlotHTML(P){
     body = w==='moon'
       ? row('', '🌙 登月', `一次性花費 ${tyM(tyMoonCost())} · 之後月球 ${TY_PLOTS.moon.length} 塊建地全部開放 · 第一個登月的人名氣 +10`,
           tyActBtn('moonland', null, '登月', '', 'warn'), tyNeedHTML(tyNeeds('moonland'),'tight'), '')
-      : `<div class="expo-note">🔴 火星的建地要等<b>火星計畫四段走完</b>(自給自足)才開放。現在:第 ${tySpace().mars.st} / 4 段。
-          出「火星計畫」牌推進。</div>`;
+      : `<div class="expo-note">🔴 火星的建地要等<b>火星計畫四段走完</b>(自給自足)才開放。現在第 ${tySpace().mars.st} / 4 段。
+          ${tyHasCard('mars')?'下面直接推進下一段(跟出「火星計畫」牌一樣)。':'「火星計畫」牌還沒解鎖:'+escH(tyCard('mars').why)+'。'}</div>`
+        + (tyHasCard('mars') ? tySpaceHTML(true) : '');
   }
   if(p.o==='me'){
     const d=TY_SPB[w][p.b];
@@ -11240,6 +11356,22 @@ const TY_TERMS = [
     h:'部隊面板上寫著「駐 某某」。' },
   { g:'部隊', t:'防守率', d:'對手的併購小組抵達那一季,你擋得住的機率。算法:駐在那個地區的部隊防守力加總(律師團 1.0、併購小組 0.7、遊說團 0.4、經理人 0.2),對手越兇越難擋。',
     h:'部隊面板的「來襲」,以及被盯上的城市面板。' },
+  { g:'對手與勢力', t:'勢力範圍', d:'地圖「勢力範圍」圖層:國家塗**那個經濟圈的第一名**;每座有人的城市外面一個圓圈,塗**那座城的第一名**(實線是你)。圈越大、那座城的規模越大。',
+    h:'左上角的圖層切換「勢力範圍」。' },
+  { g:'對手與勢力', t:'全面併吞', d:'你的身家是他的 1.5 倍以上時,出他身家九成以上的價把他整個買下來:他**出局**,大本營變成你的一家公司,他的太空建地歸你。',
+    h:'點對手的名字 → 展開 → 👑 全面併吞。' },
+  { g:'對手與勢力', t:'敵意收購', d:'不用他同意,直接對他的控股公司出價。成功吃掉他 45% 身家;失敗賠顧問費、名氣,而且他從此是你的敵人。',
+    h:'點對手的名字 → 展開 → ⚔ 敵意收購。' },
+  { g:'對手與勢力', t:'出局', d:'對手身家跌破 2 億、被併吞、或被別的對手整個買下來,就退出富豪榜。場上剩不到五個人時,會有**新富豪**崛起。',
+    h:'對手頁最下面的「已經出局」。' },
+  { g:'太空與長期', t:'太空建地', d:'月球 6 塊、火星 10 塊固定的格子,一塊蓋一棟。月球要先登月、火星要把火星計畫四段走完。對手也會搶,但最多佔一半。',
+    h:'右邊的 🌙 / 🔴 → 點地上插旗的圈。' },
+  { g:'太空與長期', t:'補給費', d:'每塊太空建地每季付造價的 2%。付不出來那一塊整季停擺、沒有收入。太空港、溫室可以打折。',
+    h:'星球左上角的資訊卡。' },
+  { g:'太空與長期', t:'無盡模式', d:'十年(40 季)結算之後可以選「繼續玩下去」:成績先記下來,同一個世界接著跑,直到起訴或破產。',
+    h:'十年結算畫面。' },
+  { g:'太空與長期', t:'待辦', d:'手牌上方的「📌 待辦」:這一季該注意的事(有人要打你、可以併吞誰、火星進度、閒錢太多…),每一項都有「帶我去」。',
+    h:'手牌那一列的右上角。' },
 ];
 
 /* ---- 大師的走法 ----
@@ -11519,7 +11651,7 @@ function tyTicker(){
 
 const TY_MODAL_NM = { asset:'資產', biz:'事業', play:'手法', rank:'富豪榜',
                       rival:'對手', learn:'怎麼玩', log:'大事記', more:'總覽', site:'據點',
-                      troop:'資本部隊', vault:'金庫', data:'我的全部資料', power:'勢力分析', pick:'出牌' };
+                      troop:'資本部隊', vault:'金庫', data:'我的全部資料', power:'勢力分析', pick:'出牌', todo:'📌 這一季的待辦' };
 
 /* 總覽:原本底部那一排分頁(資產、事業、金庫…)現在都收在這裡 —— 手牌是「做事」,總覽是「看清單」 */
 const TY_OVERVIEW = [
@@ -11550,6 +11682,44 @@ function tyMoreSheet(){
     </div>`;
 }
 
+/* 📌 待辦:這一季該注意的事,每一項都附一顆「帶我去」的按鈕。
+   使用者:「可以加什麼讓玩家更方便、更了解現在在幹嘛」。只讀狀態、不擲骰、不改任何數字。 */
+function tyTodo(){
+  if(!TY || TY.done) return [];
+  const out=[], go=(ty,k,lab)=>`<button type="button" class="ty-b alt" data-ty="${ty}"${k?` data-k="${k}"`:''}>${lab}</button>`;
+  const push=(lv,ic,txt,btn)=>out.push({ lv, ic, txt, btn:btn||'' });
+  for(const th of tyThreats()){
+    const r=tyRival(th.rid); if(!r) continue;
+    const n=Math.max(0, th.eta-TY.t);
+    push(3,'⚔',`${r.nm}的併購小組 ${n?n+' 季後':'這一季'}到<b>${escH(tySite(th.site).nm)}</b> —— 把律師團調過去擋`, go('site', th.site, '去看'));
+  }
+  if(TY.heat>=70) push(3,'🚨',`關注度 <b>${TY.heat.toFixed(0)}</b>:到 100 會被起訴、整局結束。出「慈善」降溫,或少用境外架構`, '');
+  if(TY.space && TY.space.stalled===TY.t) push(3,'🛰','太空補給費付不出來,你的建地這一季停擺 —— 留一點現金', '');
+  const prey=tyRivalsA().filter(r=>tyShownNW()>=r.nw*1.5).sort((a,b)=>b.nw-a.nw);
+  if(prey.length) push(2,'👑',`你的身家夠「全面併吞」:${prey.map(r=>escH(r.nm)).join('、')}(身家要是他的 1.5 倍)。最大的一個是 ${escH(prey[0].nm)}(${tyM(prey[0].nw)})`,
+    go('rvinfo', prey[0].id, '看他'));
+  if(TY.space){
+    const m=TY.space.mars;
+    if(m.run) push(1,'🚀',`火星計畫第 ${m.run.st} 段「${escH(TY_MARS[m.run.st-1].nm)}」${tyWhen(m.run.done)} 揭曉`, '');
+    else if(m.st<4 && tyHasCard('mars')) push(1,'🚀',`火星計畫可以推進第 ${m.st+1} 段(走完四段才能在火星蓋東西)`, go('space:mars','','去火星'));
+    for(const w of ['moon','mars']){
+      if(!tyCanBuildOn(w)) continue;
+      const free=tyPlots(w).filter(q=>!q.o).length;
+      if(free) push(1, w==='moon'?'🌙':'🔴', `${w==='moon'?'月球':'火星'}還有 ${free} 塊建地空著 —— 對手也在搶`, go('space:'+w,'','去看'));
+    }
+    for(const x of tyStarsOn()) if(x.until-TY.t<=1) push(1,'🛰',`${escH(TY_REGIONS[x.reg].nm)}的星鏈下一季退役 —— 要繼續收錢就補發`, '');
+  }
+  const nw=Math.max(1,tyNW());
+  if(TY.cash>nw*.5 && TY.cash>5e8) push(1,'💰',`現金佔身家 ${(TY.cash/nw*100).toFixed(0)}% —— 閒錢沒有在賺,拖「投資」或「建設」到城市`, '');
+  if(!tyTester() && tyApNow()>0) push(0,'🎴',`這一季還有 <b>${tyApNow()}</b> 點行動點沒用(下一季會補滿,用不完就浪費)`, '');
+  return out.sort((a,b)=>b.lv-a.lv);
+}
+function tyTodoTab(){
+  const L=tyTodo();
+  return `<div class="expo-note">這一季該注意的事,重要的排前面。按「下一季」之前看一眼。</div>
+    ${L.length?`<div class="td-list">${L.map(x=>`<div class="td-row lv${x.lv}"><i>${x.ic}</i>
+      <span>${x.txt}</span>${x.btn}</div>`).join('')}</div>`:'<div class="empty">沒有急事。按「下一季」吧。</div>'}`;
+}
 function tyModalHTML(){
   if(!TY_MODAL) return '';
   const k=TY_MODAL;
@@ -11565,6 +11735,7 @@ function tyModalHTML(){
              : k==='rank'  ? tyRankTab()
              : k==='learn' ? tyLearnTab()
              : k==='log'   ? tyLogTab()
+             : k==='todo'  ? tyTodoTab()
              : k==='more'  ? tyMoreSheet()
              : k==='site'  ? (TY_SEL ? tySitePanel(TY_SEL) : (TY_ISO?tyIsoPanel(TY_ISO):tyWorldPanel()))
              : '';
@@ -11607,7 +11778,7 @@ function tyIntro(){
 /* 桌機上,據點 / 國家 / 部隊 / 對手這幾張面板改成右側的側欄,地圖留著 ——
    參考的那款遊戲點國家時地圖不會消失,你要一邊看地圖一邊讀那張卡。
    手機太窄,維持整張蓋上去。 */
-const tySideModal = () => !!TY_MODAL && ['site','troop','rival','power','pick'].includes(TY_MODAL)
+const tySideModal = () => !!TY_MODAL && ['site','troop','rival','power','pick','todo'].includes(TY_MODAL)
                           && typeof innerWidth==='number' && innerWidth>=900;
 function tycoonPage(){
   if(!TY) return tyIntro();
@@ -11635,7 +11806,7 @@ function tycoonPage(){
           : TY_LAYER==='power'
           ? `<span class="lg"><b class="lg-b" style="background:#2997ff"></b>你${
               tyRivalsA().map(r=>`<b class="lg-b" style="background:rgb(${TY_RVCOL[r.id]})"></b>${escH(r.nm)}`).join('')}
-             <span class="lg-s">國家與城市各自上色:誰在那裡最強 · 越深越穩</span></span>`
+             <span class="lg-s">國家 = 經濟圈第一名 · 圓圈 = 那座城是誰的(實線是你)· 越深越穩</span></span>`
           : `<span class="lg"><b class="lg-b c-estate"></b>房地產<b class="lg-b c-biz"></b>事業<b
               class="lg-b c-paper"></b>金融<b class="lg-b c-gold"></b>黃金<b
               class="lg-b c-cash"></b>現金<b class="lg-b c-hold"></b>控股
@@ -11756,7 +11927,7 @@ function tyCardsSync(){
   for(const c of TY_CARDS){
     if(TY.cards.includes(c.k) || !c.unlock) continue;
     let ok=false; try{ ok=!!c.unlock(); }catch(e){}
-    if(ok){ TY.cards.push(c.k); TY_NEWCARD.push(c.k); }
+    if(ok){ TY.cards.push(c.k); if(!tyTester()) TY_NEWCARD.push(c.k); }   // 測試人員一開始就全部有了,不用再翻牌
   }
 }
 const tyHasCard = k => { const c=tyCard(k); return !!c && (tyTester() || !c.unlock || (TY.cards||[]).includes(k)); };
@@ -11772,6 +11943,7 @@ function tyInvestOpts(id){
 }
 /* 招募到指定城市:在大本營成軍,下一季到位(同一張牌、一個動作、1 點) */
 function tyRecruitTo(k, site){
+  if(!TY_UNITS[k]) return '';
   if(!site || site===TY.home) return tyRecruit(k);
   const blocked=tyBlock('recruitTo', { k, site }); if(blocked) return blocked;
   const n0=tyUnits().length;
@@ -11820,6 +11992,9 @@ function tyHand(){
         ${tyTester() ? `<div class="hd-ap" title="測試人員:行動點無限"><b>行動點</b><em>∞ 測試模式</em></div>` : `<div class="hd-ap" title="每一季補滿 ${mx} 點(人脈每 25 點多 1 點,最多 9 點)">
           <b>行動點</b><span class="pips">${Array.from({length:mx},(_,i)=>`<i class="${pip(i)}"></i>`).join('')}</span>
           <em>${ap} / ${mx}</em></div>`}
+        ${(()=>{ const L=tyTodo(), hot=L.filter(x=>x.lv>=2).length;
+          return `<button type="button" class="hd-todo${hot?' hot':''}${TY_MODAL==='todo'?' on':''}" data-ty="modal:todo" title="這一季該注意的事">📌 待辦 <b>${L.length}</b></button>`; })()}
+        ${TY.endless?`<span class="hd-end" title="十年結算:第 ${TY.final?TY.final.rank:'?'} 名">♾ 無盡模式</span>`:''}
         <div class="hd-cards${deal?' deal':''}">${cards.map((c,i)=>tyCardHTML(c,{ i })).join('')}</div>
       </div>
     </div>`;
@@ -11936,7 +12111,15 @@ function tyCardGo(k){
   if(!tyHasCard(k)){ TY_MSG=`🔒 <b>${c.nm}</b>還沒解鎖 —— 條件:${c.why}。`; renderPage(); return; }
   if(c.k==='vault'){ TY_MODAL='vault'; renderPage(); return; }
   if(c.tgt==='none'){ TY_PICK={ k }; TY_MODAL='pick'; renderPage(); return; }
-  if(TY_PLANET){ TY_MSG=`${TY_PLANET==='moon'?'🌙 月球':'🔴 火星'}上還不能出「${c.nm}」—— 這張牌要拖到地球的城市。太空專用的牌之後加(回地球:右邊的 🌍)。`; tySfx('deny','deny'); renderPage(); return; }
+  if(TY_PLANET){
+    /* 使用者把「建設」拖到火星上,結果被擋。星球上蓋東西是點建地 —— 建設牌也接受:直接開一塊空的建地。 */
+    const w=TY_PLANET, wn=w==='moon'?'月球':'火星';
+    if(c.k==='build' || c.k==='invest'){
+      const ps=tyPlots(w), i=Math.max(0, ps.findIndex(p=>!p.o));
+      tySpacePlot(w, i); return;
+    }
+    TY_MSG=`「${c.nm}」是地球的牌。在${wn}上蓋東西:點地上插旗的建地圈,或把「建設」拖上來。回地球:右邊的 🌍。`;
+    tySfx('deny','deny'); renderPage(); return; }
   if(!(window.W3D && W3D.ok)){ TY_PICK={ k, site:null }; TY_MODAL='pick'; renderPage(); return; }  // 沒有地球:改成清單選城市
   if(tySideModal() || TY_MODAL){ TY_MODAL=null; renderPage(); }
   W3D.aim({ from:tySite(TY.home), label:`${c.nm}:拖到 / 點一座城市`,
@@ -12171,6 +12354,7 @@ const TY_ACT = {
   'deal:anchor': e=>tyDeal('anchor', e.dataset.r),
   'deal:lobby':  e=>tyDeal('lobby', e.dataset.r),
   'deal:hostile':e=>tyDeal('hostile', e.dataset.r),
+  'deal:merge':  e=>tyDeal('merge', e.dataset.r),
 };
 
 /* 手牌的操作:
@@ -12311,6 +12495,7 @@ function bindTycoon(root){
     // 月球 / 火星:打開那顆星自己的畫面(可以轉、可以縮放)
     if(a==='space:moon' || a==='space:mars'){
       const k=a.slice(6);
+      if(TY_MODAL==='todo') TY_MODAL=null;          // 從待辦清單點「去看」:先把清單收起來
       if(TY_PLANET===k) return;
       if(TY_PLANET==null && window.W3D && W3D.flyToPlanet && W3D.ok){ W3D.flyToPlanet(k, h=>tyOpenPlanet(k, { from:h })); return; }   // 從地球飛過去,不是直接切
       tyOpenPlanet(k); return;
@@ -12365,6 +12550,15 @@ function bindTycoon(root){
     if(a==='rvinfo'){ TY_MODAL='rival'; TY_RIVAL=b.dataset.k; TY_DEAL=null; renderPage(); return; }
     if(a==='gohq'){ const r=TY.rivals.find(x=>x.id===b.dataset.k); if(r){ TY_MODAL=null; tyPickSite(r.home); } return; }
     if(a==='city'){ const r=b.getBoundingClientRect(); tyOpenCity(b.dataset.k, [r.left+r.width/2, r.top+r.height/2]); return; }
+    if(a==='endless'){
+      if(TY && TY.done==='done'){
+        TY.final={ t:TY.t, nw:tyNW(), rank:tyRank() };      // 十年的成績留著(結算畫面與存檔)
+        TY.endless=true; TY.done=null; TY.endTxt=''; TY.ap=tyApMax();
+        tyLog('end', `十年結算:第 ${TY.final.rank} 名、身家 ${tyM(TY.final.nw)}。選擇繼續玩下去。`);
+        tySave(); TY_MSG='♾ 無盡模式:世界接著跑。十年的成績已經記下來了。'; renderPage();
+      }
+      return;
+    }
     if(a==='restart'||a==='quit'){
       /* 放棄要確認 —— 這是這一頁唯一一個「按下去就回不去」的動作。
          用瀏覽器原生的 confirm,跟站上刪除持倉那裡同一種作法。 */

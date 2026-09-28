@@ -2393,7 +2393,9 @@ test('帝國第二十輪:月球 / 火星建地(登月、火星計畫前置、補
     const out = {};
     out.nPlots = [tyPlots('moon').length, tyPlots('mars').length];
     // 月球:沒登月不能蓋
-    out.noLand = tyBlock('spacebuild', { w: 'moon', i: 0, b: 'he3' });
+    // 前置條件用一般角色驗(測試人員會直接跳過 —— 第二十八輪:「火星還不能建造」)
+    out.testerOpen = !tyBlock('spacebuild', { w: 'mars', i: 5, b: 'mine' });
+    TY.scn = 'heir'; out.noLand = tyBlock('spacebuild', { w: 'moon', i: 0, b: 'he3' }); TY.scn = 'tester';
     tyLaunch('tpe');                                   // 登月要有星鏈
     out.land = tyMoonLand();
     const nw0 = tyNW(), cash0 = TY.cash;
@@ -2406,7 +2408,7 @@ test('帝國第二十輪:月球 / 火星建地(登月、火星計畫前置、補
     out.fee = Math.abs((c0 - TY.cash) - p.c * .02) < 1; out.inc = Math.abs(inc - p.c * .07) < 1;
     TY.cash = 0; out.stall = tySpacePlotsTurn() === 0 && TY.space.stalled === TY.t; TY.cash = 5000e8;
     // 火星:計畫沒走完不能蓋
-    out.marsGate = /火星計畫/.test(tyBlock('spacebuild', { w: 'mars', i: 0, b: 'mine' }) || '');
+    TY.scn = 'heir'; out.marsGate = /火星計畫/.test(tyBlock('spacebuild', { w: 'mars', i: 0, b: 'mine' }) || ''); TY.scn = 'tester';
     TY.space.mars.st = 4;
     out.marsOk = !tyBlock('spacebuild', { w: 'mars', i: 0, b: 'lab' });
     const ap0 = tyApMax(); TY.scn = 'heir';
@@ -2430,6 +2432,7 @@ test('帝國第二十輪:月球 / 火星建地(登月、火星計畫前置、補
   });
   eq(r.nPlots, [6, 10], '月球 6 塊、火星 10 塊建地');
   ok(/登月/.test(r.noLand || ''), `沒登月不能在月球蓋:${r.noLand}`);
+  ok(r.testerOpen, '測試人員要能直接在火星蓋(全部解鎖)');
   ok(/登月成功/.test(r.land), `登月:${r.land}`);
   ok(r.owned, '蓋好之後建地是你的');
   ok(r.nwKeep, '太空建築九成算進身家');
@@ -2442,6 +2445,95 @@ test('帝國第二十輪:月球 / 火星建地(登月、火星計畫前置、補
   ok(r.grabbed, `強行收購:建地換手、對手記恨 −25(${r.grab})`);
   ok(r.pick, '建地面板畫得出來');
   ok(r.race, '對手會登月、搶建地');
+  ok(page.__errors.length === 0, `有 JS 錯誤:\n      ${page.__errors.join('\n      ')}`);
+  await page.__ctx.close();
+});
+
+test('帝國第二十一輪:勢力圈、全面併吞、無盡模式、新富豪、待辦、對手不會互吃光', async (browser) => {
+  const page = await freshPage(browser, { seed: SEED, hash: '#/tycoon' });
+  const r = await page.evaluate(() => {
+    const out = {};
+    // ① 勢力圈:你有東西的城市外面有一圈你的顏色;只有你在的國家,勢力再小也要上色
+    tyStart('heir', 11); TY_NEWCARD.length = 0; TY_LAYER = 'power';
+    TY_SIZE = .3; tyBuy('estate', 'tky');
+    const z = tyCityZones();
+    out.zoneMe = z.some(x => x.id === 'tky' && x.me && x.km >= 170);
+    out.zoneRv = z.some(x => !x.me);
+    const P = tyIsoPower('JP');
+    out.jpTop = !!(P && P.top);
+    TY_LAYER = 'mine';
+    // ② 全面併吞:身家不到 1.5 倍被擋;出價低於行情被擋;條件夠 → 他出局、你多一家公司
+    tyStart('heir', 12); TY_NEWCARD.length = 0;
+    const v = tyRivalsA()[0];
+    out.needSize = /1\.5/.test(tyDeal('merge', v.id) || '');
+    TY.cash = v.nw * 5; v.rel = 95;
+    TY_PAMT[`deal:merge:${v.id}`] = v.nw * .5;
+    out.needPrice = /行情/.test(tyDeal('merge', v.id) || '');
+    TY_PAMT[`deal:merge:${v.id}`] = v.nw * 2;
+    const b0 = TY.biz.length; let tries = 0;
+    while (v.alive !== false && tries < 12) { TY.ap = 9; v.rel = 95; tyDeal('merge', v.id); tries++; }
+    out.merged = v.alive === false && v.deadBy === 'me' && TY.biz.length === b0 + 1;
+    // 收購來的公司:當下估值 = 吃下的金額(以前是 1.8 倍)
+    const w = tyRivalsA()[0], take = w.nw * .45, b = tyAcqBiz(w, take);
+    out.acq = Math.abs(tyBizVal(b) / take - 1) < .02; TY.biz.pop();
+    // 敵意收購也有出價下限
+    TY_PAMT[`deal:hostile:${w.id}`] = tyDealPrice('hostile', w) * .3;
+    out.hostileFloor = /八成/.test(tyDeal('hostile', w.id) || '');
+    // ③ 對手互吃:十季之內不會有人被吃掉、場上至少留四個
+    tyStart('heir', 13); TY_NEWCARD.length = 0;
+    for (let i = 0; i < 9; i++) tyNext();                 // 第 10 季(t=9)以前
+    out.noEarlyEat = !TY.rivals.some(x => x.alive === false && /整個買下來/.test(x.deadHow || ''));
+    // ④ 新富豪:場上剩不到五個人、第 13 季起會冒出來
+    for (const x of tyRivalsA().slice(0, 3)) tyRivalDown(x, 'market', '測試');
+    TY.t = 14; let born = false;
+    for (let i = 0; i < 40 && !born; i++) { tyRivalNewcomer(); born = TY.rivals.some(x => /^r[789]$/.test(x.id)); }
+    out.newcomer = born;
+    // ⑤ 無盡模式:十年結算之後可以繼續,不再到期
+    tyStart('heir', 14); TY_NEWCARD.length = 0; TY_FALLQ.length = 0;
+    for (let i = 0; i < 45 && !TY.done; i++) tyNext();
+    out.done = TY.done; renderPage();
+    const btn = document.querySelector('[data-ty="endless"]');
+    out.btn = !!btn; if (btn) btn.click();
+    for (let i = 0; i < 6; i++) tyNext();
+    out.endless = TY.endless === true && !TY.done && TY.t >= 44 && !!TY.final;
+    // ⑥ 待辦:有人要打你 → 排第一、附「去看」
+    TY_FALLQ.length = 0; tyRivalMarch(tyRivalsA()[0], tySite(TY.home).reg);
+    const L = tyTodo();
+    out.todo = L.length > 0 && L[0].lv === 3 && /去看/.test(L[0].btn);
+    TY_MODAL = 'todo'; renderPage();
+    out.todoUi = !!document.querySelector('.td-row') && !!document.querySelector('.hd-todo');
+    TY_MODAL = null;
+    // ⑦ 對手的太空建地最多一半
+    tyStart('heir', 15); TY_NEWCARD.length = 0; TY.t = 30;
+    for (const x of tyRivalsA()) { x.nw = 900e8; x.sp = { moon: true, mars: true }; }
+    for (let i = 0; i < 200; i++) tySpaceRace();
+    out.cap = tyPlots('moon').filter(q => q.o).length <= 3 && tyPlots('mars').filter(q => q.o).length <= 5;
+    // ⑧ 在星球上出「建設」→ 開建地面板;測試人員不跳解鎖翻牌
+    tyStart('tester', 16); renderPage();
+    out.noFlip = TY_NEWCARD.length === 0;
+    TY_PLANET = 'mars'; tyCardGo('build');
+    out.planetBuild = TY_PICK && TY_PICK.k === 'plot' && TY_PICK.w === 'mars';
+    TY_PLANET = null; TY_PICK = null; TY_MODAL = null;
+    return out;
+  });
+  ok(r.zoneMe, '你有東西的城市要畫一圈你的勢力圈');
+  ok(r.zoneRv, '對手的大本營也有勢力圈');
+  ok(r.jpTop, '只有你在的國家,勢力再小也要上色(第二十八輪:我的勢力範圍沒有顯示)');
+  ok(r.needSize, '全面併吞:身家不到他的 1.5 倍要擋');
+  ok(r.needPrice, '全面併吞:出價低於行情要擋');
+  ok(r.merged, '全面併吞成功:他出局、你多一家公司');
+  ok(r.acq, '收購來的公司當下估值 = 吃下的金額');
+  ok(r.hostileFloor, '敵意收購:出價低於行情八成要擋');
+  ok(r.noEarlyEat, '前十季對手不會互相吃掉');
+  ok(r.newcomer, '場上人少了會有新富豪');
+  eq(r.done, 'done', '四十季照樣結算');
+  ok(r.btn, '結算畫面有「繼續玩下去」');
+  ok(r.endless, '無盡模式:第 45 季之後還能繼續');
+  ok(r.todo, '待辦:有人要打你的時候排第一、有「去看」');
+  ok(r.todoUi, '待辦按鈕與清單畫得出來');
+  ok(r.cap, '對手的太空建地最多佔一半');
+  ok(r.noFlip, '測試人員不跳新牌解鎖');
+  ok(r.planetBuild, '在火星上出「建設」會開建地面板');
   ok(page.__errors.length === 0, `有 JS 錯誤:\n      ${page.__errors.join('\n      ')}`);
   await page.__ctx.close();
 });

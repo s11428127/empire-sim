@@ -227,7 +227,8 @@ function paintTop(force){
   if(!BASE || !TEX || !FEATS || typeof tyCountryColor !== 'function' || !TY) return;
   const cols = FEATS.map(f => { try{ return tyCountryColor(f); }catch(e){ return ''; } });
   const ccols = cityCols();
-  const sig = (typeof TY_LAYER !== 'undefined' ? TY_LAYER : '') + '|' + cols.join('|') + '|' + ccols.map(x => x[0] + x[1]).join('|');
+  const zs = zones();
+  const sig = (typeof TY_LAYER !== 'undefined' ? TY_LAYER : '') + '|' + cols.join('|') + '|' + ccols.map(x => x[0] + x[1]).join('|') + '|' + zs.map(z => z.id + z.km + z.col + z.a).join('|');
   if(!force && sig === SIG) return;
   SIG = sig;
   const W = BASE.width, H = BASE.height, k = W / 4096;
@@ -246,6 +247,12 @@ function paintTop(force){
   });
   // 國界：白色細線，跟參考畫面一樣
   c.lineWidth = 1; c.strokeStyle = 'rgba(255,255,255,.7)'; c.stroke(allP2D(FEATS, W, H));
+  // 勢力圈:城市外面一圈(一般縮放下看得到的「這一帶是誰的」)
+  for(const z of zs){
+    const p = new Path2D(); ringPath(p, zoneRing(z), W, H);
+    c.fillStyle = `rgba(${z.col},${z.a})`; c.fill(p);
+    c.lineWidth = Math.max(2, (z.me ? 4 : 3) * k); if(!z.me) c.setLineDash([6*k, 4*k]); c.strokeStyle = `rgba(${z.col},1)`; c.stroke(p); c.setLineDash([]);
+  }
   // 勢力圖層:城市的真實範圍塗上「這座城是誰的」(國家之下的第二層)
   for(const [id, col] of ccols){
     const p = cityP2D(id, W, H); if(!p) continue;
@@ -253,6 +260,18 @@ function paintTop(force){
     c.lineWidth = 2*k; c.strokeStyle = col.replace(/,\s*([\d.]+)\)$/, ',1)'); c.stroke(p);
   }
   TEX.needsUpdate = true;
+}
+/* 勢力圈(index.html 的 tyCityZones):圓 → 經緯度的一圈點,拿去給 ringPath / patchRing 畫 */
+function zones(){ try{ return typeof tyCityZones === 'function' ? tyCityZones() : []; }catch(e){ return []; } }
+function zoneRing(z){
+  const R = 6371, d = z.km / R, a = z.lat * Math.PI / 180, b = z.lng * Math.PI / 180, out = [];
+  for(let i = 0; i <= 48; i++){
+    const t = i / 48 * Math.PI * 2;
+    const la = Math.asin(Math.sin(a) * Math.cos(d) + Math.cos(a) * Math.sin(d) * Math.cos(t));
+    const lo = b + Math.atan2(Math.sin(t) * Math.sin(d) * Math.cos(a), Math.cos(d) - Math.sin(a) * Math.sin(la));
+    out.push([lo * 180 / Math.PI, la * 180 / Math.PI]);
+  }
+  return out;
 }
 /* 勢力圖層的城市顏色:[[id, 'rgba(...)'], ...]。cities.json 還沒到就先觸發下載,到了再重畫。 */
 function cityCols(){
@@ -424,6 +443,11 @@ function paintPatch(P){
       c.fillStyle = col.replace(/,\s*([\d.]+)\)$/, (s, a) => `,${Math.min(.72, +a * 1.6).toFixed(3)})`); c.fill('evenodd');
       c.lineWidth = 3.5; c.strokeStyle = col.replace(/,\s*([\d.]+)\)$/, ',.95)'); c.stroke();
     }
+  }
+  for(const z of zones()){
+    c.beginPath(); patchRing(c, zoneRing(z), P, W, H);
+    c.fillStyle = `rgba(${z.col},${z.a})`; c.fill();
+    c.lineWidth = z.me ? 4 : 3; if(!z.me) c.setLineDash([8, 5]); c.strokeStyle = `rgba(${z.col},1)`; c.stroke(); c.setLineDash([]);
   }
   // 勢力圖層:城市的真實範圍
   for(const [id, col] of cityCols()){
@@ -1185,6 +1209,7 @@ function installTilt(){
 
 /* 鏡頭「邏輯上」在哪。pointOfView() 讀的是實際位置 —— 傾斜之後
    它會以為你在南邊一點，拿它去算「放大」會讓畫面每按一次就往南漂。 */
+W3D._look = (lat, lng, alt) => { try{ G.controls().autoRotate = false; G.pointOfView({ lat, lng, altitude: alt }, 0); tyWake(); }catch(e){} };   // 給截圖用
 W3D.pov = function(){
   try{
     if(G && W3D._logical && typeof G.toGeoCoords === 'function')
