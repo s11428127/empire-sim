@@ -473,6 +473,14 @@ SPR.art = classic('s', 'r', 3);
 SPR.fx = classic('v', 'y', 3);
 SPR.bankc = classic('e', 'y', 5);
 SPR.casino = classic('p', 'y', 5);
+/* 太空計畫(第十三輪):火箭(站著,發射動畫與火星牌用)、衛星(星鏈牌的卡面) */
+SPR.rocket = S([
+  '....k....', '...kwk...', '...kwk...', '..kwwwk..', '..kwcwk..', '..kwwwk..', '..kwwwk..',
+  '..kgwgk..', '..kwwwk..', '..kwwwk..', '..kwrwk..', '..kwrwk..', '..kwwwk..', '.kkwwwkk.',
+  'kgkwwwkgk', 'kgkwwwkgk', 'kgkgggkgk', 'kkkkkkkkk', '...kok...', '..koyok..', '..kyyyk..', '...kyk...']);
+SPR.sat = S([
+  '......kk......', '......ke......', 'bcbcb.kk.bcbcb', 'cbcbckeeekcbcbc',
+  'bcbcbkeyekbcbcb', 'cbcbckeeekcbcbc', 'bcbcb.kk.bcbcb', '......kk......']);
 SPR.hotel5 = tower({ body:'o', win:'l', floors:6, w:10, roof:['..kkkkkkkk..', '..kyryryryk.', '..kkkkkkkk..'] });
 
 /* ---- 地標(每座城一個,參考那款遊戲「每座城都認得出來」)---- */
@@ -734,6 +742,8 @@ def('🔒🔐', ['..kkkkk..','.kk...kk.','.k.....k.','kkkkkkkkk','kyyyyyyyk','ky
 def('💰', ['...kkk...','....k....','..kkkkk..','.kYYYYYk.','kYYyyyYYk','kYYyYYYYk','kYYYyyYYk','kYYyyyYYk','.kkkkkkk.']);
 def('💻', ['.kkkkkkk.','.kccccck.','.kccccck.','.kccccck.','.kkkkkkk.','kgggggggk','kkkkkkkkk']);
 def('⛽', ['.kkkkk...','.kwwwk...','.kkkkkk..','.krrrk.k.','.krrrk.k.','.krrrkk..','.krrrk...','kkkkkkk..']);
+def('📦', ['.........','.kkkkkkk.','kmmmMmmmk','kkkkkkkkk','kmmmMmmmk','kmmmMmmmk','kmmmMmmmk','kmmmMmmmk','kkkkkkkkk']);
+def('🌱', ['.........','.kk...kk.','knnk.knnk','.kNnkknNk','..kkNkk..','....k....','...kmk...','..kmmmk..','.kkkkkkk.']);
 def('🏨', ['.kkkkkkk.','.kyryryk.','.kkkkkkk.','.kolollk.','.koooook.','.kolollk.','.koooook.','.kolkllk.','kkkkMkkkk']);
 def('🛰', ['kbk......','bcbk.....','kbkbk....','..kkek...','...kyek..','....kekbk','.....kbcb','......kbk','.........']);
 def('🏠🏘', ['....k....','...krk...','..krrrk..','.krrrrrk.','kkkkkkkkk','.kwwwwwk.','.kwbwMwk.','.kwwwMwk.','.kkkkkkk.']);

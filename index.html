@@ -4448,6 +4448,10 @@
   #tyGlobeHost{position:relative}
   /* 3D 建築啟用:CSS 積木收起來,名牌從地面往下垂 */
   #tyGlobeHost[data-w3d] .tyk .k-b{display:none}
+  .tyk .k-px{display:none}
+  #tyGlobeHost[data-far="1"] .tyk .k-px{display:inline-flex;align-items:flex-end;gap:1px;margin-right:3px;vertical-align:bottom}
+  #tyGlobeHost[data-far="1"] .tyk .k-px img{image-rendering:pixelated;max-height:30px;width:auto;filter:drop-shadow(1px 1px 0 #000)}
+  #tyGlobeHost[data-far="1"] .tyk.rv .k-ic{display:none}
   #tyGlobeHost[data-w3d] .tyk:not(.rv):not(.idle){transform:translate(-50%,6px)}
   #tyGlobeHost[data-w3d] .tyk.rv{transform:translate(-50%,6px)}
   #tyGlobeHost[data-w3d] .tyk.rv .k-ic{display:none}
@@ -4906,6 +4910,16 @@
   .tg-city .cv-leg em{ font-style:normal; color:#9db4c8; flex-basis:100% }
   .p-city{ float:right; margin-left:8px; padding:4px 8px; background:#ffd84a; color:#141821; border:2px solid #000; box-shadow:0 2px 0 #000;
     font:inherit; font-size:12px; cursor:pointer }
+
+  /* ---- 太空計畫:火星四個階段 ---- */
+  .ty-mars{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:6px; margin:6px 0 8px }
+  .ty-mars .ms{ display:flex; flex-direction:column; gap:2px; padding:6px 8px; background:#132231; border:2px solid #000; min-width:0 }
+  .ty-mars .ms i{ font-style:normal } .ty-mars .ms b{ font-weight:400; font-size:13px }
+  .ty-mars .ms span{ font-size:11px; color:#9db4c8; overflow-wrap:anywhere }
+  .ty-mars .ms.done{ background:#1f4a2e } .ty-mars .ms.done span{ color:#8ff0a8 }
+  .ty-mars .ms.run{ background:#4a3a12; animation:msRun 1s steps(2) infinite } .ty-mars .ms.run span{ color:#ffd84a }
+  .ty-mars .ms.lock{ opacity:.55 }
+  @keyframes msRun{ 50%{ border-color:#ffd84a } }
 
   /* ---- 所有動作的回饋 ---- */
   .px-burst{ position:fixed; z-index:10002; pointer-events:none; width:5px; height:5px; background:var(--c); box-shadow:0 0 0 1px #141821;
@@ -5935,6 +5949,95 @@ function tyIntelHTML(r){
     <div class="expo-note">情報期間:對他的飛彈 / 空襲效果 +30%、跟他談條件成功率 +8%。</div>
   </div>`;
 }
+/* =========================================================================
+   太空計畫 —— 使用者:「星鏈跟火星移民計劃」
+   -------------------------------------------------------------------------
+   兩條路,一條是現金、一條是夢想:
+   ① 星鏈:把牌拖到一座城市 = 發射一批衛星罩住那個地區(每個地區一批,最多 6 批)。
+      每季收網路費(發射成本的 12% × 當地景氣),那個地區你賺錢的公司現金流 +10%。
+      衛星 10 季後退役 —— 要繼續收錢就要補發。10 季的網路費大約收回 1.2 倍成本,
+      真正賺的是「罩住你的公司」那 10%:星鏈跟你的事業版圖要在同一個地方才划算。
+   ② 火星移民:四個階段,每一段先付錢、跑好幾季、到期擲一次成敗。
+        火箭研發 → 無人補給 → 首批登陸 → 自給自足
+      失敗 = 錢燒掉、名氣 −3,這一段可以重來(每失敗一次下一次成功率 +5%)。
+      無人補給需要星鏈(火星跟地球要有通訊),火箭研發需要一家科技 / 能源 / 基建公司。
+      走到自給自足:殖民地每季帶回投入總額的 3.5%,結局多一個「火星首富」。
+   ⚠ 擲骰只在 tyNext 裡、而且只有「有階段到期」那一季才擲 —— 沒碰太空的一局,
+     亂數序列跟以前完全一樣(舊的測試與重播不受影響)。
+   ========================================================================= */
+const TY_STAR_LIFE = 10, TY_STAR_MAX = 6, TY_STAR_REV = .12, TY_STAR_BOOST = .10;
+const TY_MARS = [
+  { nm:'火箭研發', ic:'🚀', q:2, p:.90, c:()=>Math.max(20e8, tyNW()*.04), fame:4,  dsc:'可重複使用的火箭。沒有它,後面每一段的成本都是天價。' },
+  { nm:'無人補給', ic:'📦', q:3, p:.80, c:()=>Math.max(40e8, tyNW()*.06), fame:6,  dsc:'先把氧氣機、太陽能板、食物送上去。需要星鏈通訊。' },
+  { nm:'首批登陸', ic:'🏳', q:4, p:.70, c:()=>Math.max(80e8, tyNW()*.08), fame:15, infl:5, dsc:'一百個人、一座透明圓頂。全世界都在看直播。' },
+  { nm:'自給自足', ic:'🌱', q:4, p:.85, c:()=>Math.max(150e8, tyNW()*.10), fame:20, dsc:'溫室、礦場、工廠:殖民地開始自己賺錢。' },
+];
+const TY_COLONY_YLD = .035;
+function tySpace(){
+  TY.space = TY.space || { sats:[], mars:{ st:0, run:null, fails:0, inv:0 } };
+  return TY.space;
+}
+const tyStarCost = () => Math.max(6e8, tyNW()*.012);
+const tyStarsOn = () => tySpace().sats.filter(s=>s.until>TY.t);
+const tyStarAt = reg => tyStarsOn().find(s=>s.reg===reg) || null;
+const tyStarRev = s => s.c*TY_STAR_REV*tyClamp(TY.reg[s.reg].idx, .6, 1.6);
+let TY_LAST_LAUNCH=null;                   // 給畫面層播火箭(不進存檔)
+function tyLaunch(site){
+  const blocked=tyBlock('launch', site); if(blocked) return blocked;
+  const S=tySite(site), cost=tyStarCost(), sp=tySpace();
+  TY.cash-=cost;
+  sp.sats=sp.sats.filter(s=>s.until>TY.t && s.reg!==S.reg);      // 補發 = 換新的一批
+  sp.sats.push({ reg:S.reg, c:cost, t:TY.t, until:TY.t+TY_STAR_LIFE });
+  tyLog('biz', `🛰 星鏈發射:從${S.nm}送上一批衛星,罩住${TY_REGIONS[S.reg].nm}。`);
+  TY_LAST_LAUNCH={ site, kind:'star' };
+  tySave();
+  return `<b>🛰 發射成功。</b>${TY_REGIONS[S.reg].nm}有星鏈了:每季網路費約 ${tyM(tyStarRev(sp.sats[sp.sats.length-1]))},`
+       + `那裡你的公司現金流 +${TY_STAR_BOOST*100}%。${TY_STAR_LIFE} 季後退役(${tyWhen(TY.t+TY_STAR_LIFE)})。花費 ${tyM(cost)}。`;
+}
+const tyMarsNext = () => TY_MARS[tySpace().mars.st] || null;
+const tyMarsOdds = () => { const m=tySpace().mars, d=TY_MARS[m.run?m.run.st-1:m.st]; return d ? Math.min(.95, d.p + (m.fails||0)*.05) : 0; };
+function tyMarsGo(){
+  const blocked=tyBlock('mars'); if(blocked) return blocked;
+  const m=tySpace().mars, d=tyMarsNext(), cost=d.c();
+  TY.cash-=cost; m.inv+=cost;
+  m.run={ st:m.st+1, done:TY.t+d.q, c:cost };
+  tyLog('biz', `${d.ic} 火星計畫第 ${m.st+1} 階段「${d.nm}」啟動,${d.q} 季後見分曉。`);
+  TY_LAST_LAUNCH={ site:TY.home, kind:'mars' };
+  tySave();
+  return `<b>${d.ic} ${d.nm}啟動。</b>花費 ${tyM(cost)},${tyWhen(TY.t+d.q)} 揭曉 —— 成功率 ${(tyMarsOdds()*100).toFixed(0)}%。`;
+}
+/* 每一季(tyNext 的現金流那一段之後):星鏈收費、退役;火星階段到期就擲骰 */
+function tySpaceTurn(){
+  if(!TY.space) return 0;
+  const sp=TY.space;
+  let inc=0;
+  for(const s of sp.sats){
+    if(s.until>TY.t) inc+=tyStarRev(s);
+    else if(!s.gone){ s.gone=true; tyNews('macro','星鏈退役',`${TY_REGIONS[s.reg].nm}那一批衛星壽命到了,網路費與現金流加成跟著停 —— 要繼續就再發一批。`); }
+  }
+  sp.sats=sp.sats.filter(s=>s.until>TY.t-4);              // 退役的留四季給畫面看,之後清掉
+  const m=sp.mars;
+  if(m.run && TY.t>=m.run.done){
+    const d=TY_MARS[m.run.st-1], odds=tyMarsOdds();
+    if(tyRnd()<odds){
+      m.st=m.run.st; m.fails=0;
+      TY.fame=tyClamp(TY.fame+d.fame,0,100);
+      if(d.infl) TY.infl=tyClamp(TY.infl+d.infl,0,100);
+      tyNews('good',`${d.ic} 火星計畫:${d.nm}成功`, m.st>=4
+        ? '殖民地自給自足了。從這一季起,它每季帶回你投入總額的 3.5%。你是第一個把人送去火星、還讓他們活下來的人。'
+        : `第 ${m.st} 階段完成,名氣 +${d.fame}。下一段:${TY_MARS[m.st].nm}。`);
+      tyLog('biz', `${d.ic} 火星計畫「${d.nm}」成功。`);
+    }else{
+      m.fails=(m.fails||0)+1;
+      TY.fame=tyClamp(TY.fame-3,0,100);
+      tyNews('bad',`${d.ic} 火星計畫:${d.nm}失敗`, `${tyM(m.run.c)} 燒掉了,名氣 −3。可以重來 —— 下一次成功率多 5%。`);
+      tyLog('biz', `${d.ic} 火星計畫「${d.nm}」失敗。`);
+    }
+    m.run=null;
+  }
+  if(m.st>=4) inc+=m.inv*TY_COLONY_YLD;
+  return inc;
+}
 const tyStrikeReady = k => ((TY.cd||{})[k]||0) <= TY.t;
 /* 打哪一個對手:飛彈打他本人(目標城市 = 他的大本營);空襲打那個地區勢力最大的對手 */
 function tyStrikeTarget(k, site){
@@ -6866,6 +6969,7 @@ function tyNext(){
     if(mg) m *= 1 + .15*mg;
     let cf = b.cap*rate*Math.max(-.6,m) + b.cap*d.vol*.012*tyG();
     const par = TY.partners[bs.reg];
+    if(TY.space && cf>0 && tyStarAt(bs.reg)) cf *= 1 + TY_STAR_BOOST;   // 星鏈罩住的地區:賺錢的公司多賺 10%(燒錢的不會因此燒更多)
     if(par && cf>0) cf *= (1-par.cut);   // 在地夥伴抽成:進得去的代價
     // 合資案:對方分走的那一成五(見 TY_DEALS.jv)
     if(b.jv && cf>0) cf *= (1-(b.jvCut||.15));
@@ -6873,6 +6977,7 @@ function tyNext(){
     if(d.fame) TY.fame = tyClamp(TY.fame + d.fame*(TY.scn==='self'?2:1)*.6, 0, 100);
     if(d.float) TY.cash += b.cap*d.float*.012;       // 浮存金:保費先進來的那筆錢
   }
+  inc += tySpaceTurn();                 // 星鏈網路費、火星殖民地(也算營收,一樣課稅)
   TY.cash += inc;
 
   /* ---- 4. 利息 ----
@@ -7719,6 +7824,25 @@ function tyNeeds0(act, arg){
                              !!r, k==='missile'?'飛彈要打在對手的大本營 —— 這座城市沒有對手住在這裡'
                                                :'這個地區沒有任何對手的勢力,轟炸沒有對象'));
       out.push(cashFor(tyStrikeCost(k)));
+      return out;
+    }
+    case 'launch': {
+      const S=TY_SITE[arg], reg=S?S.reg:null, cur=reg?tyStarAt(reg):null;
+      return [ tyNb('有發射場(不是離岸小島)', !!S && reg!=='off', '離岸金融中心沒有發射場 —— 拖到其他城市'),
+               tyNb('那個地區沒有星鏈,或快退役了', !cur || cur.until-TY.t<=2,
+                    cur?`${TY_REGIONS[reg].nm}已經有星鏈,${tyWhen(cur.until)} 才退役(剩 2 季內才能補發)`:''),
+               tyNb(`星鏈不到 ${TY_STAR_MAX} 批`, tyStarsOn().filter(x=>x.reg!==reg).length<TY_STAR_MAX,
+                    `已經有 ${TY_STAR_MAX} 批在運作(上限),等其中一批退役`),
+               cashFor(tyStarCost()) ];
+    }
+    case 'mars': {
+      const m=tySpace().mars, d=tyMarsNext();
+      const out=[ tyNb('計畫還沒完成', !!d, '火星殖民地已經自給自足了'),
+                  tyNb('上一段已經揭曉', !m.run, m.run?`第 ${m.run.st} 階段還在進行,${tyWhen(m.run.done)} 揭曉`:'') ];
+      if(d && m.st===0) out.push(tyNb('有科技 / 能源 / 基建公司', TY.biz.some(b=>['tech','energy','infra'].includes(b.k)),
+                                     '火箭研發要有一家科技、能源或基建公司'));
+      if(d && m.st===1) out.push(tyNb('有星鏈(火星通訊)', tyStarsOn().length>0, '無人補給要跟地球通訊 —— 先發射一批星鏈'));
+      if(d) out.push(cashFor(d.c()));
       return out;
     }
     case 'recon': {
@@ -9023,7 +9147,8 @@ function tyPlayLast(){
   if(!window.W3D || !W3D.ok) return;
   /* 手機上面板是整張蓋住地圖的(而且面板打開時地球會暫停繪圖)——
      不先收起來,飛機、飛彈全部在面板底下播完,等於沒有動畫。 */
-  if((TY_LAST_MOVE || TY_LAST_STRIKE) && TY_MODAL && !tySideModal()){ TY_MODAL=null; renderPage(); }
+  if((TY_LAST_MOVE || TY_LAST_STRIKE || TY_LAST_LAUNCH) && TY_MODAL && !tySideModal()){ TY_MODAL=null; renderPage(); }
+  if(TY_LAST_LAUNCH){ if(W3D.launch) W3D.launch(TY_LAST_LAUNCH); TY_LAST_LAUNCH=null; }
   if(TY_LAST_MOVE){ W3D.animMove(TY_LAST_MOVE); TY_LAST_MOVE=null; }
   if(TY_LAST_STRIKE){ W3D.animStrike(TY_LAST_STRIKE); TY_LAST_STRIKE=null; }
   if(TY_LAST_RECON){
@@ -9307,6 +9432,7 @@ function tyEndHTML(){
   return `<div class="ty-end ${how==='done'?'ok':'bad'}">
       <div class="e-t">${title}</div>
       ${TY.endTxt?`<div class="e-w">${TY.endTxt}</div>`:''}
+      ${TY.space && TY.space.mars.st>=4 ? '<div class="e-w">🚀 <b>火星首富</b> —— 你把人送上火星,而且讓殖民地自己活下去。</div>' : ''}
       <div class="e-b">${tyBio().map(l=>'<p>'+l+'</p>').join('')}</div>
       <button type="button" class="ty-b big" data-ty="restart">再玩一局(換一個起點)</button>
     </div>`;
@@ -9475,6 +9601,9 @@ function tyScaleRank(){
 }
 function tyGlobeData(){
   if(!TYG) return;
+  // 太空:軌道上幾批星鏈、火星計畫走到哪(畫面層照這個擺衛星與殖民地)
+  if(window.W3D && W3D.spaceSync && TY){ const sp=TY.space;
+    W3D.spaceSync({ stars: sp ? tyStarsOn().length : 0, mars: sp ? sp.mars.st : 0, run: sp && sp.mars.run ? sp.mars.run.st : 0 }); }
   const mine=tyMySites(), mineSet=new Set(mine.map(s=>s.id));
   const hk=tyHeightScale();
   const mx=Math.max(1, ...mine.map(s=>tySiteStuff(s.id).val));
@@ -9623,7 +9752,10 @@ function tyTroopMarks(){
      使用者截圖:香港、深圳那一帶五六個「下季到位」的標籤疊在一起,字和東西全部卡住看不出來。
      自己的部隊下一季就到位(出發動畫已經把它送到目的地了),所以一律畫在目的地。 */
   const out=[], at={};
-  for(const u of tyUnits()) (at[u.to||u.site]=at[u.to||u.site]||[]).push(u);
+  for(const u of tyUnits()){
+    if(u.to && window.W3D && W3D.flying && W3D.flying(u.id)) continue;   // 還在飛機上:落地才出現
+    (at[u.to||u.site]=at[u.to||u.site]||[]).push(u);
+  }
   for(const [id,list] of Object.entries(at)){
     const s=tySite(id), inc=list.filter(u=>u.to).length;
     out.push({ lat:s.lat, lng:s.lng, _k:'at:'+id, _units:list, _in:inc, _mv:inc===list.length?1:0, _alt:.02 });
@@ -9877,6 +10009,7 @@ function tyGlobeMount(){
               const r=d._rival, rel=r.rel||0;
               const mark = rel>=20?'🤝' : rel<=-20?'⚔' : '';
               el.innerHTML=`<i class="k-ic">${r.ic||'👤'}</i>`
+                + (window.PX&&PX.rivalTower?`<span class="k-px">${PX.img('kp:rv:'+(d._hk||0), PX.rivalTower(d._hk||0), { fit:[16,30], tint:`rgb(${TY_RVCOL[r.id]||'160,160,170'})` })}</span>`:'')
                 + `<b class="k-n">${escH(r.nm)}${mark?` <u class="k-s">${mark}</u>`:''}</b>`;
               el.title=`${r.nm} · ${r.tag} · ${tyM(r.nw)}\n關係 ${tyRelTxt(rel)}(${rel.toFixed(0)})\n`
                      + `勢力:${Object.entries(r.turf||{}).filter(([,v])=>v>2)
@@ -9896,7 +10029,11 @@ function tyGlobeMount(){
               // 空殼 / 控股層本身沒有估值,印一個「0」出來只會讓人以為壞了
               const ics=tySpecs(d.id).filter(k=>TY_SPEC[k]&&TY_SPEC[k].good)
                         .slice(0,2).map(k=>TY_SPEC[k].ic).join('');
+              /* 遠看(3D 收起來的時候)名牌前面掛兩棟像素小建築:最高的兩棟 */
+              const px=(window.PX&&window.W3D&&W3D.bldSprite)?d._blds.slice().sort((a,b)=>(b.h||0)-(a.h||0)).slice(0,2)
+                .map(b=>{ try{ return PX.img('kp:'+b.c+(b.k||'')+b.f+'@'+(b.h||0), W3D.bldSprite(b), { fit:[16,30] }); }catch(e){ return ''; } }).join(''):'';
               el.innerHTML=`<span class="k-b">${d._blds.map(tyBldHTML).join('')}</span>`
+                + (px?`<span class="k-px">${px}</span>`:'')
                 + `<b class="k-n"><em class="k-lv" title="城市等級">${tySiteLv(d._v)}</em>${
                     ics?`<u class="k-s">${ics}</u>`:''}${escH(d.nm)}${
                     d._v>1?` <span>${tyM(d._v)}</span>`:''}</b>`;
@@ -10099,7 +10236,7 @@ function tyPickSite(id, ref){
       const s=tySite(id);
       TYG.controls().autoRotate=false;
       TYG.pointOfView({ lat:s.lat, lng:s.lng,
-        altitude: tyClamp(0.62*((tyFitAlt()+1)/2.37), .3, 1.3) }, 900);
+        altitude: .25 }, 900);        // 選城市 = 拉近到看得到 3D 的高度(高於 0.3 只有像素圖示)
     }
   }
   renderPage();
@@ -11100,7 +11237,7 @@ function tycoonPage(){
    ========================================================================= */
 const TY_AP_COST = { found:2, upgrade:1, expand:1, ipo:1, reverse:1, buy:1, short:1,
   recruit:1, recruitTo:1, deploy:1, strike:2, partner:1, movehome:1, lobby:1, media:1,
-  charity:1, trust:1, holdco:1, recon:1 };
+  charity:1, trust:1, holdco:1, recon:1, launch:1, mars:2 };
 const tyApCost = act => String(act).startsWith('deal:') ? 1 : (TY_AP_COST[act] || 0);
 const tyApMax  = () => Math.min(9, 6 + Math.floor((TY && TY.infl || 0) / 25));
 function tyApNow(){ if(TY && typeof TY.ap !== 'number') TY.ap = tyApMax(); return TY ? TY.ap : 0; }
@@ -11153,6 +11290,13 @@ const TY_CARDS = [
   { k:'recon', nm:'偵察機', col:'#9aa5b8', ap:1, tgt:'city', art:()=>PX.SPR.recon, tint:TY_TEAM,
     dsc:'拖到對手的大本營(或他駐軍的城市):偵察機飛過去繞一圈,拿到三季的情報 —— 他下一步往哪裡擴張、會不會打你;情報期間打他 +30%、跟他談 +8%。',
     ok:id=>!!tyReconTarget(id), unlock:()=>TY.t>=1, why:'第 2 季' },
+  { k:'star', nm:'星鏈', col:'#7fd8ff', ap:1, tgt:'city', art:()=>PX.SPR.sat,
+    dsc:'拖到城市:發射一批衛星罩住那個地區。每季收網路費,那個地區你賺錢的公司現金流 +10%。衛星 10 季後退役,要再補發。',
+    ok:id=>tySite(id).reg!=='off',
+    unlock:()=>TY.t>=3 || TY.biz.some(b=>b.k==='tech'), why:'有一家科技公司,或第 4 季' },
+  { k:'mars', nm:'火星計畫', col:'#e5484d', ap:2, tgt:'none', art:()=>PX.SPR.rocket,
+    dsc:'四個階段:火箭研發 → 無人補給 → 首批登陸 → 自給自足。每段先付錢、跑幾季、到期揭曉成敗。走完殖民地每季帶回投入的 3.5%。',
+    unlock:()=>TY.t>=4 && tyNW()>=40e8, why:'第 5 季、身家 40 億' },
   { k:'lobby', nm:'遊說', col:'#5fd0b0', ap:1, tgt:'none', art:()=>PX.SPR.bond,
     dsc:'政治獻金:人脈上去(人脈高,每季行動點也多)。關注度也會跟著上去。' },
   { k:'media', nm:'媒體曝光', col:'#7fd8ff', ap:1, tgt:'none', art:()=>PX.bizTower('media',.3),
@@ -11305,6 +11449,7 @@ function tyCardLabel(k, b){
   if(k==='troop') return d.k && TY_UNITS[d.k] ? `${TY_UNITS[d.k].ic} +${TY_UNITS[d.k].nm}` : '';
   if(k==='deal') return '🤝 談判';
   if(k==='recon') return '🛩 偵察';
+  if(k==='star') return '🛰 星鏈';
   if(k==='move') return '🏠 遷入';
   if(k==='partner') return '🤝 夥伴';
   return '';
@@ -11359,6 +11504,8 @@ function tyCardHint(c, id){
   if(c.k==='invest'){ const o=tyInvestOpts(id); return o.length?`市場:${o.slice(0,5).map(a=>a.nm).join('、')}${o.length>5?'…':''}`:'這裡沒有市場'; }
   if(c.k==='deal'){ const r=tyRivalsA().find(x=>x.home===id); return r?`跟 ${r.ic||''} ${r.nm} 談`:'這裡不是對手的大本營'; }
   if(c.k==='recon'){ const r=tyReconTarget(id); return r?`偵察 ${r.ic||''} ${r.nm}`:'這裡沒有對手'; }
+  if(c.k==='star'){ if(s.reg==='off') return '離岸小島沒有發射場'; const cur=tyStarAt(s.reg);
+    return cur?`${TY_REGIONS[s.reg].nm}已有星鏈(到 ${tyWhen(cur.until)})`:`罩住${TY_REGIONS[s.reg].nm}`; }
   if(c.k==='missile'||c.k==='air'){ const r=tyStrikeTarget(c.k, id); if(!tyStrikeReady(c.k)) return '冷卻中'; return r?`打擊 ${r.ic||''} ${r.nm}`:(c.k==='missile'?'這裡沒有對手的大本營':'這個地區沒有對手的勢力'); }
   if(c.k==='partner'){ const P=TY_PARTNERS[s.reg]; return P?(TY.partners[s.reg]?'已經有夥伴':`${P.nm}`):'這個地區不需要夥伴'; }
   if(c.k==='shell') return tyCan(id,'shell')?'離岸金融中心':'這裡不是離岸金融中心';
@@ -11469,6 +11616,18 @@ function tyPickHTML(){
         + (has && TY.holdco!==id ? row(PX.img('pk:hold', PX.SPR.hold, { fit:[56,64] }), '設為控股層', `集團利潤掛在這裡,稅率 ${(s.tax*100).toFixed(1)}%`,
           tyActBtn('holdco', id, '設定', ` data-site="${id}"`, 'warn'), tyNeedHTML(tyNeeds('holdco', id),'tight')) : '');
       break; }
+    case 'star': {
+      const reg=s.reg, cur=tyStarAt(reg), mine=TY.biz.filter(b=>!TY_BIZ[b.k].shell && tySite(b.site||TY.home).reg===reg);
+      const rev=tyStarCost()*TY_STAR_REV*tyClamp(TY.reg[reg].idx,.6,1.6);
+      body=row(PX.img('pk:sat', PX.SPR.sat, { fit:[56,64] }), `🛰 發射星鏈 → ${escH(TY_REGIONS[reg].nm)}`,
+          `花費 ${tyM(tyStarCost())} · 每季網路費約 <b class="up">${tyM(rev)}</b> · ${TY_STAR_LIFE} 季後退役`
+          + ` · 罩住你在那裡的 ${mine.length} 家公司(現金流 +${TY_STAR_BOOST*100}%)`,
+          tyActBtn('launch', id, cur?'補發':'發射', ` data-site="${id}"`), tyNeedHTML(tyNeeds('launch', id),'tight'),
+          `<em class="pk-d">${cur?`這個地區已經有一批,${tyWhen(cur.until)} 退役 —— 剩 2 季內才能補發換新。`:'星鏈跟你的公司要在同一個地區才划算:網路費大約收回 1.2 倍成本,真正賺的是那 10% 現金流。'}</em>`)
+        + tySpaceHTML();
+      break; }
+    case 'mars':
+      body=tySpaceHTML(true); break;
     case 'lobby':
       body=tyPlayCard('lobby','政治獻金與遊說','人脈 +9 起跳 · 關注度也會跟著上去','基建標案、紓困名單、法規過渡期 —— 這些東西不看財報。',{label:'送出獻金'}); break;
     case 'media':
@@ -11477,6 +11636,27 @@ function tyPickHTML(){
       body=tyPlayCard('charity','成立慈善基金會','關注 −16 起跳 · 名氣 +5 起跳','一個正在蓋醫院的人,比較不像一個要被查的人。',{label:'捐出去'}); break;
   }
   return head+`<div class="pk-list">${body}</div>`;
+}
+
+/* 太空計畫一覽:星鏈每一批 + 火星四個階段(火星牌的面板;星鏈牌底下也附一份) */
+function tySpaceHTML(full){
+  const sp=tySpace(), m=sp.mars, on=tyStarsOn();
+  const stars=on.length?`<div class="ty-feed">${on.map(x=>`<div class="fd"><span class="fd-t">🛰 ${escH(TY_REGIONS[x.reg].nm)}</span>
+      <i class="fd-ic">•</i><span class="fd-x">每季 ${tyM(tyStarRev(x))} · 剩 ${x.until-TY.t} 季</span></div>`).join('')}</div>`
+    : '<div class="expo-note">還沒有任何一批星鏈在軌道上。</div>';
+  const d=tyMarsNext();
+  const steps=TY_MARS.map((x,i)=>{
+    const st = i<m.st ? 'done' : (m.run && m.run.st===i+1) ? 'run' : i===m.st ? 'next' : 'lock';
+    return `<div class="ms ${st}"><i>${x.ic}</i><b>${i+1}. ${escH(x.nm)}</b><span>${
+      st==='done'?'✓ 完成':st==='run'?`進行中 · ${tyWhen(m.run.done)} 揭曉`:`${x.q} 季 · 成功率 ${(Math.min(.95,x.p+(i===m.st?(m.fails||0)*.05:0))*100).toFixed(0)}%`}</span></div>`;
+  }).join('');
+  const go = d && full && !m.run ? `<div class="pk-o"><span class="pk-img">${PX.img('pk:rocket', PX.SPR.rocket, { fit:[56,64] })}</span>
+      <div class="pk-t"><b>${d.ic} 啟動第 ${m.st+1} 階段:${escH(d.nm)}</b><span>花費 ${tyM(d.c())} · ${d.q} 季後揭曉 · 成功率 ${(Math.min(.95,d.p+(m.fails||0)*.05)*100).toFixed(0)}% · 成功名氣 +${d.fame}</span>
+      <em class="pk-d">${escH(d.dsc)}</em>${tyNeedHTML(tyNeeds('mars'),'tight')}</div>
+      <div class="pk-b">${tyActBtn('mars', null, m.fails&&!m.run?'再試一次':'啟動', '', 'warn')}</div></div>` : '';
+  return `<div class="p-sec">🚀 火星移民<span>${m.st>=4?`殖民地每季帶回 ${tyM(m.inv*TY_COLONY_YLD)}`:`已投入 ${tyM(m.inv||0)}${m.fails?` · 失敗過 ${m.fails} 次`:''}`}</span></div>
+    <div class="ty-mars">${steps}</div>${go}
+    <div class="p-sec">🛰 星鏈<span>${on.length} / ${TY_STAR_MAX} 批 · 每季共 ${tyM(on.reduce((a,x)=>a+tyStarRev(x),0))}</span></div>${stars}`;
 }
 
 /* 一顆按鈕 = 一支函式。這張表存在的理由是不要在事件處理裡寫一長串 if/else ——
@@ -11508,6 +11688,8 @@ const TY_ACT = {
   recruit:e=>tyRecruit(e.dataset.k),
   recruitTo:e=>tyRecruitTo(e.dataset.k, e.dataset.site),
   recon:  e=>tyRecon(e.dataset.site),
+  launch: e=>tyLaunch(e.dataset.site),
+  mars:   ()=>tyMarsGo(),
   deploy: e=>tyDeploy(+e.dataset.id, e.dataset.site || TY_DEP[e.dataset.id]),
   disband:e=>tyDisband(+e.dataset.id),
   strike: e=>tyStrike(e.dataset.k, e.dataset.site || TY_STRK[e.dataset.k]),
@@ -11709,7 +11891,7 @@ function bindTycoon(root){
     }
     const fn=TY_ACT[a];
     if(!fn) return;
-    TY_LAST_MOVE=null; TY_LAST_STRIKE=null; TY_LAST_RECON=null;
+    TY_LAST_MOVE=null; TY_LAST_STRIKE=null; TY_LAST_RECON=null; TY_LAST_LAUNCH=null;
     const s0=TY_SAVES;
     const play = TY_MODAL==='pick' && TY_PICK ? { k:TY_PICK.k, site:TY_PICK.site, label:tyCardLabel(TY_PICK.k, b) } : null;
     TY_MSG = tyDo(a, ()=>fn(b)) || '';
