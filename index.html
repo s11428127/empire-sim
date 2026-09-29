@@ -4874,6 +4874,20 @@
   .hd-todo{ position:absolute; top:4px; right:8px; font:inherit; font-size:12px; line-height:1; padding:4px 8px; cursor:pointer;
     background:#1b2a3a; color:#cfe3f5; border:2px solid #000; box-shadow:inset 0 0 0 1px rgba(255,255,255,.12) }
   .hd-todo b{ color:#ffd60a; font-weight:400 }
+  .pl-list{ display:grid; gap:6px; margin-top:10px }
+  .pl-row{ display:flex; align-items:center; gap:10px; width:100%; text-align:left; font:inherit; cursor:pointer;
+    padding:9px 10px; background:rgba(255,255,255,.04); color:#e8f1f8; border:2px solid #000; box-shadow:inset 0 0 0 1px rgba(255,255,255,.1) }
+  .pl-row:hover{ background:rgba(255,255,255,.09) }
+  .pl-row i{ flex:none; width:14px; height:14px; background:var(--rc); border:2px solid #000 }
+  .pl-row b{ flex:none; font-weight:400; font-size:14px }
+  .pl-row span{ flex:1; min-width:0; font-size:12.5px; color:#9db4c8; text-align:right }
+  .pl-row em{ flex:none; font-style:normal; color:#7fd8ff; font-size:12px }
+  .pl-row.me{ border-color:#2997ff } .pl-row.rv span{ color:#ffb3aa }
+  .ty-float{ position:fixed; z-index:400; pointer-events:none; transform:translate(-50%,-50%); white-space:nowrap;
+    font-size:15px; color:#fff; padding:3px 8px; background:#1b2a3a; border:2px solid #000; box-shadow:0 0 0 2px #ffd60a;
+    animation:tyFloatUp 1.6s steps(16,end) forwards }
+  @keyframes tyFloatUp{ 0%{ opacity:0; transform:translate(-50%,-30%) } 12%{ opacity:1; transform:translate(-50%,-50%) }
+    80%{ opacity:1 } 100%{ opacity:0; transform:translate(-50%,-190%) } }
   .td-list{ display:grid; gap:6px; margin-top:8px }
   .td-row{ display:flex; align-items:center; gap:8px; padding:8px 10px; background:rgba(255,255,255,.04); border-left:4px solid #3a4b5e }
   .td-row.lv3{ border-left-color:#ff453a; background:rgba(255,69,58,.08) }
@@ -10746,8 +10760,8 @@ function tyOpenCity(id, at){
 function tyWorldBadge(){
   const sp=TY.space, st=sp?sp.mars.st:0, run=sp&&sp.mars.run?sp.mars.run.st:0, w=TY_PLANET;
   const nm=w==='moon'?'🌙 月球':'🔴 火星';
-  const gate = w==='moon' ? (sp&&sp.moon ? '已登月 · 建地開放' : '還沒登月 —— 點任何一塊建地,從那裡登月')
-    : st>=4 ? '火星殖民地自給自足 · 建地開放' : st>=3 ? '首批登陸 · 火星計畫走完(自給自足)才能蓋' : run ? `火星計畫第 ${run} 階段進行中 · 走完才能蓋` : '出「火星計畫」牌:四段走完才能在火星蓋';
+  const gate = tyTester() ? '🧪 測試人員:建地全部開放 · 把「建設」拖到白框' : w==='moon' ? (sp&&sp.moon ? '已登月 · 建地開放 · 把「建設」拖到白框' : '還沒登月 —— 點任何一塊建地,從那裡登月')
+    : st>=4 ? '火星殖民地自給自足 · 建地開放 · 把「建設」拖到白框' : st>=3 ? '首批登陸 · 火星計畫走完(自給自足)才能蓋' : run ? `火星計畫第 ${run} 階段進行中 · 走完才能蓋` : '出「火星計畫」牌:四段走完才能在火星蓋';
   const P=tyPlots(w), mine=P.filter(p=>p.o==='me').length, rv=P.filter(p=>p.o&&p.o!=='me').length;
   return `<div class="tg-world"><b>${nm}</b><span>${gate}</span>
     <span>建地 ${P.length} 塊:你 <b class="up">${mine}</b> · 對手 <b class="down">${rv}</b> · 空 ${P.length-mine-rv}${sp&&sp.fee?` · 每季補給 ${tyM(sp.fee)}`:''}${sp&&sp.stalled===TY.t?' · <b class="down">補給斷了,停擺中</b>':''}</span>
@@ -10760,6 +10774,20 @@ function tyPlanetInfo(w){
     return { lat:q.lat, lng:q.lng, nm:q.nm, o:p.o, b:p.b, col:p.o==='me'?'47,143,224':p.o?(TY_RVCOL[p.o]||'200,200,210'):null,
              tag:`${q.nm}${p.b?` · ${TY_SPB[w][p.b].ic} ${TY_SPB[w][p.b].nm}`:' · 空地'}${p.o?` · ${p.o==='me'?'你的':((tyRival(p.o)||{}).nm||'')+'的'}`:''}` }; });
   return { mars:st, run, moonLanded:!!(sp&&sp.moon), plots };
+}
+/* 選建地:星球上每一塊地的清單(誰的、蓋了什麼、在哪),點一塊 → 那一塊的面板 */
+function tyPlotsHTML(P){
+  const w=P.w, wn=w==='moon'?'月球':'火星', inf=tyPlanetInfo(w).plots;
+  const rows=inf.map((q,i)=>{
+    const p=tyPlots(w)[i], d=p.b?TY_SPB[w][p.b]:null, r=p.o&&p.o!=='me'?tyRival(p.o):null;
+    const st = p.o==='me' ? `<b style="color:#5fb4ff;font-weight:400">你的</b> · ${d?d.ic+' '+escH(d.nm):''}`
+             : p.o ? `${r?escH(r.nm):'對手'}的 ${d?d.ic+' '+escH(d.nm):''}` : '空地';
+    return `<button type="button" class="pl-row${p.o==='me'?' me':p.o?' rv':''}" data-ty="plotpick" data-w="${w}" data-i="${i}"
+        style="--rc:rgb(${q.col||'230,234,240'})"><i></i><b>${i+1}. ${escH(q.nm)}</b><span>${st}</span><em>選 ›</em></button>`;
+  }).join('');
+  return `<div class="pk-h"><div><b>${w==='moon'?'🌙':'🔴'} 選一塊${wn}的建地</b>
+      <p>也可以直接把「建設」牌拖到星球上的建地(白色框框)放開。${tyCanBuildOn(w)?'':`<br><b class="down">${w==='moon'?'要先登月':'火星計畫四段走完'}才能蓋 —— 點任何一塊都看得到怎麼解鎖。</b>`}</p></div></div>
+    <div class="pl-list">${rows}</div>`;
 }
 /* 點星球上的建地 → 出牌面板(蓋、收購、登月) */
 function tySpacePlot(w, i){ TY_PICK={ k:'plot', w, i }; TY_MODAL='pick'; renderPage(); tySfx('pick','tap'); }
@@ -12104,6 +12132,46 @@ function tyCardFly(k, site, label){
   a.onfinish=()=>{ el.remove(); land(); };
 }
 
+/* 月球 / 火星蓋好(或收購)的回饋:「建設」牌翻滾著飛到那一塊建地 → 建築一格一格長出來、
+   衝擊圈、碎片、金幣聲、浮出「+氦-3 礦場」。使用者:「蓋的時候沒有回饋」。 */
+function tyPlotFly(P, btn){
+  const w=P.w, i=P.i, d=P.b&&TY_SPB[w]&&TY_SPB[w][P.b];
+  const label = P.a==='spacegrab' ? '🚩 收購成功' : d ? `${d.ic} +${d.nm}` : '🏗 蓋好了';
+  const go=()=>{
+    const to = window.W3D && W3D._plotScreen ? W3D._plotScreen(i) : null;
+    const src=document.querySelector('.hd-cards [data-card="build"]');
+    const r0=src ? src.getBoundingClientRect() : (btn ? btn.getBoundingClientRect() : null);
+    const land=()=>{
+      if(window.W3D && W3D.planetBuildFx) W3D.planetBuildFx(i);
+      setTimeout(()=>{
+        const t = window.W3D && W3D._plotScreen ? W3D._plotScreen(i) : to;
+        if(t){ tyBurst(t.x, t.y); tyFloat(t.x, t.y-30, label); }
+        tySfx('upgrade','land'); setTimeout(()=>tySfx('coin','tap'), 220);
+      }, 520);
+    };
+    if(!r0 || !to || !document.body.animate || matchMedia('(prefers-reduced-motion: reduce)').matches){ land(); return; }
+    const el=document.createElement('div'); el.className='pc-fly';
+    el.innerHTML=tyCardHTML(tyCard('build'));
+    el.style.left=r0.left+'px'; el.style.top=r0.top+'px';
+    document.body.appendChild(el);
+    const dx=to.x-(r0.left+r0.width/2), dy=to.y-(r0.top+r0.height/2);
+    const an=el.animate([
+      { transform:'translate(0,0) rotate(0deg) scale(1)' },
+      { transform:`translate(${dx*.45}px,${dy*.45-90}px) rotate(200deg) scale(.85)`, offset:.5 },
+      { transform:`translate(${dx}px,${dy}px) rotate(360deg) scale(.22)` }],
+      { duration:560, easing:'steps(14, end)', fill:'forwards' });
+    tySfx('launch');
+    an.onfinish=()=>{ el.remove(); land(); };
+  };
+  requestAnimationFrame(()=>requestAnimationFrame(go));      // 等星球上的建地先依新狀態重建
+}
+/* 螢幕上浮出一行字(像地圖上的「+飯店與賭場」) */
+function tyFloat(x, y, txt){
+  const el=document.createElement('div'); el.className='ty-float'; el.textContent=txt;
+  el.style.left=x+'px'; el.style.top=y+'px'; document.body.appendChild(el);
+  setTimeout(()=>el.remove(), 1600);
+}
+
 /* ---- 出牌 ---- */
 let TY_PICK=null;                 // { k:牌, site:城市 } —— 拖到城市之後的選項面板
 function tyCardGo(k){
@@ -12114,10 +12182,7 @@ function tyCardGo(k){
   if(TY_PLANET){
     /* 使用者把「建設」拖到火星上,結果被擋。星球上蓋東西是點建地 —— 建設牌也接受:直接開一塊空的建地。 */
     const w=TY_PLANET, wn=w==='moon'?'月球':'火星';
-    if(c.k==='build' || c.k==='invest'){
-      const ps=tyPlots(w), i=Math.max(0, ps.findIndex(p=>!p.o));
-      tySpacePlot(w, i); return;
-    }
+    if(c.k==='build' || c.k==='invest'){ TY_PICK={ k:'plots', w }; TY_MODAL='pick'; renderPage(); return; }   // 選哪一塊建地
     TY_MSG=`「${c.nm}」是地球的牌。在${wn}上蓋東西:點地上插旗的建地圈,或把「建設」拖上來。回地球:右邊的 🌍。`;
     tySfx('deny','deny'); renderPage(); return; }
   if(!(window.W3D && W3D.ok)){ TY_PICK={ k, site:null }; TY_MODAL='pick'; renderPage(); return; }  // 沒有地球:改成清單選城市
@@ -12147,6 +12212,7 @@ function tyCardHint(c, id){
 function tyPickHTML(){
   const P=TY_PICK; if(!P) return '<div class="empty">沒有選牌。</div>';
   if(P.k==='plot') return tyPlotHTML(P);
+  if(P.k==='plots') return tyPlotsHTML(P);
   const c=tyCard(P.k); if(!c) return '';
   const head=`<div class="pk-h">${tyCardHTML(c)}<div><b>${escH(c.nm)}</b>${P.site?` → ${escH(tySite(P.site).nm)}`:''}
       <p>${escH(c.dsc)}</p><span class="pk-ap">這一季還有 <b>${tyApNow()}</b> 點行動點 · 這張牌 ${c.ap} 點</span></div></div>`;
@@ -12367,29 +12433,39 @@ function tyArmCard(btn){
     const k=btn.dataset.card, c=tyCard(k); if(!c) return;
     const x0=ev.clientX, y0=ev.clientY;
     let drag=false, gone=false, ghost=null;
+    /* 在月球 / 火星上:建設、投資牌拖到星球上的建地(白框)放開 = 選那一塊。使用者:「拉出建設的卡沒有給我選地區」 */
+    const planet = TY_PLANET && (k==='build' || k==='invest') && tyHasCard(k) && window.W3D && W3D.planetAim;
     const stop=()=>{ removeEventListener('pointermove', mv); removeEventListener('pointerup', up); removeEventListener('pointercancel', cancel); };
-    const cancel=()=>{ gone=true; stop(); if(ghost) ghost.remove(); if(drag && window.W3D) W3D.aimCancel(); };
+    const cancel=()=>{ gone=true; stop(); if(ghost) ghost.remove(); if(drag && window.W3D){ if(planet){ W3D.planetAim && W3D.planetAim(false); } else W3D.aimCancel(); } };
     const mv=e=>{
       const dx=e.clientX-x0, dy=e.clientY-y0;
       if(!drag){
         if(Math.hypot(dx,dy)<10) return;
         if(Math.abs(dx)>Math.abs(dy)*2.2){ gone=true; stop(); return; }      // 幾乎水平 = 捲手牌;斜著往上 = 拖牌
-        if(c.tgt!=='city' || !tyHasCard(k) || !(window.W3D && W3D.ok)){ gone=true; stop(); return; }
+        if(!planet && (c.tgt!=='city' || !tyHasCard(k) || !(window.W3D && W3D.ok))){ gone=true; stop(); return; }
         drag=true;
         tySfx('pick','tap');
-        tyCardGo(k);
+        if(planet){ if(TY_MODAL){ TY_MODAL=null; renderPage(); } W3D.planetAim(true); }
+        else tyCardGo(k);
         ghost=document.createElement('div'); ghost.className='pc-ghost';
         ghost.innerHTML=tyCardArt(c, 3)+`<b>${escH(c.nm)}</b>`;
         document.body.appendChild(ghost);
       }
       e.preventDefault();
       ghost.style.transform=`translate(${e.clientX}px,${e.clientY}px) translate(-50%,-115%)`;
-      W3D.aimAt(e.clientX, e.clientY);
+      if(planet) W3D.planetAimAt && W3D.planetAimAt(e.clientX, e.clientY);
+      else W3D.aimAt(e.clientX, e.clientY);
     };
     const up=e=>{
       stop();
       if(gone) return;
-      if(drag){ if(ghost) ghost.remove(); if(!W3D.aimDrop(e.clientX, e.clientY)) W3D.aimCancel(); }
+      if(drag && planet){
+        if(ghost) ghost.remove();
+        const i=W3D.planetAimDrop ? W3D.planetAimDrop(e.clientX, e.clientY) : -1;
+        if(i>=0) tySpacePlot(TY_PLANET, i);
+        else { TY_MSG='把牌拖到星球上的建地(白色框框)再放開 —— 或點一下牌,從清單裡選。'; tySfx('deny','deny'); renderPage(); }
+      }
+      else if(drag){ if(ghost) ghost.remove(); if(!W3D.aimDrop(e.clientX, e.clientY)) W3D.aimCancel(); }
       else { tySfx('pick','tap'); tyCardGo(k); }
     };
     addEventListener('pointermove', mv, { passive:false });
@@ -12547,6 +12623,7 @@ function bindTycoon(root){
     }
     if(a==='sfx'){ if(window.SFX) SFX.toggle(); renderPage(); return; }
     if(a==='fallok'){ TY_FALLQ.shift(); renderPage(); return; }
+    if(a==='plotpick'){ tySpacePlot(b.dataset.w, +b.dataset.i); return; }
     if(a==='rvinfo'){ TY_MODAL='rival'; TY_RIVAL=b.dataset.k; TY_DEAL=null; renderPage(); return; }
     if(a==='gohq'){ const r=TY.rivals.find(x=>x.id===b.dataset.k); if(r){ TY_MODAL=null; tyPickSite(r.home); } return; }
     if(a==='city'){ const r=b.getBoundingClientRect(); tyOpenCity(b.dataset.k, [r.left+r.width/2, r.top+r.height/2]); return; }
@@ -12584,13 +12661,15 @@ function bindTycoon(root){
     TY_LAST_MOVE=null; TY_LAST_STRIKE=null; TY_LAST_RECON=null; TY_LAST_LAUNCH=null;
     const s0=TY_SAVES;
     const play = TY_MODAL==='pick' && TY_PICK && a!=='partner' ? { k:TY_PICK.k, site:TY_PICK.site, label:tyCardLabel(TY_PICK.k, b) } : null;
+    const plot = (a==='spacebuild' || a==='spacegrab') ? { w:b.dataset.w, i:+b.dataset.i, a, b:b.dataset.b } : null;
     TY_MSG = tyDo(a, ()=>fn(b)) || '';
     /* 出牌的選項面板:做成了就收起來,讓你看到地圖上多出來的那一棟(或飛出去的那一架) */
     const done = TY_SAVES>s0;
     const br=b.getBoundingClientRect();
     if(TY_MODAL==='pick' && done && a!=='partner' && !(play && play.k==='recon')) TY_MODAL=null;   // 找完夥伴:面板留著,馬上就能蓋   // 偵察:留著面板看情報報告
     renderPage();
-    if(play && done) tyCardFly(play.k, play.site, play.label);
+    if(plot && done) tyPlotFly(plot, b);
+    else if(play && done) tyCardFly(play.k, play.site, play.label);
     else if(done){ tyBurst(br.left+br.width/2, br.top+br.height/2); tySfx(/buy|found|expand|upgrade|ipo/.test(a)?'coin':'hit','tap'); }
     else if(TY_MSG){ tySfx('deny','deny'); tyDenyShake(); }
     tyPlayLast();

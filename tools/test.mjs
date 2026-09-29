@@ -2512,7 +2512,12 @@ test('帝國第二十一輪:勢力圈、全面併吞、無盡模式、新富豪�
     tyStart('tester', 16); renderPage();
     out.noFlip = TY_NEWCARD.length === 0;
     TY_PLANET = 'mars'; tyCardGo('build');
-    out.planetBuild = TY_PICK && TY_PICK.k === 'plot' && TY_PICK.w === 'mars';
+    out.planetBuild = TY_PICK && TY_PICK.k === 'plots' && TY_PICK.w === 'mars';
+    TY_MODAL = 'pick'; renderPage();
+    const rows = document.querySelectorAll('.pl-row[data-ty="plotpick"]');
+    out.plotRows = rows.length;
+    if (rows[3]) rows[3].click();
+    out.plotChosen = TY_PICK && TY_PICK.k === 'plot' && TY_PICK.i === 3;
     TY_PLANET = null; TY_PICK = null; TY_MODAL = null;
     return out;
   });
@@ -2533,7 +2538,9 @@ test('帝國第二十一輪:勢力圈、全面併吞、無盡模式、新富豪�
   ok(r.todoUi, '待辦按鈕與清單畫得出來');
   ok(r.cap, '對手的太空建地最多佔一半');
   ok(r.noFlip, '測試人員不跳新牌解鎖');
-  ok(r.planetBuild, '在火星上出「建設」會開建地面板');
+  ok(r.planetBuild, '在火星上出「建設」會開「選哪一塊建地」的清單');
+  eq(r.plotRows, 10, '清單列出火星全部 10 塊建地');
+  ok(r.plotChosen, '從清單點一塊 → 開那一塊的面板');
   ok(page.__errors.length === 0, `有 JS 錯誤:\n      ${page.__errors.join('\n      ')}`);
   await page.__ctx.close();
 });

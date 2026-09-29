@@ -3552,10 +3552,53 @@ W3D.planetOpen = function(host, k, info){
     else if(b === 'green') bGreenhouse(B, soil);
     else if(b === 'lab'){ bFoundation(B, 10, 10, soil); bDome(B, -1.5, 0, .3, 2.6); vbox(B, 2.5, -.3, .3, .5, .5, 8, [200,200,210]); vbox(B, 1.8, -1, 8.3, 2, 2, .4, [238,242,247]); }
   };
+  /* 領土:每一塊有主的建地外面一片圓形的地(你的藍色、對手是他的顏色),邊緣一圈實線 ——
+     使用者:「也沒有顯示我在火星的領土」。貼著地表的弧面(不是平板),跟著星球彎。 */
+  const zoneG = new T.O3(); scene.add(zoneG);
+  const zmF = new T.Phong({ vertexColors: true, transparent: true, opacity: .5, depthWrite: false, side: 2,
+    polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 }); mats.push(zmF);
+  const zmB = new T.Phong({ vertexColors: true, transparent: true, opacity: .95, depthWrite: false, side: 2,
+    polygonOffset: true, polygonOffsetFactor: -5, polygonOffsetUnits: -5 }); mats.push(zmB);
+  zmF.emissive && zmF.emissive.set('#303030'); zmB.emissive && zmB.emissive.set('#404040');
+  const ZR = rad * .2, ZS = 40, PSC = BSC * 1.7;       // 建地上的建築比基地零件大一號:使用者要看得到自己蓋了什麼
+  const ring = (B, r0, r1, col, z0) => {
+    const P = (r, t) => [Math.cos(t) * r, Math.sin(t) * r, z0 - r * r / (2 * (rad + 1))];
+    for(let j = 0; j < ZS; j++){ const a = j / ZS * Math.PI * 2, b = (j + 1) / ZS * Math.PI * 2;
+      vquad(B, P(r0, a), P(r1, a), P(r1, b), P(r0, b), [0, 0, 1], col, 1); }
+  };
+  const zoneMesh = (d, col, m0, m1, parent) => {
+    const BF = VB(); for(let q = 0; q < 6; q++) ring(BF, ZR * q / 6, ZR * (q + 1) / 6, col, .35);
+    const BB = VB(); ring(BB, ZR * .9, ZR, col, .45);
+    const gF = vgeo(BF), gB = vgeo(BB); zgeos.push(gF, gB);
+    const g = new T.O3(); g.add(new T.Mesh(gF, m0)); g.add(new T.Mesh(gB, m1));
+    g.position.copy(d).multiplyScalar(rad + 1); g.quaternion.setFromUnitVectors(new V3(0, 0, 1), d);
+    parent.add(g); return g;
+  };
+  /* 拖牌瞄準:每一塊建地一圈白框(空地)/ 紅框(別人的),滑到哪一塊那一塊變黃、放大 */
+  const aimG = new T.O3(); aimG.visible = false; scene.add(aimG);
+  const amW = new T.Phong({ vertexColors: true, transparent: true, opacity: .9, depthWrite: false, side: 2,
+    polygonOffset: true, polygonOffsetFactor: -6, polygonOffsetUnits: -6 }); mats.push(amW);
+  amW.emissive && amW.emissive.set('#707070');
+  const aimRings = [], zgeos = [];
+  let plotInfo = [], aimOn = false, aimHover = -1;
+  const FX = [];
   const buildPlots = plots => {
-    const key = JSON.stringify((plots || []).map(p => [p.o, p.b]));
+    const key = JSON.stringify((plots || []).map(p => [p.o, p.b, p.col]));
     if(key === plotKey) return; plotKey = key;
+    plotInfo = plots || [];
     while(plotG.children.length){ const o = plotG.children.pop(); o.geometry && o.geometry.dispose(); }
+    while(zgeos.length) zgeos.pop().dispose();
+    while(zoneG.children.length) zoneG.children.pop();
+    while(aimG.children.length) aimG.children.pop();
+    aimRings.length = 0;
+    (plots || []).forEach((p, i) => {
+      const d = new V3(...dirOf(p.lat, p.lng));
+      if(p.o) zoneMesh(d, p.col.split(',').map(Number), zmF, zmB, zoneG);
+      const BA = VB(); ring(BA, ZR * .82, ZR * 1.02, p.o ? [255,90,80] : [240,244,250], .6);
+      const gA = vgeo(BA); zgeos.push(gA); const am = new T.Mesh(gA, amW);
+      am.position.copy(d).multiplyScalar(rad + 1); am.quaternion.setFromUnitVectors(new V3(0, 0, 1), d);
+      aimG.add(am); aimRings.push(am);
+    });
     plotPicks.length = 0;
     const soil = k === 'mars' ? [184,96,60] : [158,162,170];
     (plots || []).forEach((p, i) => {
@@ -3569,13 +3612,51 @@ W3D.planetOpen = function(host, k, info){
       const d = new V3(...dirOf(p.lat, p.lng));
       m.position.copy(d).multiplyScalar(rad + 1);
       m.quaternion.setFromUnitVectors(new V3(0, 0, 1), d);
-      m.scale.setScalar(BSC);
+      m.scale.setScalar(PSC);
       plotG.add(m);
       plotPicks.push({ m, i, tag: p.tag || '' });
     });
   };
   buildPlots(info.plots);
   W3D.planetPlots = inf => { if(inf) buildPlots(inf.plots); };
+  /* ---- 拖牌到建地(跟地球拖到城市同一種手感) ---- */
+  const plotNear = (cx, cy, lim) => {
+    const r = host.getBoundingClientRect(), x = cx - r.left, y = cy - r.top;
+    let bp = -1, bd = lim;
+    for(const p of plotPicks){ const w = p.m.getWorldPosition(new V3()); if(w.dot(cam.position) < rad * rad * .9) continue;
+      const s = proj(w); const d = Math.hypot(s[0] - x, s[1] - y); if(d < bd){ bd = d; bp = p.i; } }
+    return bp;
+  };
+  W3D.planetAim = on => { aimOn = !!on; aimG.visible = aimOn; aimHover = -1; if(!aimOn){ tip.hidden = true; for(const m of aimRings) m.scale.setScalar(1); } };
+  W3D.planetAimAt = (cx, cy) => {
+    if(!aimOn) return -1;
+    const i = plotNear(cx, cy, 80);
+    if(i !== aimHover){
+      aimHover = i; if(i >= 0) sfx('pick', 'tap');
+      aimRings.forEach((m, j) => m.scale.setScalar(j === i ? 1.25 : 1));
+      if(i >= 0){ const q = plotInfo[i] || {}; sel = plotPicks.find(p => p.i === i).m; tip.hidden = false;
+        tip.textContent = `${q.nm || '建地'} · ${q.o === 'me' ? '你的' : q.o ? '別人的(可以強行收購)' : '空地 —— 放開就選這塊'}`; }
+      else tip.hidden = true;
+    }
+    return i;
+  };
+  W3D.planetAimDrop = (cx, cy) => { const i = aimOn ? plotNear(cx, cy, 80) : -1; W3D.planetAim(false); return i; };
+  /* ---- 蓋好的回饋:建築一格一格長出來 + 衝擊圈 + 碎片往外噴,鏡頭轉過去 ---- */
+  W3D.planetBuildFx = i => {
+    const p = plotPicks.find(q => q.i === i); if(!p) return;
+    const d = p.m.getWorldPosition(new V3()).normalize(), now = performance.now();
+    const la0 = lat, lo0 = lng; setFromDir(d.clone().add(new V3(0, -.12, 0)).normalize());
+    const la1 = lat; let dl = lng - lo0; while(dl > 180) dl -= 360; while(dl < -180) dl += 360; lat = la0; lng = lo0;
+    tween = { t0: now, dur: 700, la0, lo0, d0: dist, la1, lo1: lo0 + dl, d1: Math.min(dist, rad * 2.1 * Math.max(1, .95 / cam.aspect)) };      // 直式手機站遠一點,不然整個畫面只剩那一塊
+    FX.push({ k: 'grow', m: p.m, t0: now + 500 });
+    const col = (plotInfo[i] && plotInfo[i].col ? plotInfo[i].col.split(',').map(Number) : [41,151,255]);
+    const BS = VB(); ring(BS, ZR * .85, ZR, col, .7); const gS = vgeo(BS); geos.push(gS);
+    const shock = new T.Mesh(gS, zmB); shock.position.copy(d).multiplyScalar(rad + 1); shock.quaternion.setFromUnitVectors(new V3(0, 0, 1), d);
+    scene.add(shock); shock.scale.setScalar(.2);
+    FX.push({ k: 'shock', m: shock, t0: now + 500 });
+    for(let n = 0; n < 16; n++){ const B = VB(); vbox(B, -.35, -.35, 0, .7, .7, .7, n % 3 ? [255,216,74] : [255,255,255]);
+      const m = own(B); m.visible = false; FX.push({ k: 'bit', m, d, a: n / 16 * Math.PI * 2, t0: now + 500 + (n % 4) * 40 }); }
+  };
   /* 背景:地球、另一顆星、火衛 —— 位置照太空場景的真實相對位置(同一把尺,換到星球的座標系) */
   const inv = SPACE.on ? SPACE[k].quaternion.clone().invert() : new Q();
   const toLocal = w => w.clone().sub(SPACE[k].position).applyQuaternion(inv).multiplyScalar(f);
@@ -3737,6 +3818,19 @@ W3D.planetOpen = function(host, k, info){
       p.m.position.copy(siteD).multiplyScalar(rad + 1.1 + u * .8).addScaledVector(t1, Math.cos(p.a) * u * 3.5).addScaledVector(t2, Math.sin(p.a) * u * 3.5);
       p.m.scale.setScalar(Math.max(.05, 1 - u));
     }
+    for(let n = FX.length - 1; n >= 0; n--){
+      const f = FX[n], u = (now - f.t0) / (f.k === 'grow' ? 800 : 900);
+      if(u < 0) continue;
+      if(f.k === 'grow'){ const st = Math.min(1, Math.floor(u * 8) / 8); f.m.scale.setScalar(PSC * Math.max(.05, st < 1 ? st * 1.12 : 1)); if(u >= 1){ f.m.scale.setScalar(PSC); FX.splice(n, 1); } }
+      else if(f.k === 'shock'){ f.m.scale.setScalar(.2 + u * 1.6); f.m.visible = u < 1 && ((now / 60) | 0) % 2 === 0 || u < .5; if(u >= 1){ scene.remove(f.m); FX.splice(n, 1); } }
+      else if(f.k === 'bit'){
+        f.m.visible = u < 1;
+        const t1 = new V3(-f.d.y, f.d.x, 0).normalize(), t2 = f.d.clone().cross(t1);
+        f.m.position.copy(f.d).multiplyScalar(rad + 1.2 + Math.sin(Math.min(1, u) * Math.PI) * 3).addScaledVector(t1, Math.cos(f.a) * u * 6).addScaledVector(t2, Math.sin(f.a) * u * 6);
+        f.m.scale.setScalar(Math.max(.05, 1 - u)); if(u >= 1){ scene.remove(f.m); FX.splice(n, 1); }
+      }
+    }
+    if(aimOn){ const pulse = 1 + Math.sin(now / 180) * .04; aimRings.forEach((m, j) => { if(j !== aimHover) m.scale.setScalar(pulse); }); }
     for(const o of moons){ const a = now / 1000 * o.w; o.m.position.set(Math.cos(a) * o.dist, Math.sin(a) * o.dist * .2, Math.sin(a) * o.dist); o.m.rotation.y = a; }
     place();
     rd.render(scene, cam);
@@ -3747,11 +3841,13 @@ W3D.planetOpen = function(host, k, info){
   PV.on = true; PV.k = k;
   PV.stat = { k, parts: picks.map(p => p.nm), moons: moons.length, bg: bg.map(b => b.k), rad, plots: () => plotPicks.length };
   W3D._plotScreen = i => { const p = plotPicks.find(q => q.i === i); if(!p) return null; const w = p.m.getWorldPosition(new V3()); const s = proj(w); const r = host.getBoundingClientRect(); return { x: s[0] + r.left, y: s[1] + r.top, front: w.dot(cam.position) > rad * rad }; };
+  W3D._plotZones = () => zoneG.children.length;
   W3D._planetLook = i => { const p = plotPicks.find(q => q.i === i); if(!p) return; setFromDir(p.m.getWorldPosition(new V3()).normalize()); tween = null; };
   PV.close = () => {
     cancelAnimationFrame(raf); if(ro) ro.disconnect();
     cvs.removeEventListener('wheel', onWheel);
-    for(const g of geos) g.dispose(); for(const m of mats) m.dispose();
+    for(const g of geos) g.dispose(); for(const g of zgeos) g.dispose(); for(const m of mats) m.dispose();
+    W3D.planetAim = W3D.planetAimAt = W3D.planetAimDrop = W3D.planetBuildFx = null;
     try{ rd.dispose(); rd.forceContextLoss && rd.forceContextLoss(); }catch(e){}
     cvs.remove(); tip.remove();
   };
