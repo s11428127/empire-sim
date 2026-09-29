@@ -2211,7 +2211,7 @@ function floatText(B, txt, cls){
   const p = W3D.screenOfLL(B.lat, B.lng); if(!p) return;
   const r = host.getBoundingClientRect();
   const el = document.createElement('div');
-  el.className = 'w3d-float ' + (cls || '');
+  el.className = 'w3d-pop ' + (cls || '');         // ⚠ 不能叫 w3d-float:那是季末重播在用的 class(樣式與清除都會撞)
   el.innerHTML = txt;
   el.style.left = (p.x - r.left) + 'px'; el.style.top = (p.y - r.top) + 'px';
   host.appendChild(el);

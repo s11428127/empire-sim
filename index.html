@@ -4568,13 +4568,16 @@
   .ty-threat.raid .toe-bar{position:relative;height:8px;border-radius:4px;background:#0f2233;margin:7px 0}
   .ty-threat.raid .toe-bar u{position:absolute;left:0;top:0;bottom:0;background:#ff453a;border-radius:4px}
   .ty-threat .toe-b{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
-  .w3d-float{position:absolute;z-index:228;transform:translate(-50%,-100%);pointer-events:none;white-space:nowrap;text-align:center;
+  .w3d-pop{position:absolute;z-index:228;transform:translate(-50%,-100%);pointer-events:none;white-space:nowrap;text-align:center;
     font-size:14px;font-weight:700;line-height:1.3;color:#fff;text-shadow:0 2px 0 #000,0 0 6px rgba(0,0,0,.8);
     padding:3px 8px;border-radius:5px;background:rgba(20,30,45,.72);border:1px solid rgba(255,255,255,.25);animation:w3dFloat 2.6s ease-out forwards}
-  .w3d-float.missile{border-color:#ff7a70} .w3d-float.air{border-color:#ffb340}
+  .w3d-pop.missile{border-color:#ff7a70} .w3d-pop.air{border-color:#ffb340}
+  .w3d-pop.inc{color:var(--up);border-color:var(--up);font-size:15px}
+  .w3d-pop.loss{color:var(--down);border-color:var(--down);font-size:15px}
+  .w3d-pop.rv{font-size:12px;font-weight:500;border-color:rgba(255,255,255,.35)}
   @keyframes w3dFloat{0%{opacity:0;transform:translate(-50%,-60%) scale(.8)}12%{opacity:1;transform:translate(-50%,-100%) scale(1.08)}
     75%{opacity:1}100%{opacity:0;transform:translate(-50%,-190%) scale(1)}}
-  @media (prefers-reduced-motion: reduce){ .w3d-float{animation:none;opacity:1} }
+  @media (prefers-reduced-motion: reduce){ .w3d-pop{animation:none;opacity:1} }
   .pc-box{display:flex;flex-wrap:wrap;gap:8px;margin:6px 0 10px}
   .pc-col{flex:1 1 220px;min-width:0;border-radius:6px;padding:8px 10px;border:1px solid var(--g-line2)}
   .pc-col.good{background:rgba(79,168,255,.08);border-color:rgba(79,168,255,.35)}
@@ -6888,6 +6891,7 @@ function tyAssault(rid, site){
   return tyAssaultApply(rid, site, o.f.reg, win, o.p, cost);
 }
 const tyBattles = () => (TY.battles = TY.battles || []);
+let TY_BATTLE_DONE=[];
 /* 戰鬥的進度(0~1)與雙方血量(給畫面層畫血條) */
 function tyBattleHP(b){
   const u=tyClamp(((TY.t+(TY.prog||0))-b.at)/b.dur, 0, 1);
@@ -6903,6 +6907,7 @@ function tyBattlesTick(){
     tyBattles().splice(tyBattles().indexOf(b),1);
     if(!tyRival(b.rid)){ out.push('對手已經不在了,戰鬥結束。'); continue; }
     out.push(tyAssaultApply(b.rid, b.site, b.reg, b.win, b.p, b.cost, true));
+    TY_BATTLE_DONE.push({ site:b.site, win:b.win });           // 給畫面層浮字(不進存檔)
   }
   return out;
 }
@@ -6984,11 +6989,11 @@ function tyOccupyTurn(){
    · 征服:原本要「所有人出局」—— 併吞要你是他的 1.5 倍,連最有錢的那個也要,等於比經濟霸權還難。
      改成「親手讓 3 位對手出局(併吞 / 打垮 / 封鎖到倒),而且你是榜首」 */
 const TY_WIN = {
-  econ: { ic:'💰', nm:'經濟霸權', dsc:'身家達到最有錢對手的 2 倍,連續 2 季' },
+  econ: { ic:'💰', nm:'經濟霸權', dsc:'第 10 季起,身家達到最有錢對手的 2 倍,連續 2 季' },
   war:  { ic:'⚔',  nm:'征服',     dsc:'親手讓 3 位對手出局(併吞、打垮、封鎖到倒),而且你是榜首' },
   mars: { ic:'🚀', nm:'火星殖民', dsc:'先建月球基地(登月 + 2 棟),火星計畫四段走完,再在火星上有 4 塊建地' },
 };
-const TY_WAR_N = 3;
+const TY_WAR_N = 3, TY_ECON_T = 10;
 const tyKills = () => TY.rivals.filter(r=>r.alive===false && r.deadBy==='me').length;
 const tyIsTop = () => tyShownNW() > Math.max(0, ...tyRivalsA().map(r=>r.nw));
 const TY_BEST_KEY = 'ty-best-v1';
@@ -7006,7 +7011,8 @@ function tyWinProg(){
 function tyVictoryCheck(){
   if(!TY || !TY.rt || TY.done || tyTester()) return;
   const nw=tyShownNW(), rv=tyRivalsA(), top=Math.max(0, ...rv.map(r=>r.nw));
-  TY.econHold = rv.length && nw >= 2*top ? (TY.econHold||0)+1 : 0;
+  /* 第四十一輪:第 10 季起才算(開局對手都還小,借一大筆錢就能在第 6 季「兩倍」—— 那不是霸權,是槓桿) */
+  TY.econHold = rv.length && TY.t>=TY_ECON_T && nw >= 2*top ? (TY.econHold||0)+1 : 0;
   for(const r of rv){
     const others=Math.max(nw, ...rv.filter(x=>x!==r).map(x=>x.nw));
     r.domHold = TY.t>=12 && r.nw >= 3*others ? (r.domHold||0)+1 : 0;
@@ -8156,7 +8162,7 @@ function tySpecEdge(id, kind, key){
    ========================================================================= */
 const TY_BIZ_PLAIN = {
   dev:'景氣好時最賺,升息時最先受傷', hotel:'現金流高、會帶名氣,衰退時會虧',
-  media:'本身賺得少,但每季幫你加名氣', brand:'幾乎不用本錢,名氣越高越賺',
+  media:'本身賺得少,但每季幫你加名氣', brand:'幾乎不用本錢,名氣越高越賺;同一個名字掛越多家越稀釋',
   tech:'前幾季會虧,但估值最高(上市最值錢)', fund:'賺管理費,景氣差時波動大',
   bank:'穩,升息時反而更賺', energy:'跟油價走,通膨、戰爭時最好',
   infra:'最穩、不怕景氣,要有人脈', shell:'不賺錢,拿來省稅(會被盯)',
@@ -8330,6 +8336,15 @@ function tyStart(scnK, seed){
    核心概念:**估值 = 資本 × 產業倍數 × 市場願意付的溢價**。
    第三項跟公司本身完全無關 —— 它是情緒。上市之後這一項會直接反映在你的
    身家上,所以上市的人身家會抖,沒上市的人不會。 */
+/* 品牌授權的報酬率(第四十一輪)。量測:照「川普路線」打(借錢、名氣、到處掛名),
+   第 6 季就經濟霸權 —— 因為一家品牌授權只要 3 億、現金流看名氣、估值 16 倍,可以無限複製。
+   現實裡同一個名字授權越多越不值錢(品牌稀釋)。所以:有效名氣 = 名氣 ÷ (1 + 0.15 ×(家數 − 1))。
+   extra = 還沒開、正在評估的那一家要不要算進去(選單預覽用 1) */
+function tyBrandRate(extra){
+  const n=TY.biz.filter(b=>b.k==='brand').length + (extra||0);
+  const fameEff=TY.fame/(1+.15*Math.max(0,n-1));
+  return .015 + fameEff/100*.20;
+}
 function tyBizVal(b){
   const d=TY_BIZ[b.k]; if(!d || d.shell) return 0;
   let mult=d.mult;
@@ -8359,6 +8374,7 @@ const tyNW = () => TY.cash + tyAssetVal() + tyBizTotal() - TY.debt + tySpaceVal(
 
 /* 可以抵押借到多少:每一類資產的成數不同,事業只算七成的估值,
    信用分數決定你能不能借到上限。放空的部位不但不能抵押,還要佔用額度。 */
+const tyBorrowMaxRaw = () => tyBorrowMax();
 function tyBorrowMax(){
   let base=0;
   for(const p of TY.pos){
@@ -8380,6 +8396,10 @@ function tyRate(){
      代價是你的現金從此暴露在那個地區的危機裡(外匯管制、銀行危機、資產凍結
      都只發生在錢所在的地方,見 tyMoveCash)。 */
   if(tySpecs(TY.cashSite).includes('lowrate')) r -= .8;
+  /* 第四十一輪:借越滿越貴 —— 銀行看的是你用掉多少額度。用超過一半,每多 10% 利率 +0.4%
+     (量測:以前借到上限的七成跟借一點點是同一個利率,槓桿等於免費的印鈔機) */
+  const use=TY.debt/Math.max(1e8, tyBorrowMaxRaw());
+  r += Math.max(0, use-.5)*4;
   return Math.max(.6, r);
 }
 /* 現在的現金放在哪裡、換到了什麼 —— 給畫面用的一句話 */
@@ -8497,7 +8517,7 @@ function tyNext(){
     const d=TY_BIZ[b.k]; if(!d || d.shell) continue;
     if(b.ready!=null && b.ready>TY.t){ b.cf=0; continue; }       // 施工中:還沒有現金流
     let rate=d.cf;
-    if(d.fameCf) rate = .015 + TY.fame/100*.20;      // 品牌授權:名氣就是營收
+    if(d.fameCf) rate = tyBrandRate(0);               // 品牌授權:名氣就是營收(掛越多家越稀釋)
     // 城市特色:在新竹開科技公司跟在拉哥斯開,同樣的資本吐出來的現金流不一樣
     rate *= tySpecMul(b.site||TY.home, 'biz', b.k, 'cf');
     const s=d.sens||{};
@@ -9685,7 +9705,7 @@ const tyUpCost = b => b.cap*(TY_LV_STEP-1);
 function tyBizCfEst(b){
   if(b.cf) return b.cf;
   const d=TY_BIZ[b.k]; if(d.shell) return 0;
-  const rate=d.fameCf ? .015+TY.fame/100*.20 : d.cf;
+  const rate=d.fameCf ? tyBrandRate(0) : d.cf;
   return b.cap*rate*tySpecMul(b.site||TY.home,'biz',b.k,'cf')*tyClamp(tyRegIdx(tySite(b.site||TY.home).reg),.3,2.2);
 }
 function tyUpPreview(b){
@@ -12672,7 +12692,7 @@ function tySitePanel(id){
     .filter(([k,d])=>!d.shell && s.kind.includes(TY_BIZ_KIND[k]||'hq'))
     .map(([k,d])=>{
       const cost=tyBizCost(k,id), edge=tySpecEdge(id,'biz',k);
-      const cf=cost*(d.fameCf ? .015+TY.fame/100*.20 : d.cf)
+      const cf=cost*(d.fameCf ? tyBrandRate(1) : d.cf)
              * tySpecMul(id,'biz',k,'cf') * tyClamp(idx,.3,2.2);
       return act(
         `<button type="button" class="ty-b${tyCanDo('found',{k,site:id})?'':' no'}"
@@ -13624,10 +13644,31 @@ function tyClockPaint(){
   if(pb && TY.rt && !tyTester()){ const f=(tyApNow()%1); pb.style.setProperty('--apf', (tyApNow()>=tyApMax()?0:f*100).toFixed(0)+'%'); }
 }
 /* 一季結算(按鈕與時鐘共用)。auto:時鐘自己走到的(不播換季的整片轉場、部隊到位不搶鏡頭) */
+/* =========================================================================
+   地圖上的浮字(第四十一輪:「動畫做到完整、更豐富」)
+   · (季末每座城的賺賠:W3D.play 的重播本來就有)
+   · 戰鬥結算:打贏 / 打輸
+   · 對手擴張:他的顏色、「🏢 分部」「🏳 買下」
+   全部只讀規則的結果,不改狀態、不擲骰
+   ========================================================================= */
+function tyFloat(site, txt, cls, delay){
+  if(!window.W3D || !W3D.floatText || TY_PLANET) return;
+  setTimeout(()=>{ try{ W3D.floatText(site, txt, cls); }catch(e){} }, delay||0);
+}
+let TY_RV_SEEN=0;
+function tyLiveFloats(){
+  while(TY_BATTLE_DONE.length){ const b=TY_BATTLE_DONE.shift(); tyFloat(b.site, b.win?'⚔ 打贏了':'💥 打輸了', b.win?'inc':'loss'); }
+  if(TY_RV_EV.length<TY_RV_SEEN) TY_RV_SEEN=0;                  // 換季時對手事件清空重來
+  for(; TY_RV_SEEN<TY_RV_EV.length; TY_RV_SEEN++){
+    const e=TY_RV_EV[TY_RV_SEEN], r=tyRival(e.rid); if(!r || e.k!=='expand' || !e.site) continue;
+    tyFloat(e.site, `<b style="color:rgb(${TY_RVCOL[r.id]||'255,69,58'})">${r.ic||''} ${escH(r.nm)}</b><br>${tySite(e.site).minor?'🏳 買下這一國':'🏢 開分部'}`, 'rv');
+  }
+}
 function tyQuarterGo(auto){
   const snap=window.W3D ? W3D.snap() : null;
   const moving=tyUnits().filter(u=>u.to).map(u=>({ id:u.id, k:u.k, to:u.to }));
   tyNext(); renderPage();
+  TY_RV_SEEN=0; TY_BATTLE_DONE.length=0;          // 季末每座城的賺賠由 W3D.play 的重播浮出來(不重複)
   if(!auto) tyWipe();
   tySfx('next','next');
   if(snap) W3D.play(snap);
@@ -13663,7 +13704,7 @@ function tyClockTick(){
 
     if(TY.prog>=1){ TY.prog-=1; tyQuarterGo(true); return; }
   }
-  tyClockPaint(); tyBattlesPaint(); tyMovesPaint(); tyCmdLive(); tyAlertsLive();
+  tyClockPaint(); tyBattlesPaint(); tyMovesPaint(); tyCmdLive(); tyAlertsLive(); tyLiveFloats();
 }
 /* 指揮中心開著的時候,每支部隊的狀態(還剩幾秒、等到齊)跟著時間更新 —— 只換那一行字,不重畫整頁 */
 function tyCmdLive(){
@@ -13994,7 +14035,7 @@ function tyPickHTML(){
       /* 第四十輪:一眼看出「每季賺多少、幾季回本、這座城有沒有加成」,細節收到小字 */
       body=tyPartnerGate(id)+tyProsConsHTML(id, true)+opts.map(k=>{
         const d=TY_BIZ[k], cost=tyBizCost(k,id);
-        const cf=d.shell?0:cost*(d.fameCf ? .015+TY.fame/100*.20 : d.cf)*tySpecMul(id,'biz',k,'cf')*tyClamp(tyRegIdx(s.reg),.3,2.2);
+        const cf=d.shell?0:cost*(d.fameCf ? tyBrandRate(1) : d.cf)*tySpecMul(id,'biz',k,'cf')*tyClamp(tyRegIdx(s.reg),.3,2.2);
         const img=PX.img('pk:biz:'+k, k==='shell'?PX.SPR.shell:PX.bizTower(k,.35), { fit:[56,64] });
         const edge=tySpecEdge(id,'biz',k);
         const big = d.shell ? `<b class="pk-big">不賺錢 · 省稅用</b>`
