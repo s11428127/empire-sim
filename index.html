@@ -1186,6 +1186,9 @@
   /* 貼近之後字變大,讓道也要跟著變寬,不然兩張名牌會黏在一起 */
   #tyGlobeHost[data-z="near"] .tyk{--laneh:19px}
   #tyGlobeHost[data-z="near"] .tyk.idle{opacity:.8}
+  /* 各國首都(第三十輪):一百多座,只在拉近時出現名字 */
+  #tyGlobeHost:not([data-z="near"]) .tyk.idle.minor{display:none}
+  .tyk.idle.minor .k-n{font-size:9.5px;color:#9fb3c4}
 
   .ty-map-p{background:var(--panel);border-radius:var(--radius-lg);padding:18px 20px;
     max-height:min(72vh,680px);overflow-y:auto}
@@ -4677,6 +4680,17 @@
   #tyGlobeHost[data-space="1"] .w3d-tag,#tyGlobeHost[data-space="1"] .tyu,#tyGlobeHost[data-space="1"] .tyk{visibility:hidden}
   #tyGlobeHost[data-far="1"] .w3d-tag.th{background:linear-gradient(180deg,#b3261e,#7a1510);border-color:#ffd0c8}
   #tyGlobeHost[data-far="1"] .w3d-tag.th b{color:#ffe1dc}
+  /* 手機、還沒拉很近:部隊標籤只留國旗(兩支以上多一個兵種圖示),誰的看框的顏色(你是藍框) */
+  .w3d-tag .tg-2{display:none}
+  @media (max-width:640px){
+    #tyGlobeHost:not([data-z="near"]) .w3d-tag .tg-more{display:none}
+    #tyGlobeHost:not([data-z="near"]) .w3d-tag .tg-2{display:inline-flex;align-items:center;gap:1px;margin-left:2px;font-size:11px}
+    #tyGlobeHost:not([data-z="near"]) .w3d-tag .tg-2 b{font-size:9px;color:#fff;margin:0}
+    #tyGlobeHost:not([data-z="near"]) .w3d-tag{display:flex;align-items:center;padding:2px 3px;min-width:0;
+      background:rgba(10,18,28,.88);border:2px solid var(--rc,#2f8fe0);border-radius:3px;box-shadow:0 1px 3px rgba(0,0,0,.7)}
+    #tyGlobeHost:not([data-z="near"]) .w3d-tag .pxflag{height:11px;margin:0}
+    #tyGlobeHost:not([data-z="near"]) .w3d-tag.th{background:rgba(90,18,18,.94)}
+  }
 
   /* 滑鼠停在國家 / 城市上的小卡 */
   .w3d-hover{position:absolute;left:0;top:0;z-index:175;pointer-events:none;max-width:240px;
@@ -4874,6 +4888,8 @@
   .hd-todo{ position:absolute; top:4px; right:8px; font:inherit; font-size:12px; line-height:1; padding:4px 8px; cursor:pointer;
     background:#1b2a3a; color:#cfe3f5; border:2px solid #000; box-shadow:inset 0 0 0 1px rgba(255,255,255,.12) }
   .hd-todo b{ color:#ffd60a; font-weight:400 }
+  .lc-bar{ height:8px; margin:4px 0 8px; background:rgba(255,255,255,.08); border:2px solid #000 }
+  .lc-bar u{ display:block; height:100%; background:linear-gradient(90deg,#2f8fe0,#7fd8ff); text-decoration:none }
   .pl-list{ display:grid; gap:6px; margin-top:10px }
   .pl-row{ display:flex; align-items:center; gap:10px; width:100%; text-align:left; font:inherit; cursor:pointer;
     padding:9px 10px; background:rgba(255,255,255,.04); color:#e8f1f8; border:2px solid #000; box-shadow:inset 0 0 0 1px rgba(255,255,255,.1) }
@@ -5936,16 +5952,16 @@ const TY_UNITS = {
   /* 使用者:「軍隊我要改成坦克、步兵、火炮等等」。兵種的**效果不變**(平衡與測試都建立在上面),
      只是換成軍隊的樣子與名字 —— 括號裡是它在商戰裡代表的東西。 */
   raid:  { nm:'坦克營',   ic:'🚜', alt:'併購小組', pct:.030, min:.5e8, def:.7,
-           dsc:'攻擊主力(併購小組)。駐在一個地區:每季削掉那裡最強對手 3 點勢力、壓低當地競爭。駐在對手大本營的地區:對他敵意收購 +10%(最多 +30%)。' },
+           dsc:'攻擊主力(併購小組)。駐在一個地區:每季削掉那裡最強對手 3 點勢力、壓低當地競爭。駐在對手大本營的地區:對他敵意收購 +10%(最多 +30%)。駐在對手大本營那座城 = 封鎖:他每季身家 −1%,三成轉成你的現金。駐在各國首都:佔領 +25/季。' },
   law:   { nm:'步兵連',   ic:'🪖', alt:'律師團', pct:.020, min:.3e8, def:1.0,
-           dsc:'防守主力(律師團)。不管駐在哪裡,每季關注度 −1.5。被攻擊的時候防守力 1.0,其他兵種只有它的一半左右。' },
+           dsc:'防守主力(律師團)。不管駐在哪裡,每季關注度 −1.5。被攻擊的時候防守力 1.0,其他兵種只有它的一半左右。駐在各國首都:佔領 +15/季。' },
   lobby: { nm:'火炮陣地', ic:'💣', alt:'遊說團', pct:.025, min:.4e8, def:.4,
-           dsc:'遠程施壓(遊說團)。駐在一個地區:每季人脈 +1.2、關注 +0.3。砲聲是聽得見的 —— 打得越勤,被記下來的也越多。' },
+           dsc:'遠程施壓(遊說團)。駐在一個地區:每季人脈 +1.2、關注 +0.3。砲聲是聽得見的 —— 打得越勤,被記下來的也越多。駐在各國首都:佔領 +10/季。' },
   mgr:   { nm:'補給車隊', ic:'🚚', alt:'經理人', pct:.015, min:.25e8, def:.2,
-           dsc:'後勤(經理人)。駐在一個城市:你在那裡的事業現金流 +15%(同一城最多算兩隊)。它不打仗,但它讓錢變多。' },
+           dsc:'後勤(經理人)。駐在一個城市:你在那裡的事業現金流 +15%(同一城最多算兩隊)。它不打仗,但它讓錢變多。駐在各國首都:佔領 +5/季。' },
   /* 使用者:「可以加海軍,有航母」。最貴的一種兵,只能待在港口城市、走海路。 */
   navy:  { nm:'航母戰鬥群', ic:'⚓', alt:'航運與港口', pct:.045, min:1e8, def:.8, port:true,
-           dsc:'海權(航運與港口)。只能駐在港口城市、走海路。駐在一個地區:那裡你的事業現金流 +8%(航運)、最強對手勢力每季 −2、當地競爭下降;防守力 0.8。' },
+           dsc:'海權(航運與港口)。只能駐在港口城市、走海路。駐在一個地區:那裡你的事業現金流 +8%(航運)、最強對手勢力每季 −2、當地競爭下降;防守力 0.8。駐在對手大本營 = 封鎖;駐在各國首都:佔領 +15/季。' },
 };
 /* 港口城市:航母只能停這些地方(內陸的拉斯維加斯、芝加哥、蘇黎世、北京…停不了) */
 const TY_PORTS = new Set(('nyc sfo mia hou del lon dub mon hkg sha shz tpe hsz tky osa seo sin bkk jkt hcm syd '
@@ -6334,6 +6350,94 @@ function tySpaceRace(){
   }
   // 對手的太空建地讓他的身家每季多長一點(每塊 0.5%)
   for(const w of ['moon','mars']) for(const p of tyPlots(w)){ const r=p.o&&p.o!=='me'?tyRival(p.o):null; if(r) r.nw*=1.005; else if(p.o && p.o!=='me'){ p.o=null; p.b=null; } }
+}
+/* =========================================================================
+   地方富豪與佔領(第三十輪)
+   -------------------------------------------------------------------------
+   使用者:「軍隊的用途你再幫我想想,我不想要脫離原本經濟的主題,但又怕軍隊太沒有用」。
+   每一座小國首都有一位地方富豪 —— 不是第七個對手(一百多個對手會讓地圖與電腦都塞爆),
+   他不擴張、不出兵、不在地圖上畫部隊,只是「這個國家的錢在誰手上」。兩條路拿下他:
+     💰 收購:付他身家的 1.2 倍,馬上接收 → 那國多一家你的公司、整國變你的
+     🪖 佔領:派部隊駐在他的城市,每季累積控制度(坦克 25、步兵 15、航母 15、火炮 10、補給 5),
+        滿 100 接收(只拿到他身家的六成 —— 硬搶的會跑掉一部分);佔領期間每季收保護費,
+        但每支部隊每季關注 +0.6。沒有部隊在場,控制度每季掉 10。
+   另外:坦克營 / 航母駐在**對手大本營那座城** = 封鎖,每支每季讓他身家 −1%(最多 3 支),
+   其中三成變成你的現金(客戶與訂單轉到你這邊)。
+   全部是確定性的(不擲骰):名字與身家由國碼與開局種子推出來,不影響任何既有的亂數序列。
+   ========================================================================= */
+const TY_OCC = { raid:25, law:15, navy:15, lobby:10, mgr:5 };
+const TY_LOC_NM = {
+  eu:['Petrov','Novák','Horváth','Kowalski','Rossi','García','Jansen','Nilsson','Dimitrov','Popescu','Silva','Virtanen','Kovač','Papadopoulos','Lindqvist','Volkov','Abenov','Karimov'],
+  me:['Al-Rashid','Haddad','Nasser','Karimi','Yılmaz','Aliyev','Petrosyan','Al-Sabah','Khoury','Mansour','Beridze','Farouk'],
+  sa:['Khan','Rahman','Perera','Shrestha','Chaudhry','Dorji','Sultani','Qureshi'],
+  latam:['Mendoza','Rodríguez','Herrera','Castillo','Vargas','Morales','Rojas','Pérez','Duarte','Fuentes','Salazar','Ortega'],
+  af:['Okafor','Mensah','Diallo','Kamau','Traoré','Banda','Moyo','Haile','Ndiaye','Kariuki','Tembo','Ouédraogo','Mutasa','Benali'],
+  apac:['Santos','Tan','Lim','Sokha','Aung','Wongsakul','Taufa','Kila','Reyes','Bolkiah','Walker'],
+  MN:['Batbayar','Ganbold','Tsogt'], KP:['Ri','Pak','Kim'], GL:['Jensen','Petersen'], cn:['Batbayar'], na:['Jensen'],
+};
+const tyHash = str => { let h=2166136261; for(const c of String(str)){ h^=c.charCodeAt(0); h=Math.imul(h,16777619); } return h>>>0; };
+function tyLocal(id){
+  const s=TY_SITE[id]; if(!s || !s.minor || !TY) return null;
+  TY.loc=TY.loc||{};
+  const st=TY.loc[id]=TY.loc[id]||{ ctl:0, gone:false };
+  const h=tyHash(s.iso+':'+(TY.seed0||0));
+  const pool=TY_LOC_NM[s.iso]||TY_LOC_NM[s.reg]||TY_LOC_NM.eu;      // 國家專屬的姓氏表優先(蒙古跟北韓不能共用)
+  const nm=`${'ABCDEFGHJKLMNPRST'[h%17]}. ${pool[(h>>>5)%pool.length]}`;
+  const base=(6+((h>>>11)%40))*1e8;                                  // 6~45 億
+  const nw=base*tyClamp(tyRegIdx(s.reg),.4,3)*Math.pow(1.012, TY.t);   // 跟著當地景氣與時間長
+  return { id, s, nm, nw, st, ic:'🎩' };
+}
+const tyLocalPrice = L => L.nw*1.2;
+/* 接收:他的產業變成你在那座城的一家公司(估值 = 拿到的金額,見 tyAcqBiz 的理由) */
+function tyLocalTake(id, how){
+  const L=tyLocal(id); if(!L || L.st.gone) return 0;
+  const val=L.nw*(how==='army'?.6:1);
+  const b={ id:TY.bizId++, k:'dev', site:id, cap:1e8, own:1, pub:false, cf:0, born:TY.t };
+  const unit=Math.max(1e6, tyBizVal(b)); b.cap=Math.max(1e7, val*1e8/unit);
+  TY.biz.push(b);
+  L.st.gone=true; L.st.by=how; L.st.t=TY.t; L.st.ctl=100;
+  TY.fame=tyClamp(TY.fame+2,0,100);
+  tyNews('good', `🏳 ${L.s.sub}是你的了`, `${how==='army'?'部隊駐了夠久':'一筆收購'},${L.nm}把產業交出來 —— ${L.s.nm}多一家值 ${tyM(val)} 的公司,整個${L.s.sub}變成你的勢力範圍。`);
+  tyLog('biz', `🏳 接收${L.s.sub}的地方富豪 ${L.nm}(${how==='army'?'佔領':'收購'}),${L.s.nm}多一家值 ${tyM(val)} 的公司。`);
+  return val;
+}
+function tyLocalBuy(id){
+  const blocked=tyBlock('localbuy', id); if(blocked) return blocked;
+  const L=tyLocal(id), price=tyLocalPrice(L);
+  TY.cash-=price; TY.heat=tyClamp(TY.heat+3,0,120);
+  const val=tyLocalTake(id,'money');
+  TY_LAST_TAKE={ site:id };
+  tySave();
+  return `<b>🏳 ${escH(L.s.sub)}是你的了。</b>付給 ${escH(L.nm)} ${tyM(price)},${escH(L.s.nm)}多一家值 ${tyM(val)} 的公司。`
+       + `溢價那兩成是「讓他點頭」的錢 —— 用部隊佔領便宜得多,但要幾季。`;
+}
+let TY_LAST_TAKE=null;                         // 給畫面層播插旗(不進存檔)
+/* 每一季(tyUnitsTurn 的最後):佔領、保護費、封鎖。回傳這一季的保護費 + 封鎖收益 */
+function tyOccupyTurn(){
+  let gain=0;
+  const occ=new Set();
+  for(const u of tyUnits()) if(!u.to && TY_SITE[u.site] && TY_SITE[u.site].minor) occ.add(u.site);
+  for(const id of occ){
+    const L=tyLocal(id); if(!L || L.st.gone) continue;
+    const here=tyUnitsAt(id);
+    L.st.ctl=Math.min(100, L.st.ctl + here.reduce((a,u)=>a+(TY_OCC[u.k]||0),0));
+    const trib=L.nw*.015*here.filter(u=>(TY_OCC[u.k]||0)>=10).length;
+    gain+=trib; TY.tribute=(TY.tribute||0)+trib;
+    TY.heat=tyClamp(TY.heat+.6*here.length,0,120);
+    if(L.st.ctl>=100){ tyLocalTake(id,'army'); TY_LAST_TAKE={ site:id }; }
+  }
+  for(const id in (TY.loc||{})){ const st=TY.loc[id]; if(!st.gone && st.ctl>0 && !occ.has(id)) st.ctl=Math.max(0, st.ctl-10); }
+  for(const r of tyRivalsA()){
+    const n=Math.min(3, tyUnitsAt(r.home).filter(u=>u.k==='raid'||u.k==='navy').length);
+    if(!n) continue;
+    const cut=r.nw*.01*n;
+    r.nw-=cut; gain+=cut*.3;
+    r.rel=tyClamp((r.rel||0)-6,-100,100); TY.heat=tyClamp(TY.heat+.8*n,0,120);
+    tyLog('unit', `⛓ 封鎖${tySite(r.home).nm}:${r.nm}身家 −${tyM(cut)},其中 ${tyM(cut*.3)} 的生意轉到你這邊。`);
+    if(r.nw<2e8) tyRivalDown(r,'me','大本營被你封鎖到撐不下去');
+  }
+  TY.cash+=gain;
+  return gain;
 }
 const tyStrikeReady = k => tyTester() || ((TY.cd||{})[k]||0) <= TY.t;
 /* 打哪一個對手:飛彈打他本人(目標城市 = 他的大本營);空襲打那個地區勢力最大的對手 */
@@ -6859,6 +6963,163 @@ const TY_SITES = [
     kind:['shell','bank'], spec:['offshore','finhub','thin'], note:'再保險的世界首都。2025 年起對大型跨國集團開始課 15% —— 0% 的時代正在結束。' },
 ];
 
+/* ── 各國首都(第三十輪)──────────────────────────────────────────────
+   使用者:「有些國家沒有城市,所以也沒有辦法佔領,我想要加上去」。原本 44 座城只落在 33 個國家,
+   其餘一百多國在地圖上是「點不進去、拿不下來」的空白。現在每一個真的國家都有一座城
+   (首都,或它真正的經濟中心 —— 伊斯坦堡、喀拉蚩、卡薩布蘭加),標 minor:
+     · 地圖上沒有地標模型、名字只在拉近時出現(不然手機上一百多個名字會把畫面淹掉)
+     · 可以開公司、買房地產;沒有交易所、銀行、空殼
+     · ⚠ 稅率是**約略值**(法定公司稅率的大概,畫面上會註明),不是 44 座主要城市那種查證過的數字
+     · 每一座都有一位「地方富豪」(tyLocal):用錢收購,或派兵佔領 */
+const TY_MINOR_SRC = `
+AL|阿爾巴尼亞|地拉那|eu|41.33|19.82|.15
+AT|奧地利|維也納|eu|48.21|16.37|.23
+BA|波士尼亞|塞拉耶佛|eu|43.86|18.41|.10
+BE|比利時|布魯塞爾|eu|50.85|4.35|.25
+BG|保加利亞|索菲亞|eu|42.70|23.32|.10
+BY|白俄羅斯|明斯克|eu|53.90|27.57|.20
+CY|賽普勒斯|尼古西亞|eu|35.17|33.36|.125
+CZ|捷克|布拉格|eu|50.08|14.44|.21
+DK|丹麥|哥本哈根|eu|55.68|12.57|.22
+EE|愛沙尼亞|塔林|eu|59.44|24.75|.22
+ES|西班牙|馬德里|eu|40.42|-3.70|.25
+FI|芬蘭|赫爾辛基|eu|60.17|24.94|.20
+GR|希臘|雅典|eu|37.98|23.73|.22
+HR|克羅埃西亞|札格雷布|eu|45.81|15.98|.18
+HU|匈牙利|布達佩斯|eu|47.50|19.04|.09
+IS|冰島|雷克雅維克|eu|64.15|-21.94|.20
+IT|義大利|米蘭|eu|45.46|9.19|.24
+LT|立陶宛|維爾紐斯|eu|54.69|25.28|.16
+LV|拉脫維亞|里加|eu|56.95|24.11|.20
+MD|摩爾多瓦|基希涅夫|eu|47.01|28.86|.12
+ME|蒙特內哥羅|波德里查|eu|42.44|19.26|.15
+MK|北馬其頓|史高比耶|eu|42.00|21.43|.10
+NL|荷蘭|阿姆斯特丹|eu|52.37|4.90|.258
+NO|挪威|奧斯陸|eu|59.91|10.75|.22
+PL|波蘭|華沙|eu|52.23|21.01|.19
+PT|葡萄牙|里斯本|eu|38.72|-9.14|.20
+RO|羅馬尼亞|布加勒斯特|eu|44.43|26.10|.16
+RS|塞爾維亞|貝爾格勒|eu|44.79|20.45|.15
+RU|俄羅斯|莫斯科|eu|55.76|37.62|.25
+SE|瑞典|斯德哥爾摩|eu|59.33|18.07|.206
+SI|斯洛維尼亞|盧比安納|eu|46.06|14.51|.22
+SK|斯洛伐克|布拉提斯拉瓦|eu|48.15|17.11|.21
+UA|烏克蘭|基輔|eu|50.45|30.52|.18
+KZ|哈薩克|阿拉木圖|eu|43.24|76.89|.20
+UZ|烏茲別克|塔什干|eu|41.30|69.24|.15
+KG|吉爾吉斯|比斯凱克|eu|42.87|74.59|.10
+TJ|塔吉克|杜尚別|eu|38.56|68.79|.18
+TM|土庫曼|阿什哈巴特|eu|37.96|58.33|.08
+AM|亞美尼亞|葉里溫|me|40.18|44.51|.18
+AZ|亞塞拜然|巴庫|me|40.41|49.87|.20
+GE|喬治亞|提比里斯|me|41.72|44.79|.15
+IQ|伊拉克|巴格達|me|33.31|44.36|.15
+IR|伊朗|德黑蘭|me|35.69|51.39|.25
+JO|約旦|安曼|me|31.95|35.93|.20
+KW|科威特|科威特市|me|29.38|47.99|.15
+LB|黎巴嫩|貝魯特|me|33.89|35.50|.17
+OM|阿曼|馬斯喀特|me|23.59|58.41|.15
+SY|敘利亞|大馬士革|me|33.51|36.29|.22
+TR|土耳其|伊斯坦堡|me|41.01|28.98|.25
+YE|葉門|亞丁|me|12.79|45.02|.20
+EG|埃及|開羅|me|30.04|31.24|.225
+BH|巴林|麥納瑪|me|26.23|50.59|.00
+AF|阿富汗|喀布爾|sa|34.53|69.17|.20
+BD|孟加拉|達卡|sa|23.81|90.41|.275
+BT|不丹|廷布|sa|27.47|89.64|.30
+LK|斯里蘭卡|可倫坡|sa|6.93|79.86|.30
+NP|尼泊爾|加德滿都|sa|27.72|85.32|.25
+PK|巴基斯坦|喀拉蚩|sa|24.86|67.01|.29
+MN|蒙古|烏蘭巴托|cn|47.89|106.91|.25
+KP|北韓|平壤|cn|39.04|125.76|.25
+KH|柬埔寨|金邊|apac|11.56|104.92|.20
+LA|寮國|永珍|apac|17.98|102.63|.20
+MM|緬甸|仰光|apac|16.87|96.20|.22
+MY|馬來西亞|吉隆坡|apac|3.14|101.69|.24
+PH|菲律賓|馬尼拉|apac|14.60|120.98|.25
+BN|汶萊|斯里巴卡旺|apac|4.90|114.94|.185
+TL|東帝汶|帝力|apac|-8.56|125.57|.10
+PG|巴布亞紐幾內亞|莫士比港|apac|-9.44|147.18|.30
+NZ|紐西蘭|奧克蘭|apac|-36.85|174.76|.28
+FJ|斐濟|蘇瓦|apac|-18.14|178.44|.20
+SB|索羅門群島|荷尼阿拉|apac|-9.43|159.95|.30
+VU|萬那杜|維拉港|apac|-17.73|168.32|.00
+GL|格陵蘭|努克|na|64.18|-51.72|.25
+AR|阿根廷|布宜諾斯艾利斯|latam|-34.60|-58.38|.35
+BO|玻利維亞|拉巴斯|latam|-16.49|-68.15|.25
+BZ|貝里斯|貝爾墨潘|latam|17.25|-88.77|.25
+CO|哥倫比亞|波哥大|latam|4.71|-74.07|.35
+CR|哥斯大黎加|聖荷西|latam|9.93|-84.08|.30
+CU|古巴|哈瓦那|latam|23.11|-82.37|.35
+DO|多明尼加|聖多明哥|latam|18.49|-69.93|.27
+EC|厄瓜多|基多|latam|-0.18|-78.47|.25
+GT|瓜地馬拉|瓜地馬拉市|latam|14.63|-90.51|.25
+GY|蓋亞那|喬治城|latam|6.80|-58.16|.25
+HN|宏都拉斯|德古西加巴|latam|14.07|-87.19|.25
+HT|海地|太子港|latam|18.54|-72.34|.30
+JM|牙買加|京斯敦|latam|17.97|-76.79|.25
+NI|尼加拉瓜|馬拿瓜|latam|12.11|-86.24|.30
+PA|巴拿馬|巴拿馬市|latam|8.98|-79.52|.25
+PE|秘魯|利馬|latam|-12.05|-77.04|.295
+PY|巴拉圭|亞松森|latam|-25.26|-57.58|.10
+SR|蘇利南|巴拉馬利波|latam|5.85|-55.20|.36
+SV|薩爾瓦多|聖薩爾瓦多|latam|13.69|-89.22|.30
+TT|千里達及托巴哥|西班牙港|latam|10.65|-61.50|.30
+UY|烏拉圭|蒙特維多|latam|-34.90|-56.16|.25
+VE|委內瑞拉|卡拉卡斯|latam|10.48|-66.90|.34
+AO|安哥拉|羅安達|af|-8.84|13.23|.25
+BF|布吉納法索|瓦加杜古|af|12.37|-1.52|.275
+BI|蒲隆地|布松布拉|af|-3.38|29.36|.30
+BJ|貝南|科托努|af|6.37|2.39|.30
+BW|波札那|嘉柏隆里|af|-24.65|25.91|.22
+CD|剛果(金)|金夏沙|af|-4.32|15.31|.30
+CF|中非|班基|af|4.39|18.56|.30
+CG|剛果(布)|黑角|af|-4.78|11.86|.28
+CI|象牙海岸|阿必尚|af|5.36|-4.01|.25
+CM|喀麥隆|杜阿拉|af|4.05|9.70|.33
+DJ|吉布地|吉布地市|af|11.59|43.15|.25
+DZ|阿爾及利亞|阿爾及爾|af|36.75|3.06|.26
+ER|厄利垂亞|阿斯瑪拉|af|15.32|38.93|.30
+ET|衣索比亞|阿迪斯阿貝巴|af|9.03|38.74|.30
+GA|加彭|自由市|af|0.42|9.47|.30
+GH|迦納|阿克拉|af|5.60|-0.19|.25
+GM|甘比亞|班竹|af|13.45|-16.58|.27
+GN|幾內亞|柯那克里|af|9.64|-13.58|.25
+GQ|赤道幾內亞|馬拉博|af|3.75|8.78|.35
+GW|幾內亞比索|比索|af|11.86|-15.60|.25
+LR|賴比瑞亞|蒙羅維亞|af|6.30|-10.80|.25
+LS|賴索托|馬塞魯|af|-29.31|27.48|.25
+LY|利比亞|的黎波里|af|32.89|13.19|.20
+MA|摩洛哥|卡薩布蘭加|af|33.57|-7.59|.25
+MG|馬達加斯加|安塔那那利佛|af|-18.88|47.51|.20
+ML|馬利|巴馬科|af|12.64|-8.00|.30
+MR|茅利塔尼亞|諾克少|af|18.08|-15.98|.25
+MW|馬拉威|里朗威|af|-13.96|33.79|.30
+MZ|莫三比克|馬布多|af|-25.97|32.57|.32
+NA|納米比亞|溫荷克|af|-22.56|17.08|.30
+NE|尼日|尼阿美|af|13.51|2.11|.30
+RW|盧安達|吉佳利|af|-1.95|30.06|.28
+SD|蘇丹|喀土穆|af|15.50|32.56|.35
+SL|獅子山|自由城|af|8.47|-13.23|.25
+SN|塞內加爾|達喀爾|af|14.72|-17.47|.30
+SO|索馬利亞|摩加迪休|af|2.05|45.32|.00
+SS|南蘇丹|朱巴|af|4.85|31.58|.30
+SZ|史瓦帝尼|墨巴本|af|-26.31|31.14|.275
+TD|查德|恩加美納|af|12.13|15.06|.35
+TG|多哥|洛美|af|6.13|1.22|.27
+TN|突尼西亞|突尼斯|af|36.81|10.18|.15
+TZ|坦尚尼亞|三蘭港|af|-6.79|39.21|.30
+UG|烏干達|坎帕拉|af|0.35|32.58|.30
+ZM|尚比亞|路沙卡|af|-15.39|28.32|.30
+ZW|辛巴威|哈拉雷|af|-17.83|31.05|.25
+`;
+for(const l of TY_MINOR_SRC.trim().split('\n')){
+  const [iso, cn, nm, reg, lat, lng, tax] = l.split('|');
+  if(!REGION_NAME[iso]) REGION_NAME[iso] = cn;
+  TY_SITES.push({ id:'m_'+iso.toLowerCase(), nm, sub:cn, iso, reg, lat:+lat, lng:+lng, tax:+tax,
+    kind:['re','hq'], spec:[], minor:true, note:`${cn}的首都(或經濟中心)。當地有一位地方富豪 —— 用錢收購,或派兵佔領。稅率為約略值。` });
+}
+
 const TY_SITE = Object.fromEntries(TY_SITES.map(s=>[s.id,s]));
 /* =========================================================================
    城市特色 —— 為什麼在新竹開科技公司跟在拉哥斯開不一樣
@@ -7086,6 +7347,7 @@ function tyStart(scnK, seed){
   const s=TY_SCN.find(x=>x.k===scnK)||TY_SCN[0];
   TY={
     v:2, scn:s.k, home:s.home, t:0, rng:(seed==null?(Date.now()^0x9e3779b9):seed)|0, done:'',
+    seed0:(seed==null?0:seed)|0,               // 地方富豪的名字與身家從這裡推(不吃種子亂數)
     cash:s.cash, debt:s.debt,
     // 錢也有地址。cashSite 決定它受哪一國管、被哪一場危機掃到。
     cashSite:s.home, holdco:null,
@@ -7358,6 +7620,7 @@ function tyNext(){
 
   /* ---- 資本部隊:到達、維持費、駐紮效果、對手部隊的攻防 ---- */
   tyUnitsTurn();
+  tyOccupyTurn();                       // 佔領地方富豪、保護費、封鎖對手大本營(第三十輪)
 
   /* ---- 7. 追繳保證金 → 破產 ---- */
   tyMargin();
@@ -8204,6 +8467,11 @@ function tyNeeds0(act, arg){
                tyNb('收購冷卻完成', tyStrikeReady('spacegrab'), `${tyWhen((TY.cd||{}).spacegrab||0)} 才能再搶`),
                tyNb(w==='moon'?'已經登月':'火星計畫走完', tyCanBuildOn(w), '你還沒辦法到那顆星上'),
                cashFor(p.c*1.5) ];
+    }
+    case 'localbuy': {
+      const L=tyLocal(arg);
+      if(!L) return [ tyNb('那裡有地方富豪', false, '這座城沒有地方富豪') ];
+      return [ tyNb('他還在', !L.st.gone, `${L.s.sub}已經是你的了`), cashFor(tyLocalPrice(L)) ];
     }
     case 'mars': {
       const m=tySpace().mars, d=tyMarsNext();
@@ -9434,7 +9702,9 @@ function tyDestOpts(u, sel){
   const g=(lab,list)=>list.length?`<optgroup label="${lab}">${list.map(opt).join('')}</optgroup>`:'';
   return g('你的據點', TY_SITES.filter(s=>mine.has(s.id)))
        + g('對手大本營', TY_SITES.filter(s=>rv.has(s.id)&&!mine.has(s.id)))
-       + g('其他城市', TY_SITES.filter(s=>!mine.has(s.id)&&!rv.has(s.id)));
+       + g('其他城市', TY_SITES.filter(s=>!mine.has(s.id)&&!rv.has(s.id)&&!s.minor))
+       + g('各國首都(有地方富豪,可以佔領)', TY_SITES.filter(s=>!mine.has(s.id)&&!rv.has(s.id)&&s.minor)
+           .sort((a,b)=>a.sub.localeCompare(b.sub,'zh-Hant')));
 }
 function tyUnitWhere(u){
   if(u.to) return `<span class="u-mv">→ ${escH(tySite(u.to).nm)} · ${Math.max(1,u.eta-TY.t)} 季後到</span>`;
@@ -10132,7 +10402,7 @@ function tyRivalForces(){
       if(n<1 || !TY_REGIONS[reg]) continue;
       let site=home.reg===reg ? home : null;
       if(!site){
-        const ss=TY_SITES.filter(x=>x.reg===reg && x.reg!=='off');
+        const ss=TY_SITES.filter(x=>x.reg===reg && x.reg!=='off' && !x.minor);     // 小國首都不算(駐點跟以前一樣)
         if(!ss.length) continue;
         const h=[...r.id].reduce((a,c)=>a+c.charCodeAt(0),0);
         site=ss[h%ss.length];
@@ -10438,7 +10708,7 @@ function tyGlobeMount(){
               el.onclick=()=>{ TY_MODAL='troop'; renderPage(); };
               return el;
             }
-            el.className='tyk'+(d._rival?' rv':'')+(d._idle?' idle':'');
+            el.className='tyk'+(d._rival?' rv':'')+(d._idle?' idle':'')+(d._idle&&d.minor?' minor':'');
             el.style.setProperty('--lane', d._lane||0);
             el.dataset.v = Math.round((d._v||0)/1e6);
             el.dataset.id = d.id;      // 名牌讓位用:越值錢越優先(world3d.js)
@@ -11174,6 +11444,31 @@ function tyScaleHTML(id){
     <div class="expo-note">地圖上的建築高度就是這個數字:你每座城最高的那棟、對手的大本營,用同一把尺畫。
       越高 = 規模越大。</div>`;
 }
+/* 小國首都的「地方富豪」區塊:收購或佔領 */
+function tyLocalHTML(id){
+  const L=tyLocal(id); if(!L) return '';
+  if(L.st.gone) return `<div class="p-sec">🎩 地方富豪<span>已經是你的</span></div>
+    <div class="expo-note">${escH(L.nm)} 在 ${tyWhen(L.st.t)} 把產業交給你(${L.st.by==='army'?'部隊佔領':'收購'})。${escH(L.s.sub)}現在是你的勢力範圍。</div>`;
+  const here=tyUnitsAt(id), rate=here.reduce((a,u)=>a+(TY_OCC[u.k]||0),0);
+  const left=rate ? Math.ceil((100-L.st.ctl)/rate) : null;
+  const trib=L.nw*.015*here.filter(u=>(TY_OCC[u.k]||0)>=10).length;
+  const coming=tyUnits().filter(u=>u.to===id).length;
+  return `<div class="p-sec">🎩 地方富豪<span>${escH(L.s.sub)}的錢在他手上</span></div>
+    <div class="ty-facts">
+      <div><em>${escH(L.nm)}</em><b>${tyM(L.nw)}</b><i>拿下他 = 整個${escH(L.s.sub)}變你的</i></div>
+      <div><em>你的控制度</em><b>${L.st.ctl.toFixed(0)} / 100</b>
+        <i>${rate?`每季 +${rate} · 約 ${left} 季後接收`:coming?`${coming} 支部隊在路上`:'沒有部隊在這裡(每季 −10)'}</i></div>
+    </div>
+    <div class="lc-bar"><u style="width:${L.st.ctl.toFixed(0)}%"></u></div>
+    <div class="ty-acts col">
+      <div class="ty-act">${tyActBtn('localbuy', id, `💰 收購他 ${tyM(tyLocalPrice(L))}`, ` data-site="${id}"`, 'warn')}
+        <span class="a-pre">馬上接收 · 拿到一家值 ${tyM(L.nw)} 的公司(付 1.2 倍,溢價是讓他點頭的錢)</span>
+        ${tyNeedHTML(tyNeeds('localbuy', id),'tight')}</div>
+    </div>
+    <div class="expo-note">🪖 <b>或派部隊佔領</b>:部隊駐在這裡,每季累積控制度(坦克 25、步兵 / 航母 15、火炮 10、補給 5),
+      滿 100 接收他身家六成的產業;駐軍期間每季收保護費${trib?`(現在每季 <b>${tyM(trib)}</b>)`:'(每支戰鬥部隊他身家的 1.5%)'},
+      但每支部隊每季關注 +0.6。${tyUnits().length?'下面「部隊」可以把部隊叫過來。':'還沒有部隊 —— 把「部隊」牌拖到任何城市招募。'}</div>`;
+}
 function tySitePanel(id){
   const s=tySite(id), t=tySiteStuff(id), R=TY_REGIONS[s.reg];
   const par=TY.partners[s.reg];
@@ -11261,12 +11556,13 @@ function tySitePanel(id){
       <b>${escH(s.nm)}</b>
       <span>${escH(s.sub||'')}${s.sub?' · ':''}${escH(REGION_NAME[s.iso]||s.iso)} · ${R.nm}</span></div>
     <div class="ty-facts">
-      <div><em>法定公司稅率</em><b>${(s.tax*100).toFixed(1)}%</b></div>
+      <div><em>法定公司稅率${s.minor?'(約略)':''}</em><b>${(s.tax*100).toFixed(1)}%</b></div>
       <div><em>地區指數</em><b class="${idx>=1?'up':'down'}">${((idx-1)*100>=0?'+':'')}${((idx-1)*100).toFixed(1)}%</b></div>
       <div><em>政策風險</em><b>${(R.pol||0)>=.8?'高':(R.pol||0)>=.45?'中':'低'}${par?'(有夥伴,減半)':''}</b></div>
       <div><em>當地競爭</em><b>${TY.reg[s.reg].comp>.5?TY.reg[s.reg].comp.toFixed(1):'—'}</b></div>
     </div>
     <div class="p-note">${escH(s.note)}</div>
+    ${s.minor?tyLocalHTML(id):''}
     <div class="p-sec">這個城市的特色<span>優點在前,缺點在後 —— 每個城市兩種都有</span></div>
     <div class="expo-note">標籤直接改變<b>在這裡</b>做事的數字:開辦成本、現金流、估值倍數、
       交易成本、租金與配息。所以同一家公司開在不同城市,結果是不一樣的。</div>
@@ -11392,6 +11688,12 @@ const TY_TERMS = [
     h:'點對手的名字 → 展開 → ⚔ 敵意收購。' },
   { g:'對手與勢力', t:'出局', d:'對手身家跌破 2 億、被併吞、或被別的對手整個買下來,就退出富豪榜。場上剩不到五個人時,會有**新富豪**崛起。',
     h:'對手頁最下面的「已經出局」。' },
+  { g:'對手與勢力', t:'地方富豪', d:'每一個小國的首都都有一位地方富豪:這個國家的錢在他手上。**收購**他(付 1.2 倍身家,馬上)或**派部隊佔領**(便宜但要幾季),拿下他整個國家就變你的。',
+    h:'點地圖上的小國首都(拉近才看得到名字),或部隊的目的地清單裡的「各國首都」。' },
+  { g:'部隊', t:'佔領', d:'部隊駐在各國首都,每季累積控制度(坦克 25、步兵 / 航母 15、火炮 10、補給 5),滿 100 接收地方富豪身家六成的產業。駐軍期間每季收**保護費**(他身家 1.5% / 每支戰鬥部隊),但關注會上升。',
+    h:'那座城的面板「地方富豪」。' },
+  { g:'部隊', t:'封鎖', d:'坦克營或航母駐在**對手大本營那座城**:他每季身家 −1%(每支,最多 3 支),其中三成的生意轉到你這邊變現金。他會很恨你。',
+    h:'把坦克或航母派到對手的大本營。' },
   { g:'太空與長期', t:'太空建地', d:'月球 6 塊、火星 10 塊固定的格子,一塊蓋一棟。月球要先登月、火星要把火星計畫四段走完。對手也會搶,但最多佔一半。',
     h:'右邊的 🌙 / 🔴 → 點地上插旗的圈。' },
   { g:'太空與長期', t:'補給費', d:'每塊太空建地每季付造價的 2%。付不出來那一塊整季停擺、沒有收入。太空港、溫室可以打折。',
@@ -11737,6 +12039,11 @@ function tyTodo(){
     }
     for(const x of tyStarsOn()) if(x.until-TY.t<=1) push(1,'🛰',`${escH(TY_REGIONS[x.reg].nm)}的星鏈下一季退役 —— 要繼續收錢就補發`, '');
   }
+  for(const id in (TY.loc||{})){ const st=TY.loc[id]; if(st.gone || !(st.ctl>0)) continue;
+    const L=tyLocal(id), rate=tyUnitsAt(id).reduce((a,u)=>a+(TY_OCC[u.k]||0),0);
+    push(rate?1:2,'🏳',`佔領${escH(L.s.sub)}:控制度 ${st.ctl.toFixed(0)}%${rate?`,約 ${Math.ceil((100-st.ctl)/rate)} 季後接收`:' —— 部隊不在了,每季掉 10'}`, go('site', id, '去看')); }
+  for(const r of tyRivalsA()){ const n=tyUnitsAt(r.home).filter(u=>u.k==='raid'||u.k==='navy').length;
+    if(n) push(1,'⛓',`你在封鎖 ${escH(r.nm)} 的大本營(${n} 支):他每季身家 −${Math.min(3,n)}%`, ''); }
   const nw=Math.max(1,tyNW());
   if(TY.cash>nw*.5 && TY.cash>5e8) push(1,'💰',`現金佔身家 ${(TY.cash/nw*100).toFixed(0)}% —— 閒錢沒有在賺,拖「投資」或「建設」到城市`, '');
   if(!tyTester() && tyApNow()>0) push(0,'🎴',`這一季還有 <b>${tyApNow()}</b> 點行動點沒用(下一季會補滿,用不完就浪費)`, '');
@@ -11864,7 +12171,7 @@ function tycoonPage(){
    ========================================================================= */
 const TY_AP_COST = { found:2, upgrade:1, expand:1, ipo:1, reverse:1, buy:1, short:1,
   recruit:1, recruitTo:1, deploy:1, strike:2, partner:1, movehome:1, lobby:1, media:1,
-  charity:1, trust:1, holdco:1, recon:1, launch:1, mars:2, moonland:2, spacebuild:2, spacegrab:2 };
+  charity:1, trust:1, holdco:1, recon:1, launch:1, mars:2, moonland:2, spacebuild:2, spacegrab:2, localbuy:2 };
 const tyApCost = act => String(act).startsWith('deal:') ? 1 : (TY_AP_COST[act] || 0);
 const tyApMax  = () => tyTester() ? 99 : Math.min(9, 6 + Math.floor((TY && TY.infl || 0) / 25))
   + (TY && TY.space && TY.space.plots ? Math.min(2, tyPlots('mars').filter(p=>p.o==='me' && p.b==='lab').length) : 0);   // 火星研究站
@@ -12407,6 +12714,7 @@ const TY_ACT = {
   launch: e=>tyLaunch(e.dataset.site),
   moonland: ()=>tyMoonLand(),
   spacebuild: e=>tySpaceBuild(e.dataset.w, +e.dataset.i, e.dataset.b),
+  localbuy: e=>tyLocalBuy(e.dataset.site),
   spacegrab: e=>tySpaceGrab(e.dataset.w, +e.dataset.i),
   mars:   ()=>tyMarsGo(),
   deploy: e=>tyDeploy(+e.dataset.id, e.dataset.site || TY_DEP[e.dataset.id]),

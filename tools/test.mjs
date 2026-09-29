@@ -513,7 +513,8 @@ test('帝國:每個城市真的不一樣,而且據點面板上就看得到差在
     const biz = k => ['hsz','sfo','nyc','lag'].map(s => ({
       s, cost: tyBizCost(k, s), cf: tySpecMul(s,'biz',k,'cf'), mult: tySpecMul(s,'biz',k,'mult') }));
     // 每個城市都要有標籤,而且優點與缺點都要存在於整個世界裡
-    const noSpec = TY_SITES.filter(x => !(x.spec||[]).length).map(x => x.id);
+    // 第三十輪的各國首都(minor)刻意不寫特色標籤(是約略資料,不假裝查證過)
+    const noSpec = TY_SITES.filter(x => !x.minor && !(x.spec||[]).length).map(x => x.id);
     const unknown = TY_SITES.flatMap(x => (x.spec||[])).filter(k => !TY_SPEC[k]);
     const goods = TY_SITES.filter(x => (x.spec||[]).some(k => TY_SPEC[k].good)).length;
     const bads  = TY_SITES.filter(x => (x.spec||[]).some(k => !TY_SPEC[k].good)).length;
@@ -1547,34 +1548,34 @@ test('帝國畫面層:高解析度國界解得開,而且點得到是哪一國', 
 
 test('帝國地圖:點任何一個國家都要看得到經濟、政策、勢力 —— 沒有城市的國家也一樣', async (browser) => {
   /* 使用者:「點一個國家可以顯示這個國家的所有訊息,經濟、政策等等」。
-     遊戲的經濟模型是以地區為單位的;沒有城市的國家(蒙古)要歸到最近的經濟圈,
+     遊戲的經濟模型是以地區為單位的;沒有城市的國家(第三十輪之後每一國都有首都了,改用新喀里多尼亞這種屬地)要歸到最近的經濟圈,
      而且畫面上要直說是推算的,不可以假裝它有自己的數字。 */
   const page = await freshPage(browser, { seed: SEED, hash: '#/tycoon' });
   const r = await page.evaluate(() => {
     tyStart('heir', 77);
     const us = tyIsoInfo('US'), tw = tyIsoInfo('TW');
-    // 蒙古:測試環境的國界只有台灣,所以要自己給一塊蒙古的形狀
-    const mnFeat = { type: 'Feature', properties: { ISO_A2: 'MN', NAME: 'Mongolia' },
-      geometry: { type: 'Polygon', coordinates: [[[88, 42], [119, 42], [119, 52], [88, 52], [88, 42]]] } };
-    const mn = tyIsoInfo('MN', mnFeat);
+    // 新喀里多尼亞:測試環境的國界只有台灣,所以要自己給一塊形狀
+    const mnFeat = { type: 'Feature', properties: { ISO_A2: 'NC', NAME: 'New Caledonia' },
+      geometry: { type: 'Polygon', coordinates: [[[164, -22.5], [167, -22.5], [167, -20], [164, -20], [164, -22.5]]] } };
+    const mn = tyIsoInfo('NC', mnFeat);
     countries.push(mnFeat);
-    TY_MODAL = 'site'; TY_SEL = null; TY_ISO = 'MN'; renderPage();
+    TY_MODAL = 'site'; TY_SEL = null; TY_ISO = 'NC'; renderPage();
     const mnTxt = document.querySelector('.tg-mb').textContent;
     TY_ISO = 'US'; renderPage();
     const usTxt = document.querySelector('.tg-mb').textContent;
     countries.pop();
     return { us: us && { reg: us.reg, near: us.near }, tw: tw && tw.reg, mn: mn && { reg: mn.reg, near: mn.near },
-             mnTxt, usTxt, name: tyIsoName('MN') };
+             mnTxt, usTxt, name: tyIsoName('NC') };
   });
   eq(r.us, { reg: 'na', near: false }, '美國有城市,直接用北美');
   eq(r.tw, 'tw', '台灣是自己的一區');
-  ok(r.mn && r.mn.near, '蒙古沒有城市,要標記成「依最近的經濟圈推算」');
-  eq(r.mn.reg, 'cn', `蒙古最近的經濟圈應該是中國大陸,實際 ${r.mn && r.mn.reg}`);
+  ok(r.mn && r.mn.near, '新喀里多尼亞沒有城市,要標記成「依最近的經濟圈推算」');
+  eq(r.mn.reg, 'apac', `新喀里多尼亞最近的經濟圈應該是東南亞與大洋洲,實際 ${r.mn && r.mn.reg}`);
   for (const must of ['經濟', '政策', '勢力', '推算'])
-    ok(r.mnTxt.includes(must), `蒙古的國家卡少了「${must}」`);
+    ok(r.mnTxt.includes(must), `新喀里多尼亞的國家卡少了「${must}」`);
   for (const must of ['長期成長', '政策風險', '法定公司稅率', '城市'])
     ok(r.usTxt.includes(must), `美國的國家卡少了「${must}」`);
-  ok(r.name && r.name !== 'MN', `沒有中文名稱表的國家也要有名字:${r.name}`);
+  ok(r.name && r.name !== 'NC', `沒有中文名稱表的國家也要有名字:${r.name}`);
   ok(page.__errors.length === 0, `有 JS 錯誤:\n      ${page.__errors.join('\n      ')}`);
   await page.__ctx.close();
 });
@@ -1589,7 +1590,8 @@ test('帝國地圖:每座城市都有真實邊界與地標,每個國家都歸得
     tyStart('heir', 5);
     const ph = { type: 'Feature', properties: { ISO_A2: 'PH', NAME: 'Philippines' },
       geometry: { type: 'Polygon', coordinates: [[[120, 7], [126, 7], [126, 18], [120, 18], [120, 7]]] } };
-    return { sites: TY_SITES.map(s => ({ id: s.id, lat: s.lat, lng: s.lng, lm: W3D.landmarkName(s.id) })),
+    // 各國首都(minor)沒有行政區邊界也沒有地標模型(太多會卡),這條只驗 44 座主要城市
+    return { sites: TY_SITES.filter(s => !s.minor).map(s => ({ id: s.id, lat: s.lat, lng: s.lng, lm: W3D.landmarkName(s.id) })),
              ph: tyIsoReg('PH', ph),
              steps: TY_ECON_STEPS.map(x => x.min) };
   });
@@ -2445,6 +2447,69 @@ test('帝國第二十輪:月球 / 火星建地(登月、火星計畫前置、補
   ok(r.grabbed, `強行收購:建地換手、對手記恨 −25(${r.grab})`);
   ok(r.pick, '建地面板畫得出來');
   ok(r.race, '對手會登月、搶建地');
+  ok(page.__errors.length === 0, `有 JS 錯誤:\n      ${page.__errors.join('\n      ')}`);
+  await page.__ctx.close();
+});
+
+test('帝國第二十二輪:每一國都有首都與地方富豪,收購 / 佔領拿下整國,封鎖對手大本營', async (browser) => {
+  const page = await freshPage(browser, { seed: SEED, hash: '#/tycoon' });
+  const r = await page.evaluate(() => {
+    const out = {};
+    const minors = TY_SITES.filter(s => s.minor);
+    out.n = minors.length;
+    out.mn = !!TY_SITES.find(s => s.iso === 'MN');
+    out.dupIso = minors.filter(m => TY_SITES.some(s => !s.minor && s.iso === m.iso)).map(m => m.iso);
+    out.regOk = minors.every(s => TY_REGIONS[s.reg] && isFinite(s.lat) && isFinite(s.lng) && s.tax >= 0 && s.tax < .5);
+    // 地方富豪:同一顆種子同一個人,而且不吃種子亂數
+    tyStart('heir', 5); TY_NEWCARD.length = 0;
+    const rng0 = TY.rng, a = tyLocal('m_ar'), rng1 = TY.rng;
+    tyStart('heir', 5); TY_NEWCARD.length = 0;
+    const b = tyLocal('m_ar');
+    out.det = a.nm === b.nm && Math.abs(a.nw - b.nw) < 1 && rng0 === rng1;
+    // 收購:錢不夠被擋;夠 → 他交出產業、整國變你的
+    TY.cash = 1e8; out.poor = /現金/.test(tyLocalBuy('m_ar') || '');
+    TY.cash = 500e8; const b0 = TY.biz.length;
+    tyLocalBuy('m_ar'); TY_PWC = null;
+    out.bought = TY.loc.m_ar.gone && TY.biz.length === b0 + 1 && tyIsoPower('AR').top.me === true;
+    // 佔領:坦克 + 步兵駐在阿拉木圖,每季 +40,三季後接收;期間收保護費、關注上升
+    tyStart('heir', 6); TY_NEWCARD.length = 0; TY.cash = 500e8;
+    tyRecruit('raid'); tyRecruit('law');
+    for (const u of tyUnits()) tyDeploy(u.id, 'm_kz');
+    const heat0 = TY.heat, ctl = [];
+    for (let i = 0; i < 3; i++){ tyNext(); ctl.push(TY.loc.m_kz.ctl); }
+    TY_PWC = null;
+    out.ctl = ctl; out.taken = TY.loc.m_kz.gone && tyIsoPower('KZ').top.me === true;
+    out.trib = (TY.tribute || 0) > 0; out.heat = TY.heat > heat0;
+    // 部隊走了,控制度會掉
+    tyStart('heir', 7); TY_NEWCARD.length = 0; TY.cash = 500e8;
+    tyRecruit('raid'); tyDeploy(tyUnits()[0].id, 'm_mn'); tyNext(); tyNext();
+    const c1 = TY.loc.m_mn.ctl; tyDeploy(tyUnits()[0].id, TY.home); tyNext(); tyNext();
+    out.decay = TY.loc.m_mn.ctl < c1;
+    // 封鎖:坦克駐在對手大本營 → 他身家每季少 1%,你拿到三成
+    tyStart('heir', 8); TY_NEWCARD.length = 0; TY.cash = 500e8;
+    const rv = tyRivalsA()[0]; tyRecruit('raid'); tyDeploy(tyUnits()[0].id, rv.home);
+    tyNext(); tyNext();
+    out.block = TY.log.some(l => /封鎖/.test(l.txt) && l.txt.includes(rv.nm));
+    // 面板:小國首都有「地方富豪」區塊與收購按鈕
+    TY_MODAL = 'site'; TY_SEL = 'm_eg'; renderPage();
+    out.panel = !!document.querySelector('.lc-bar') && !!document.querySelector('[data-ty="localbuy"]');
+    TY_MODAL = null; TY_SEL = null; renderPage();
+    return out;
+  });
+  ok(r.n >= 130, `要有一百多個國家的首都,實際 ${r.n}`);
+  ok(r.mn, '蒙古要有城市(使用者:沒有城市的國家沒辦法佔領)');
+  eq(r.dupIso, [], '首都不可以加在已經有主要城市的國家');
+  ok(r.regOk, '每一座首都都要有合法的經濟圈、座標、稅率');
+  ok(r.det, '地方富豪:同一顆種子同一個人,而且不能動到種子亂數');
+  ok(r.poor, '收購:錢不夠要擋');
+  ok(r.bought, '收購之後他交出產業、整國變你的');
+  eq(r.ctl, [40, 80, 100], '坦克 25 + 步兵 15 = 每季 +40');
+  ok(r.taken, '控制度滿 100 → 接收、整國變你的');
+  ok(r.trib, '佔領期間要收保護費');
+  ok(r.heat, '佔領會讓關注上升');
+  ok(r.decay, '部隊離開,控制度會掉');
+  ok(r.block, '坦克駐在對手大本營 = 封鎖');
+  ok(r.panel, '小國首都的面板要有地方富豪與收購按鈕');
   ok(page.__errors.length === 0, `有 JS 錯誤:\n      ${page.__errors.join('\n      ')}`);
   await page.__ctx.close();
 });
