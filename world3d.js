@@ -2082,6 +2082,17 @@ function fxAt(lat, lng, kind, opt){
 }
 W3D.fxAt = fxAt;
 /* 一座城市在螢幕上的位置(client 座標);在球的背面回傳 null */
+/* 任意經緯度 → 螢幕座標(背面回 null)。即時制的行軍標記用 */
+W3D.screenOfLL = function(lat, lng){
+  if(!W3D.ok || !G) return null;
+  const host = document.getElementById('tyGlobeHost'); if(!host) return null;
+  try{
+    const c = G.getScreenCoords(lat, lng, .004), cam = G.camera().position, q = G.getCoords(lat, lng, 0);
+    if(q.x*cam.x + q.y*cam.y + q.z*cam.z <= R*R*1.001) return null;
+    const r = host.getBoundingClientRect();
+    return { x: r.left + c.x, y: r.top + c.y };
+  }catch(e){ return null; }
+};
 W3D.screenOf = function(id){
   if(!W3D.ok || typeof tySite !== 'function') return null;
   const s = tySite(id), host = document.getElementById('tyGlobeHost'); if(!s || !host) return null;
