@@ -5835,8 +5835,10 @@ const TY_RIVALS = [
     b:.030, s:1.25, lev:.30, agg:.55, home:'sfo', turf:{na:50, eu:10} },
   { id:'r3', nm:'Omar Halim',    tag:'石油王族', ic:'🛢', arch:'energy',
     b:.017, s:.15, lev:.20, agg:.30, home:'ruh', turf:{me:70, af:10} },
-  { id:'r4', nm:'林敏之',        tag:'代工帝國', ic:'🏭', arch:'mfg',
-    b:.022, s:.70, lev:.45, agg:.45, home:'tpe', turf:{tw:50, cn:20, apac:15} },
+  /* 第三十八輪:原本的台灣對手(林敏之,大本營台北)拿掉 —— 使用者:「跟我重複了」(玩家預設也在台北)。
+     改成日本的綜合商社。id 沿用 r4(顏色不變,舊存檔照舊讀得到) */
+  { id:'r4', nm:'藤原 誠',       tag:'綜合商社', ic:'🏢', arch:'mfg',
+    b:.022, s:.70, lev:.45, agg:.45, home:'tky', turf:{jp:50, apac:15, cn:10} },
   { id:'r5', nm:'V. Sokolov',    tag:'礦業寡頭', ic:'⛏', arch:'mine',
     b:.019, s:.55, lev:.65, agg:.60, home:'jnb', turf:{af:60, latam:20} },
   { id:'r6', nm:'Marie Lefèvre', tag:'精品集團', ic:'👑', arch:'luxury',
@@ -11531,8 +11533,12 @@ function tyCityPower0(id){
   if(me>0) board.push({ me:true, nm:'你', col:'41,151,255', v:me });
   for(const r of tyRivalsA()){
     let v=0;
-    if(r.home===id) v+=r.nw*.6;
-    if(tyRvBlds(r).some(b=>b.site===id)) v+=r.nw*.08;          // 分部
+    /* 第三十八輪:他在這一區的勢力被打掉,大本營的份量也跟著掉。
+       使用者截圖:鄭天賜在中國的勢力已經被打到 0(中國面板只剩你),香港、整個廣東還是他的顏色 ——
+       大本營原本固定算他身家的六成,跟他在那一區還剩多少勢力無關。現在 × (0.3 + 0.7 × 勢力/40) */
+    const tf=tyRvRegFac(r, s.reg);
+    if(r.home===id) v+=r.nw*.6*tf;
+    if(tyRvBlds(r).some(b=>b.site===id)) v+=r.nw*.08*tf;          // 分部
     const f=tyRivalForces().find(x=>x.r.id===r.id && x.site===id);
     if(f) v+=r.nw*.3*f.v/100;
     if(v>0) board.push({ r, nm:r.nm, ic:r.ic, col:TY_RVCOL[r.id]||'200,200,210', v });
@@ -11551,13 +11557,17 @@ function tyCityColor(id){
 /* 勢力圈:每座有人的城市外面畫一圈「這一帶是誰的」。
    使用者:「我的勢力範圍沒有顯示」—— 城市的真實行政區(上海只有幾十公里寬)在一般縮放下只剩幾個像素,
    等於看不到。所以另外畫一個圈:半徑跟著那座城的規模長(140~420 公里),顏色是那座城的第一名。 */
+/* 對手在一個地區還剩多少份量(0.3~1):勢力 40 以上算滿 */
+const tyRvRegFac = (r, reg) => .3 + .7*Math.min(1, tyTurf(r, reg)/40);
 function tyCityZones(){
   if(!TY || TY_LAYER!=='power') return [];
   const out=[];
   for(const s of TY_SITES){
     const c=tyCityPower(s.id); if(!c) continue;
     const tot=c.board.reduce((a,x)=>a+x.v,0), sh=c.top.v/Math.max(1,tot);
-    const km=tyClamp(170+100*Math.log10(Math.max(1,c.top.v/1e9)), 170, 460);
+    let km=tyClamp(170+100*Math.log10(Math.max(1,c.top.v/1e9)), 170, 460);
+    /* 對手的範圍跟著他在那一區的勢力縮:勢力被打光,就只剩大本營那一格(60 公里),不會再染整個省 */
+    if(!c.top.me && c.top.r) km=60+(km-60)*Math.min(1, tyTurf(c.top.r, s.reg)/40);
     out.push({ id:s.id, lat:s.lat, lng:s.lng, km:Math.round(km), col:c.top.col, a:+((c.top.me?.34:.24)+.22*sh).toFixed(3),
                pa:+((c.top.me?.62:.5)+.18*sh).toFixed(3), me:!!c.top.me });      // pa = 省 / 州塗色的深淺(要明顯)
   }
