@@ -7091,17 +7091,28 @@ function tyUnitsTurn(){
     const p=tyThreatBlock(th);
     const held = tyRnd() < p;
     const S=tySite(th.site);
+    const cp=tyCounterPow(th);
     if(held){
       TY.fame=tyClamp(TY.fame+2,0,100);
       r.nw*=.99;
-      tyNews('good', `擋下${r.nm}`, `他的併購小組在${S.nm}碰壁。名氣 +2(防守率 ${(p*100).toFixed(0)}%)。`);
-      tyLog('unit', `在${S.nm}擋下${r.nm}的併購小組(防守率 ${(p*100).toFixed(0)}%)。`);
+      /* 擋下來之後,攻擊型部隊反擊:他在那一區勢力 −4×反擊力(最多 −15)、身家再 −1%×反擊力(最多 −3%),一半變成你的現金(和解金) */
+      let ctr='';
+      if(cp>0){
+        const cut=r.nw*Math.min(.03, .01*cp), dt=Math.min(15, 4*cp);
+        r.nw-=cut; TY.cash+=cut*.5; r.turf[th.reg]=tyClamp(tyTurf(r,th.reg)-dt,0,100); r.rel=tyClamp((r.rel||0)-5,-100,100);
+        ctr=` 你的部隊反擊(小精靈防禦):他在${TY_REGIONS[th.reg].nm}勢力 −${dt.toFixed(0)}、賠你 ${tyM(cut*.5)}。`;
+      }
+      tyNews('good', `擋下${r.nm}`, `他的併購小組在${S.nm}碰壁。名氣 +2(防守率 ${(p*100).toFixed(0)}%)。${ctr}`);
+      tyLog('unit', `在${S.nm}擋下${r.nm}的併購小組(防守率 ${(p*100).toFixed(0)}%)。${ctr}`);
     }else{
-      TY.reg[th.reg].comp += 2.5*th.pow;
+      /* 沒擋住:反擊還是會減輕損失(每 1 點反擊力少 15%,最多少一半) */
+      const soft=1-Math.min(.5, cp*.15);
+      TY.reg[th.reg].comp += 2.5*th.pow*soft;
       let hit='';
-      for(const b of TY.biz) if(b.site===th.site && !TY_BIZ[b.k].shell){ b.cap*=.94; hit='那裡的事業被挖走 6% 的資本,'; }
-      tyNews('bad', `${r.nm}攻破${S.nm}`, `${hit}${TY_REGIONS[th.reg].nm}的競爭度 +${(2.5*th.pow).toFixed(1)}。`);
-      tyLog('rival', `${r.nm}的併購小組攻進${S.nm}:${hit}當地競爭 +${(2.5*th.pow).toFixed(1)}(防守率只有 ${(p*100).toFixed(0)}%)。`);
+      for(const b of TY.biz) if(b.site===th.site && !TY_BIZ[b.k].shell){ b.cap*=1-.06*soft; hit=`那裡的事業被挖走 ${(6*soft).toFixed(0)}% 的資本,`; }
+      const sTxt = soft<1 ? `(你的部隊有反擊,損失少了 ${Math.round((1-soft)*100)}%)` : '';
+      tyNews('bad', `${r.nm}攻破${S.nm}`, `${hit}${TY_REGIONS[th.reg].nm}的競爭度 +${(2.5*th.pow*soft).toFixed(1)}${sTxt}。`);
+      tyLog('rival', `${r.nm}的併購小組攻進${S.nm}:${hit}當地競爭 +${(2.5*th.pow*soft).toFixed(1)}(防守率只有 ${(p*100).toFixed(0)}%)${sTxt}。`);
     }
   }
   TY.threats=keep;
@@ -7110,8 +7121,14 @@ function tyUnitsTurn(){
 /* 防守率:駐在那個地區的部隊 → 防守力,對手越兇越難擋。
    畫面上看得到這個數字(來襲清單),所以「調律師團過去」是一個算得出來的決定。 */
 function tyThreatBlock(th){
-  const def=tyUnitsIn(th.reg).reduce((s,u)=>s+TY_UNITS[u.k].def*(tyGenIs(u,'guard')?1.5:1),0);
+  const def=tyUnitsIn(th.reg).reduce((s,u)=>s+TY_UNITS[u.k].def*(tyGenIs(u,'guard')?1.5:1)*(u.site===th.site?1.5:1),0);   // 就在那座城裡的 ×1.5
   return tyClamp(.1 + def*.28 - (th.pow-1)*.1, .05, .92);
+}
+/* 反擊力(第三十九輪):對手打過來時,你在那一區的攻擊型部隊(坦克、航母、火炮、步兵)一起打回去。
+   經濟上的對應是「小精靈防禦」(Pac-Man defense):被收購的一方反過來出價收購對方。
+   就在那座城裡的 ×1.5。 */
+function tyCounterPow(th){
+  return tyUnitsIn(th.reg).reduce((s,u)=>s+(TY_ATK[u.k]||0)*(u.site===th.site?1.5:1)*(tyGenIs(u,'war')?1.5:1),0);
 }
 
 /* =========================================================================
@@ -10676,10 +10693,11 @@ function tyTroopTab(){
         <div class="th-h"><b>⚠ ${escH(r?r.nm:'?')}的併購小組 → ${escH(S.nm)}</b>
           <em>${Math.max(0,th.eta-TY.t)} 季後抵達</em></div>
         <div class="th-b">防守率 <b class="${p>=.5?'up':'down'}">${(p*100).toFixed(0)}%</b>
-          · 你在${TY_REGIONS[th.reg].nm}的部隊:${here.length?here.map(u=>TY_UNITS[u.k].ic).join(' '):'沒有'}
-          · 攻擊力 ${th.pow.toFixed(1)}</div>
+          · 你在${TY_REGIONS[th.reg].nm}的部隊:${here.length?here.map(u=>TY_UNITS[u.k].ic+(u.site===th.site?'<sup>城</sup>':'')).join(' '):'沒有'}
+          · 他的攻擊力 ${th.pow.toFixed(1)} · 你的反擊力 ${tyCounterPow(th).toFixed(1)}</div>
         <div class="th-n">擋不住的話:${TY_REGIONS[th.reg].nm}競爭度 +${(2.5*th.pow).toFixed(1)}、
-          ${escH(S.nm)}的事業被挖走 6% 資本。律師團防守力最高(1.0),併購小組 0.7。</div>
+          ${escH(S.nm)}的事業被挖走 6% 資本。步兵防守力最高(1.0)、坦克 0.7;<b>就駐在${escH(S.nm)}城裡的 ×1.5</b>。
+          擋下來之後,坦克 / 航母 / 火炮 / 步兵會一起反擊(他勢力 −、賠你和解金);沒擋住也能減輕損失。</div>
         <div class="toe-b">${tyActBtn('strike', { k:'air', site:th.site }, `✈ 空襲這支(${tyM(tyStrikeCost('air'))})`, ` data-k="air" data-site="${th.site}"`)}</div>
       </div>`;
   }).join('') : '';
@@ -13218,13 +13236,13 @@ const TY_CARDS = [
     dsc:'拖到你有東西的城市:賣掉那裡的資產或公司。不花行動點。',
     ok:id=>{ const t=tySiteStuff(id); return t.pos.some(p=>p.q>0) || t.biz.length>0; } },
   { k:'troop', nm:'部隊', col:'#4fc3f7', ap:1, tgt:'city', art:()=>PX.SPR.raid, tint:TY_TEAM,
-    dsc:'拖到城市:招募一支部隊(併購小組、律師團、遊說團、經理人),下一季在那裡就位。',
+    dsc:'拖到城市:招募一支部隊(坦克營、步兵連、火炮陣地、補給車隊、航母),走到那裡就位。',
     ok:()=>true },
   { k:'deal', nm:'談判', col:'#f0b429', ap:1, tgt:'city', art:()=>PX.SPR.contract,
     dsc:'拖到對手的大本營:互不侵犯、合資、買他的事業、敵意收購…七種條件,成功率寫在上面。',
     ok:id=>tyRivalsA().some(r=>r.home===id) },
   { k:'air', nm:'輿論空襲', col:'#ff9f0a', ap:2, tgt:'city', art:()=>PX.SPR.jet, cd:'air',
-    dsc:'拖到城市:對那個地區勢力最大的對手媒體轟炸,他在那裡的勢力 −12。冷卻 1 季,連發加價、連打同一人效果遞減。',
+    dsc:'拖到城市:對那個地區勢力最大的對手媒體轟炸,他在那裡的勢力 −12。打在正往你這裡來的部隊上會把它打弱或打散;你正在那一區打仗時是空中支援(勝率 +15%)。冷卻 1 季,連發加價、連打同一人效果遞減。',
     ok:id=>tyStrikeReady('air') && !!tyStrikeTarget('air', id),
     unlock:()=>TY.t>=2, why:'第 3 季' },
   { k:'missile', nm:'做空飛彈', col:'#e5484d', ap:2, tgt:'city', art:()=>PX.SPR.missile, cd:'missile',

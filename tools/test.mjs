@@ -2454,6 +2454,55 @@ test('帝國第二十輪:月球 / 火星建地(登月、火星計畫前置、補
   await page.__ctx.close();
 });
 
+test('帝國第三十一輪:對手打過來,城裡的部隊守得更好、攻擊型部隊一起反擊(小精靈防禦)', async (browser) => {
+  const page = await freshPage(browser, { seed: SEED, hash: '#/tycoon' });
+  const r = await page.evaluate(() => {
+    const out = {};
+    const setup = (seed) => {
+      tyStart('heir', seed); TY_NEWCARD.length = 0; TY.cash = 900e8;
+      const a = tyRivalsA()[0]; a.rel = -80; tyRivalMarch(a, tySite(TY.home).reg);
+      const th = tyThreats()[0]; a.turf[th.reg] = 40; return { a, th };
+    };
+    // 城裡 vs 同一區別的城:城裡的防守率比較高
+    let { a, th } = setup(121);
+    tyRecruit('raid'); const u = tyUnits()[0];
+    const other = TY_SITES.find(x => x.reg === th.reg && x.id !== th.site && !x.minor);
+    u.site = other ? other.id : th.site; u.to = null;
+    const pOut = tyThreatBlock(th), cOut = tyCounterPow(th);
+    u.site = th.site; const pIn = tyThreatBlock(th), cIn = tyCounterPow(th);
+    out.city = !other || (pIn > pOut && Math.abs(cIn - cOut * 1.5) < 1e-9);
+    // 擋下 → 反擊:他勢力下降、你拿到和解金
+    const turf0 = tyTurf(a, th.reg), c0 = TY.cash; TY.t = th.eta;
+    const orig = window.tyRnd; window.tyRnd = () => 0;
+    try { tyUnitsTurn(); } finally { window.tyRnd = orig; }
+    out.counter = tyTurf(a, th.reg) < turf0 && TY.log.some(l => /小精靈防禦/.test(l.txt));
+    // 沒擋住:有反擊的損失比較小
+    const hit = (withUnit, seed) => {
+      const o = setup(seed); const b = TY.biz.find(x => x.site === o.th.site && !TY_BIZ[x.k].shell) ||
+        (tyFound('dev', o.th.site), TY.biz.find(x => x.site === o.th.site && !TY_BIZ[x.k].shell));
+      if (withUnit) { tyRecruit('raid'); const v = tyUnits()[0]; v.site = o.th.site; v.to = null; }
+      const cap0 = b.cap, comp0 = TY.reg[o.th.reg].comp; TY.t = o.th.eta;
+      const orig2 = window.tyRnd; window.tyRnd = () => .999;
+      try { tyUnitsTurn(); } finally { window.tyRnd = orig2; }
+      return { cap: b.cap / cap0, comp: TY.reg[o.th.reg].comp - comp0 };
+    };
+    const h0 = hit(false, 122), h1 = hit(true, 122);
+    out.soft = h1.cap > h0.cap && h1.comp < h0.comp;
+    out.dbg = JSON.stringify([h0, h1]);
+    // 來襲卡寫出反擊力
+    setup(123); TY_MODAL = 'troop'; renderPage();
+    out.ui = /反擊力/.test(document.querySelector('.ty-threat').textContent);
+    TY_MODAL = null; renderPage();
+    return out;
+  });
+  ok(r.city, '就駐在被打的城裡:防守率更高、反擊力 ×1.5');
+  ok(r.counter, '擋下之後攻擊型部隊反擊:他那一區勢力下降(小精靈防禦)');
+  ok(r.soft, `沒擋住時,有部隊反擊的損失比較小 ${r.dbg}`);
+  ok(r.ui, '來襲卡寫出你的反擊力');
+  ok(page.__errors.length === 0, `有 JS 錯誤:\n      ${page.__errors.join('\n      ')}`);
+  await page.__ctx.close();
+});
+
 test('帝國第三十輪:對手勢力被打光,大本營不再染整個省;台灣的對手換成日本', async (browser) => {
   const page = await freshPage(browser, { seed: SEED, hash: '#/tycoon' });
   const r = await page.evaluate(() => {
