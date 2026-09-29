@@ -1361,7 +1361,8 @@ W3D.sites = function(mine, rivals, troops){
   TROOPS = tr;
   /* 地標:每一座城市都有。正中央空著就站中央,不然也去拿一個陸地上的空位。 */
   /* 地標只畫在「沒有人的城市」:你或對手已經在那裡蓋了東西,地標就收進城市全景(連點兩下看得到),不要再多擠一棟 */
-  const lms = (typeof TY_SITES !== 'undefined' ? TY_SITES : []).filter(st => !center.has(st.id)).map(st => ({
+  // 小國首都(minor)不畫地標:一百多棟會讓手機卡、畫面亂 —— 它們只在拉近時有名字
+  const lms = (typeof TY_SITES !== 'undefined' ? TY_SITES : []).filter(st => !center.has(st.id) && !st.minor).map(st => ({
     id: st.id, lat: st.lat, lng: st.lng, iso: st.iso, _lm: true, _k: 'lm:' + st.id, _base: .0008,
     _slot: center.has(st.id) ? take(st.id, st.lat, st.lng) : null }));
   G.customLayerData([...mine, ...rivals, ...tr, ...lms]);
@@ -1378,6 +1379,9 @@ W3D.sites = function(mine, rivals, troops){
    所以標籤不能掛在 globe.gl 的 HTML 層(那一層只吃經緯度)—— 這裡每一幀
    直接把棋子的 3D 位置投影到螢幕上。沒有部隊的時候這個迴圈不跑。 */
 let TROOPS = [], TAGS = null, tagLoop = false;
+/* 手機中距離的精簡版(使用者:「每個單位只要顯示國旗就好,有重複就兩個圖案:國旗跟另一個圖案」):
+   一支 → 只有國旗;兩支以上 → 國旗 + 第一種兵的圖示與數量。完整內容在 .tg-more,由 CSS 依縮放切換 */
+const tag2 = units => { const n = (units || []).length; return n > 1 ? `<span class="tg-2">${TY_UNITS[units[0].k].ic}<b>${n}</b></span>` : ''; };
 /* 標籤前面一面像素國旗(參考圖裡每一台車旁邊都有):你的是大本營所在國、對手的是他大本營所在國 */
 const tagFlag = site => { try{ const s = tySite(site); return s && PX.flagHTML ? PX.flagHTML(s.iso) : ''; }catch(e){ return ''; } };
 function tagsOn(){
@@ -1393,7 +1397,7 @@ function tagsOn(){
       // 對手的駐軍:他的顏色、他的頭像 + 兵種;點下去開那位對手的卡
       el.style.setProperty('--rc', `rgb(${(typeof TY_RVCOL !== 'undefined' && TY_RVCOL[d._r.id]) || '255,69,58'})`);
       // 同一國可能有兩個對手(同一面國旗):靠他的顏色 + 頭像 + 名字第一個字分
-      el.innerHTML = `${tagFlag(d._r.home)}<u class="tg-who" style="--rc:rgb(${(typeof TY_RVCOL !== 'undefined' && TY_RVCOL[d._r.id]) || '255,69,58'})">${d._r.ic || '⚔'}${escH([...d._r.nm][0] || '')}</u>${d._units.map(u => TY_UNITS[u.k].ic).join('')}`;
+      el.innerHTML = `${tagFlag(d._r.home)}<span class="tg-more"><u class="tg-who" style="--rc:rgb(${(typeof TY_RVCOL !== 'undefined' && TY_RVCOL[d._r.id]) || '255,69,58'})">${d._r.ic || '⚔'}${escH([...d._r.nm][0] || '')}</u>${d._units.map(u => TY_UNITS[u.k].ic).join('')}</span>${tag2(d._units)}`;
       el.title = `${d._r.nm}在${TY_REGIONS[d._rvf.reg].nm}的駐軍(勢力 ${d._rvf.v.toFixed(0)})`;
     }else if(d._threat){
       el.style.setProperty('--rc', `rgb(${(typeof TY_RVCOL !== 'undefined' && TY_RVCOL[d._r.id]) || '255,69,58'})`);
@@ -1403,7 +1407,9 @@ function tagsOn(){
       // 同一種兵只畫一個圖示,後面標總數;下一季才到的標「+N」
       const ics = [...new Set(d._units.map(u => TY_UNITS[u.k].ic))].slice(0, 3).join('');
       const n = d._units.length, inc = d._in || 0;
-      el.innerHTML = `${tagFlag(TY.home)}<u class="tg-who me">你</u>${ics}${n > 1 ? ` <b>×${n}</b>` : ''}${inc ? ` <i class="inc">+${inc}</i>` : ''}`;
+      el.style.setProperty('--rc', 'rgb(47,143,224)');
+      el.classList.add('me');
+      el.innerHTML = `${tagFlag(TY.home)}<span class="tg-more"><u class="tg-who me">你</u>${ics}${n > 1 ? ` <b>×${n}</b>` : ''}${inc ? ` <i class="inc">+${inc}</i>` : ''}</span>${tag2(d._units)}`;
       el.title = d._units.map(u => TY_UNITS[u.k].nm + (u.to ? ` → ${tySite(u.to).nm}` : '')).join('、');
     }
     if(d._rvf) el.onclick = () => { TY_MODAL = 'rival'; TY_RIVAL = d._r.id; renderPage(); };
