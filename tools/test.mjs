@@ -2141,6 +2141,10 @@ test('帝國第十三輪:星鏈(網路費、現金流加成、退役)、火星�
     TY.t += 10; out.expired = tyStarsOn().length === 0 && tySpaceTurn() === 0;
     // 火星:第一段要科技/能源/基建公司;第二段要星鏈
     TY = JSON.parse(snap); TY.t = 6; TY.cash = 5000e8;
+    // 第四十輪起:先月球基地(登月 + 2 棟),火箭研發才開得了
+    out.needMoon = tyNeeds('mars').some(n => !n.ok && /月球基地/.test(n.lab));
+    if (!tyStarsOn().length) tyLaunch(TY.home);
+    tyMoonLand(); { const P = tyPlots('moon'); let n = 0; for (let i = 0; i < P.length && n < 2; i++) if (!P[i].o) { tySpaceBuild('moon', i, n ? 'he3' : 'port'); n++; } }
     let tries = 0;
     while (TY.space.mars.st < 1 && tries++ < 12) { if (!TY.space.mars.run) out.go = tyMarsGo(); tyNext(); TY.cash = 5000e8; }
     out.st1 = TY.space.mars.st;
@@ -2160,6 +2164,7 @@ test('帝國第十三輪:星鏈(網路費、現金流加成、退役)、火星�
     return out;
   });
   ok(r.lockedAtStart, '星鏈、火星一開始是鎖著的');
+  ok(r.needMoon, '火箭研發之前要先有月球基地(登月 + 2 棟)');
   ok(r.starCard, '有科技公司就解鎖星鏈');
   near(r.paid, r.cost, 1, '發射扣的錢 = 星鏈成本');
   eq(r.n, 1, '軌道上多一批');
@@ -2450,6 +2455,86 @@ test('帝國第二十輪:月球 / 火星建地(登月、火星計畫前置、補
   ok(r.grabbed, `強行收購:建地換手、對手記恨 −25(${r.grab})`);
   ok(r.pick, '建地面板畫得出來');
   ok(r.race, '對手會登月、搶建地');
+  ok(page.__errors.length === 0, `有 JS 錯誤:\n      ${page.__errors.join('\n      ')}`);
+  await page.__ctx.close();
+});
+
+test('帝國第三十二輪:威脅卡、國家顏色只看在場的人、三條勝利路、預先轟炸、變現賺賠、城市優缺點、漲跌色', async (browser) => {
+  const page = await freshPage(browser, { seed: SEED, hash: '#/tycoon' });
+  const r = await page.evaluate(() => {
+    const out = {};
+    // 威脅卡:對手出兵 → 一張卡,有空襲 / 步兵 / 談判三顆按鈕
+    TY_SPEED = 0;                                   // 時鐘停住,不然對手會在測試中途又派一支
+    tyStart('heir', 131); TY.rt = true; TY_NEWCARD.length = 0; TY.cash = 900e8; TY.t = 6;
+    TY_ALERTS = []; TY_ALERT_EV.length = 0;
+    const a = tyRivalsA()[0]; tyRivalMarch(a, tySite(TY.home).reg);
+    renderPage();
+    const card = document.querySelector('.al-card.k-march');
+    out.card = !!card && !!card.querySelector('[data-ty="strike"][data-k="air"]') && !!card.querySelector('[data-ty="alertdeal"]')
+      && !!card.querySelector('[data-ty="recruitTo"],[data-ty="alertlaw"]');
+    // 快到了:按鈕變灰、寫「來不及」
+    const th = tyThreats()[0]; TY.prog = th.eta - TY.t - .01; tyAlertsLive();
+    out.late = /來不及/.test(document.querySelector('.al-card.k-march').textContent);
+    // 部隊被打散 → 卡自己收掉
+    TY.threats = []; tyAlertsLive();
+    out.gone = !document.querySelector('.al-card.k-march');
+    // 簡報 → 慈善按鈕
+    tyAlertEv({ k: 'leak', rid: a.id }); tyAlertsLive();
+    out.leak = !!document.querySelector('.al-card.k-leak [data-ty="charity"]');
+    // 國家顏色:只有你的部隊在泰國、對手什麼都沒有 → 你的
+    tyStart('heir', 132); TY_NEWCARD.length = 0; TY.cash = 900e8;
+    const bkk = TY_SITES.find(x => x.iso === 'TH');
+    for (const x of tyRivalsA()) { x.blds = []; if (tySite(x.home).iso === 'TH') x.home = 'hkg'; }
+    tyRecruit('raid'); const u = tyUnits()[0]; u.site = bkk.id; u.to = null; TY_PWC = null;
+    const noF = !tyRivalForces().some(f => tySite(f.site).iso === 'TH');
+    const P = tyIsoPower('TH'); out.th = noF ? !!(P && P.top && P.top.me) : true;
+    // 三條勝利路
+    out.win = TY_WIN.war.dsc.includes('3') && /月球/.test(TY_WIN.mars.dsc);
+    tyStart('heir', 133); TY.rt = true; TY_NEWCARD.length = 0;
+    const rv = tyRivalsA(); for (let i = 0; i < 3; i++) tyRivalDown(rv[i], 'me', '測試'); TY_FALLQ.length = 0;
+    for (const x of tyRivalsA()) x.nw = 1e8; TY.cash = 900e8; tyNext();
+    out.war = TY.done === 'win' && TY.win === 'war';
+    // 預先轟炸:部隊在路上時空襲那一區 → 開打勝率 +10%
+    tyStart('heir', 134); TY.rt = true; TY_NEWCARD.length = 0; TY.cash = 900e8; TY.ap = 9;
+    const f = tyRivalForces()[0];
+    tyRecruit('raid'); tyRecruit('raid');
+    const far = TY_SITES.find(x => x.reg !== f.reg && !x.minor);
+    for (const x of tyUnits()) { x.site = far.id; x.to = null; }
+    TY.prog = 0; tyDeployMany(tyUnits().map(x => x.id), f.site, { ord: 'attack', mode: 'mass' });
+    const p0 = (() => { for (const x of tyUnits()) { x.site = f.site; x.to = null; } const o = tyAssaultOdds(f.r.id, f.site).p; for (const x of tyUnits()) { x.site = far.id; x.to = f.site; } return o; })();
+    tyStrike('air', f.site);
+    out.prep = !!TY.airPrep && TY.airPrep.reg === f.reg;
+    for (const x of tyUnits()) { x.site = f.site; x.to = null; }
+    const p1 = tyAssaultOdds(f.r.id, f.site).p;
+    out.prepP = p1 > p0 || p1 >= .9;
+    // 變現:賺賠大字
+    tyStart('heir', 135); TY_NEWCARD.length = 0; TY.cash = 900e8;
+    TY_SIZE = .25; tyBuy('semi', TY.home);
+    TY_PICK = { k: 'sell', site: TY.home }; TY_MODAL = 'pick'; renderPage();
+    out.pl = !!document.querySelector('.pk-pl') && !!document.querySelector('#tySizeRange') && document.querySelectorAll('[data-ty="size"]').length >= 6;
+    // 城市優缺點:建設選單、城市面板
+    TY_PICK = { k: 'build', site: 'hsz' in TY_SITE ? 'hsz' : TY.home }; renderPage();
+    out.pc = !!document.querySelector('.pc-box') && /每季|回本/.test(document.querySelector('#tyRoot').textContent);
+    TY_MODAL = 'site'; TY_SEL = TY.home; TY_PICK = null; renderPage();
+    out.pcSite = !!document.querySelector('.pc-box');
+    TY_MODAL = null; TY_SEL = null; renderPage();
+    // 漲跌色切換
+    tySetUpGreen(true); const g = getComputedStyle(document.documentElement).getPropertyValue('--up').trim();
+    tySetUpGreen(false); const rd = getComputedStyle(document.documentElement).getPropertyValue('--up').trim();
+    out.color = g !== rd && document.documentElement.hasAttribute('data-upgreen') === false;
+    return out;
+  });
+  ok(r.card, '對手出兵:跳一張威脅卡,有空襲 / 步兵 / 談判的按鈕');
+  ok(r.late, '快到了:按鈕變灰、寫來不及');
+  ok(r.gone, '來襲的部隊沒了,卡自己收掉');
+  ok(r.leak, '被送簡報:卡上有慈善按鈕');
+  ok(r.th, '只有你的部隊在泰國、對手什麼都沒有 → 泰國是你的顏色');
+  ok(r.win, '勝利條件:征服 = 親手出局 3 位、火星要先月球');
+  ok(r.war, '親手讓 3 位對手出局、而且是榜首 → 征服勝利');
+  ok(r.prep && r.prepP, '部隊在路上先空襲:預先轟炸,開打勝率變高');
+  ok(r.pl, '變現:大字賺賠、六顆比例 + 滑桿');
+  ok(r.pc && r.pcSite, '建設選單與城市面板有優缺點、每季賺多少');
+  ok(r.color, '漲跌色可以切換');
   ok(page.__errors.length === 0, `有 JS 錯誤:\n      ${page.__errors.join('\n      ')}`);
   await page.__ctx.close();
 });
