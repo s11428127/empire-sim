@@ -2057,6 +2057,7 @@ test('帝國第十二輪:連點兩下城市開城市全景(依類型分區、全
   const r = await page.evaluate(() => {
     tyStart('heir', 7); TY.cash = 900e8; TY_MODAL = null; renderPage();
     const id = TY.home, out = {};
+    tyRivalsA()[0].home = id;                          // 第三十八輪起台北沒有對手了:放一位進來,測「對手地盤」那一區
     for (const k of ['tech', 'media', 'hotel', 'bank']) tyFound(k, id);
     TY_AMT = 3e9; tyBuy('estate', id); TY_AMT = null;
     tyRecruitTo('raid', id); tyRecruitTo('law', id);
@@ -2322,7 +2323,7 @@ test('帝國第十八輪:對手出局有明顯提示、對手名字點得開、�
     tyStart('tester', 7); TY_MODAL = null; renderPage();
     const out = {};
     // 城市上的金額只算你自己的(對手在同一城的大本營不算進去)
-    const lin = tyRivalsA().find(x => x.home === 'tpe');
+    const lin = tyRivalsA().find(x => x.home === 'tky');       // 第三十八輪:台北的林敏之換成東京的藤原 誠
     out.linHere = !!lin;
     const t = tySiteStuff('tpe');
     out.valMine = Math.abs(t.val - (t.pos.reduce((a, p) => a + tyPosVal(p), 0) + t.biz.reduce((a, b) => a + tyBizVal(b) * b.own, 0) + Math.max(0, t.cash))) < 1;
@@ -2350,7 +2351,7 @@ test('帝國第十八輪:對手出局有明顯提示、對手名字點得開、�
     out.cashMoved = TY.cashSite === 'tky' && TY.home === 'tky';
     return out;
   });
-  ok(r.linHere, '林敏之的大本營在台北(這一局的前提)');
+  ok(r.linHere, '藤原 誠的大本營在東京(這一局的前提)');
   ok(r.valMine, '城市上的金額只算你自己的資產');
   ok(r.card && r.news, '對手出局要跳出局卡、寫進新聞');
   ok(r.cardGone, '出局卡按「知道了」收起來');
@@ -2449,6 +2450,39 @@ test('帝國第二十輪:月球 / 火星建地(登月、火星計畫前置、補
   ok(r.grabbed, `強行收購:建地換手、對手記恨 −25(${r.grab})`);
   ok(r.pick, '建地面板畫得出來');
   ok(r.race, '對手會登月、搶建地');
+  ok(page.__errors.length === 0, `有 JS 錯誤:\n      ${page.__errors.join('\n      ')}`);
+  await page.__ctx.close();
+});
+
+test('帝國第三十輪:對手勢力被打光,大本營不再染整個省;台灣的對手換成日本', async (browser) => {
+  const page = await freshPage(browser, { seed: SEED, hash: '#/tycoon' });
+  const r = await page.evaluate(() => {
+    const out = {};
+    tyStart('heir', 111); TY_NEWCARD.length = 0; TY_LAYER = 'power';
+    out.noTw = !tyRivalsA().some(x => x.home === 'tpe');
+    const jp = tyRivalsA().find(x => x.home === 'tky'); out.jp = !!jp && jp.id === 'r4';
+    const zheng = tyRival('r1');
+    // 勢力還在:香港是他的,範圍大
+    zheng.turf.cn = 55; TY_PWC = null;
+    const z1 = tyCityZones().find(z => z.id === 'hkg'), v1 = tyCityPower('hkg').board.find(x => x.r === zheng).v;
+    // 勢力被打光:份量剩三成,範圍縮到 60 公里
+    zheng.turf.cn = 0; TY_PWC = null;
+    const z0 = tyCityZones().find(z => z.id === 'hkg'), v0 = tyCityPower('hkg').board.find(x => x.r === zheng).v;
+    out.big = z1 && !z1.me && z1.km > 170;
+    out.small = z0 && (z0.me || z0.km <= 60 + 1e-9);
+    out.weight = v0 <= v1 * .3 + 1;                  // 大本營 × 0.3,原本的駐軍也沒了
+    // 你在香港的錢比他剩下的份量多 → 香港變你的
+    zheng.nw = 50e8; TY.cash = 100e8; TY.cashSite = 'hkg'; TY_PWC = null;
+    out.mine = tyCityPower('hkg').top.me === true;
+    TY_LAYER = 'mine';
+    return out;
+  });
+  ok(r.noTw, '台北不再有對手的大本營');
+  ok(r.jp, '日本有一位對手(東京)');
+  ok(r.big, '對手勢力還在時,他大本營的範圍比 170 公里大');
+  ok(r.small, '勢力被打光:他的範圍縮到 60 公里(只剩大本營那一格)');
+  ok(r.weight, '勢力被打光:他在那座城的份量剩三成以下');
+  ok(r.mine, '你在那座城的錢比他剩下的份量多 → 那座城是你的顏色');
   ok(page.__errors.length === 0, `有 JS 錯誤:\n      ${page.__errors.join('\n      ')}`);
   await page.__ctx.close();
 });
@@ -2918,7 +2952,7 @@ test('帝國第二十三輪:勢力範圍改塗省 / 州、將領、進攻對手�
     out.ids = TY_SITES.map(s => s.id);
     // 勢力範圍:每座有人的城市給出半徑與省的塗色深淺
     tyStart('heir', 41); TY_NEWCARD.length = 0; TY_LAYER = 'power';
-    const z = tyCityZones(); out.zone = z.length > 0 && z.every(x => x.km >= 170 && x.km <= 460 && x.pa >= .5);
+    const z = tyCityZones(); out.zone = z.length > 0 && z.every(x => x.km >= (x.me ? 170 : 60) && x.km <= 460 && x.pa >= .5);
     TY_LAYER = 'mine';
     // 將領:請、指派、佔領 ×1.5、薪水、最多三位
     tyStart('heir', 42); TY_NEWCARD.length = 0; TY.cash = 800e8;
@@ -2958,7 +2992,7 @@ test('帝國第二十三輪:勢力範圍改塗省 / 州、將領、進攻對手�
   ok(r.wb, '星球說明卡要能收起來、再展開');
   eq(r.ids.filter(id => !(prov.S[id] && prov.S[id].length)), [], '每一座城市都要有勢力範圍的省 / 州');
   ok(prov.P.length > 500 && prov.P.every(p => p.length && p.every(ring => ring.length >= 4)), '省界資料要有、而且每個環至少四個點');
-  ok(r.zone, '勢力範圍:半徑 170~460 公里、省的塗色要夠深(≥ 0.5)');
+  ok(r.zone, '勢力範圍:半徑 170~460 公里(對手勢力被打光時縮到 60)、省的塗色要夠深(≥ 0.5)');
   ok(Math.abs(r.r1 / r.r0 - 1.5) < 1e-9, `併購專家:佔領速度 ×1.5(${r.r0} → ${r.r1};同一區有你的公司另有補給線 +25%)`);
   ok(r.pay, '將領每季要付薪水');
   ok(r.max, '將領最多三位');
@@ -3043,9 +3077,9 @@ test('帝國第二十一輪:勢力圈、全面併吞、無盡模式、新富豪�
     const out = {};
     // ① 勢力圈:你有東西的城市外面有一圈你的顏色;只有你在的國家,勢力再小也要上色
     tyStart('heir', 11); TY_NEWCARD.length = 0; TY_LAYER = 'power';
-    TY_SIZE = .3; tyBuy('estate', 'tky');
+    TY_SIZE = .3; tyBuy('estate', 'osa');            // 第三十八輪起東京是對手(藤原 誠)的大本營,改用大阪
     const z = tyCityZones();
-    out.zoneMe = z.some(x => x.id === 'tky' && x.me && x.km >= 170);
+    out.zoneMe = z.some(x => x.id === 'osa' && x.me && x.km >= 170);
     out.zoneRv = z.some(x => !x.me);
     const P = tyIsoPower('JP');
     out.jpTop = !!(P && P.top);
