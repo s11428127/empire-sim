@@ -2490,9 +2490,13 @@ test('帝國第二十三輪:勢力範圍改塗省 / 州、將領、進攻對手�
     out.win = /打贏/.test(msg) ? (tyTurf(f.r, f.reg) === Math.max(0, turf0 - 18) && f.r.nw < nw0) : (tyUnits().length === n0 - 1);
     TY_MODAL = 'troop'; renderPage();
     out.genUi = document.querySelectorAll('[data-ty="genhire"]').length === Object.keys(TY_GENS).length;
+    // 星球左上的說明卡可以收起來(使用者:「左上那個火星的畫面可以關掉」)
+    TY_PLANET = 'mars'; TY_WB_MIN = false; const wb1 = tyWorldBadge(); TY_WB_MIN = true; const wb2 = tyWorldBadge(); TY_PLANET = null; TY_WB_MIN = false;
+    out.wb = /data-ty="wbmin"/.test(wb1) && /tg-world min/.test(wb2) && /data-ty="wbmax"/.test(wb2);
     TY_MODAL = null; TY_SEL = null; renderPage();
     return out;
   });
+  ok(r.wb, '星球說明卡要能收起來、再展開');
   eq(r.ids.filter(id => !(prov.S[id] && prov.S[id].length)), [], '每一座城市都要有勢力範圍的省 / 州');
   ok(prov.P.length > 500 && prov.P.every(p => p.length && p.every(ring => ring.length >= 4)), '省界資料要有、而且每個環至少四個點');
   ok(r.zone, '勢力範圍:半徑 170~460 公里、省的塗色要夠深(≥ 0.5)');
