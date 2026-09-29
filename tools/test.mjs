@@ -2451,6 +2451,66 @@ test('帝國第二十輪:月球 / 火星建地(登月、火星計畫前置、補
   await page.__ctx.close();
 });
 
+test('帝國第二十五輪:即時制對手錯開行動、部隊依距離行軍、到了進攻或駐紮、補給線', async (browser) => {
+  const page = await freshPage(browser, { seed: SEED, hash: '#/tycoon' });
+  const r = await page.evaluate(() => {
+    const out = {};
+    // 對手:即時制換季只排隊,時間走到才動
+    tyStart('heir', 61); TY.rt = true; TY_NEWCARD.length = 0; TY.t = 4;
+    tyNext(); TY.prog = 0;
+    out.pend = tyRivalsA().every(x => x.actPend);
+    const t0 = tyLiveTick(); out.none = !t0.some(e => e.rv) && tyRivalsA().every(x => x.actPend);
+    TY.prog = .99; tyLiveTick(); out.acted = tyRivalsA().every(x => !x.actPend);
+    // 行軍時間:同城 0、其餘 0.15~0.5 季,越遠越久
+    out.q0 = tyMoveQ('tpe', 'tpe');
+    const qn = tyMoveQ('tpe', 'hkg'), qf = tyMoveQ('tpe', 'nyc');
+    out.qr = qn >= .15 && qf <= .5 && qf > qn;
+    // 派兵:eta = 出發時間 + 行軍時間;路上位置隨時間走
+    tyStart('heir', 62); TY.rt = true; TY_NEWCARD.length = 0; TY.cash = 800e8;
+    for (let i = 0; i < 3; i++) tyRecruit('raid');
+    const f = tyRivalForces()[0];
+    TY.prog = .2;
+    for (const u of tyUnits()) tyDeploy(u.id, f.site);
+    const u0 = tyUnits()[0], mq = tyMoveQ(u0.from, f.site);
+    out.eta = Math.abs(u0.eta - (TY.t + .2 + mq)) < 1e-9 && u0.ord === 'attack';
+    TY.prog = .2 + mq / 2; out.mid = Math.abs(tyUnitProg(u0) - .5) < 1e-6;
+    // 到了:有對手駐軍 → 自動開打
+    TY.prog = .2 + mq + .001; const ev = tyLiveTick();
+    out.arr = ev.filter(e => e.arr).length === 3 && tyUnits().every(u => !u.to && u.site === f.site);
+    out.auto = tyBattles().length === 1 && /開打/.test(ev.map(e => e.txt || '').join());
+    // 駐紮命令:到了不打
+    tyStart('heir', 63); TY.rt = true; TY_NEWCARD.length = 0; TY.cash = 800e8;
+    tyRecruit('raid'); const u1 = tyUnits()[0]; u1.ord = 'hold';
+    const g = tyRivalForces()[0]; tyDeploy(u1.id, g.site);
+    TY.prog = .6; tyLiveTick(); out.hold = u1.site === g.site && tyBattles().length === 0;
+    // 補給線:該區有公司 +25%、有在地夥伴再 +15%
+    const reg = tySite(g.site).reg;
+    TY.biz = TY.biz.filter(b => tySite(b.site || TY.home).reg !== reg); TY.partners = {};
+    out.s0 = tySupply(reg).bonus;
+    TY.biz.push({ ...TY.biz[0], site: g.site }); out.s1 = tySupply(reg).bonus;
+    TY.partners = { [reg]: 1 }; out.s2 = tySupply(reg).bonus;
+    // 部隊面板:切換「到了進攻 / 只駐紮」
+    TY_MODAL = 'troop'; renderPage();
+    const btn = document.querySelector('[data-ty="uord"]'); out.btn = !!btn;
+    if (btn) { btn.click(); out.tog = u1.ord === 'attack'; }
+    TY_MODAL = null; renderPage();
+    return out;
+  });
+  ok(r.pend && r.none, '即時制:換季時對手只排隊,時間還沒到不動');
+  ok(r.acted, '即時制:季中時間走到,對手依序行動');
+  eq(r.q0, 0, '同一座城不用走');
+  ok(r.qr, '行軍時間 0.15~0.5 季,越遠越久');
+  ok(r.eta, '派兵:抵達時間 = 出發 + 依距離的行軍時間,預設「到了就進攻」');
+  ok(r.mid, '走到一半時畫面位置在中間');
+  ok(r.arr, '時間到了部隊抵達');
+  ok(r.auto, '抵達時那裡有對手駐軍 → 自動開打');
+  ok(r.hold, '「只駐紮」命令:抵達不開打');
+  ok(r.s0 === 0 && Math.abs(r.s1 - .25) < 1e-9 && Math.abs(r.s2 - .4) < 1e-9, `補給線 0 → 25% → 40%:${[r.s0, r.s1, r.s2]}`);
+  ok(r.btn && r.tog, '部隊面板可以切換到了之後要進攻還是駐紮');
+  ok(page.__errors.length === 0, `有 JS 錯誤:\n      ${page.__errors.join('\n      ')}`);
+  await page.__ctx.close();
+});
+
 test('帝國第二十四輪:即時制(時鐘、指揮點回復、施工、血量戰鬥)、三種勝利、失敗、紀錄', async (browser) => {
   const page = await freshPage(browser, { seed: SEED, hash: '#/tycoon' });
   const r = await page.evaluate(() => {
@@ -2546,7 +2606,7 @@ test('帝國第二十三輪:勢力範圍改塗省 / 州、將領、進攻對手�
     tyGenHire('pr'); tyGenHire('guard'); out.max = /最多/.test(tyGenHire('war') || '');
     // 公關長:部隊不加關注;防守名將:防守 ×1.5;後勤:維持費減半
     tyGenAssign(tyGens()[1].id, u.id);
-    out.pr = tyUnitHeat(u) === 0 && tyOccRate(u) === TY_OCC.raid;       // 換成公關長之後併購專家就不在這支了
+    out.pr = tyUnitHeat(u) === 0 && Math.abs(tyOccRate(u) - out.r0) < 1e-9;       // 換成公關長之後併購專家就不在這支了
     const th = { reg: tySite(u.site).reg, pow: 1 }; const b0 = tyThreatBlock(th);
     tyGenAssign(tyGens()[2].id, u.id); out.guard = tyThreatBlock(th) > b0;
     // 部隊解散 → 將領回總部
@@ -2577,7 +2637,7 @@ test('帝國第二十三輪:勢力範圍改塗省 / 州、將領、進攻對手�
   eq(r.ids.filter(id => !(prov.S[id] && prov.S[id].length)), [], '每一座城市都要有勢力範圍的省 / 州');
   ok(prov.P.length > 500 && prov.P.every(p => p.length && p.every(ring => ring.length >= 4)), '省界資料要有、而且每個環至少四個點');
   ok(r.zone, '勢力範圍:半徑 170~460 公里、省的塗色要夠深(≥ 0.5)');
-  eq([r.r0, r.r1], [25, 37.5], '併購專家:坦克佔領速度 25 → 37.5');
+  ok(Math.abs(r.r1 / r.r0 - 1.5) < 1e-9, `併購專家:佔領速度 ×1.5(${r.r0} → ${r.r1};同一區有你的公司另有補給線 +25%)`);
   ok(r.pay, '將領每季要付薪水');
   ok(r.max, '將領最多三位');
   ok(r.pr, '公關長:部隊不增加關注');
