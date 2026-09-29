@@ -4565,7 +4565,12 @@
   .cm-at{color:var(--g-t2)} .cm-mv{color:#7fd4ff} .cm-war{color:#ff8a80} .cm-wait{color:#ffd84a}
   .ty-threat.raid .toe-bar{position:relative;height:8px;border-radius:4px;background:#0f2233;margin:7px 0}
   .ty-threat.raid .toe-bar u{position:absolute;left:0;top:0;bottom:0;background:#ff453a;border-radius:4px}
-  .ty-threat.raid .toe-b{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+  .ty-threat .toe-b{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+  .inv-tag{font-style:normal;font-size:10.5px;padding:1px 6px;border-radius:4px;margin-left:4px;white-space:nowrap}
+  .inv-tag.up{background:rgba(48,209,88,.18);color:#6ee58f} .inv-tag.mid{background:rgba(255,216,74,.15);color:#ffd84a}
+  .inv-tag.down{background:rgba(255,69,58,.18);color:#ff8a80}
+  .inv-best{font-style:normal;font-size:10.5px;color:#ffd84a;margin-left:4px;white-space:nowrap}
+  .inv-why{font-size:11px;color:var(--g-t2)}
   .rv-toe{border:1px solid rgba(255,216,74,.4);border-radius:8px;padding:9px 11px;margin:6px 0;background:rgba(255,216,74,.05)}
   .rv-toe .toe-h{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;font-size:13px}
   .rv-toe .toe-h span{font-size:11.5px;color:var(--g-t2);margin-left:auto}
@@ -5906,6 +5911,11 @@ function tyRegOwner(reg){
    使用者:「我想看到對手做了什麼」。 */
 let TY_RV_EV=[];
 /* ---- 每一季對手自己走一步 ---- */
+/* 場上所有人(對手 + 你)身家的中位數 —— 拿來判斷「誰已經大到不正常」 */
+function tySizeMed(){
+  const A=[...tyRivalsA().map(r=>r.nw), Math.max(0,tyShownNW())].sort((a,b)=>a-b);
+  return A.length ? A[Math.floor(A.length/2)] : 1e9;
+}
 function tyRivalTurn(){
   const M=TY.macro;
   TY_RV_EV=[];
@@ -5921,6 +5931,10 @@ function tyRivalTurn(){
     const macro = A.senti*M.senti*.045 + A.rate*(M.rate-2.5)*.004
                 + A.oil*((TY.px.oil/100)-1)*.03;
     r.nw *= 1 + r.b + macro + (ri-1)*.06 + tyG()*.05*(1+r.lev);
+    /* 第三十七輪:大到一個程度就長不快(規模不經濟、反壟斷、市場飽和)。
+       量測:30 季裡有一成的局某個對手靠槓桿好運 + 吃人長到開局的 30~50 倍,那一局等於沒得玩。
+       比「中位數」(所有對手 + 你)大兩倍以上開始拖:4 倍 −2%/季、16 倍 −6%/季。 */
+    r.nw *= 1 - .02*Math.max(0, Math.log2(r.nw/Math.max(1e8, tySizeMed())) - 1);
     r.nw = Math.max(5e7, r.nw);
     /* 身家掉到 2 億以下就退出富豪榜(規則寫在對手頁上;以前只有敵意收購那條路會檢查) */
     if(r.nw < 2e8){
@@ -5985,7 +5999,8 @@ function tyRivalAct(r){
          ⚠ 第二十八輪量測:原本「第 3 季起、12%、比他小 55% 就能吃」—— 18 局裡有 13 局到第 40 季
          只剩一個對手,好幾個人第 3~7 季就被吃掉(使用者:「玩到後面很多富豪都消失了」)。
          現在:第 10 季起、要小到三成以下、一季最多一件、場上至少留四個人;其餘的機率改成擴張。 */
-      const prey = TY.t>=10 && !TY_RV_EV.some(e=>e.k==='eat') && tyRivalsA().length>4
+      /* 第三十七輪:反壟斷審查 —— 已經是中位數兩倍以上的人不准再吃(量測:失控的那一成都是「大的又吃了一個」) */
+      const prey = TY.t>=10 && !TY_RV_EV.some(e=>e.k==='eat') && tyRivalsA().length>4 && r.nw < tySizeMed()*2
         ? tyRivalsA().filter(x=>x.id!==r.id && x.nw < r.nw*.3).sort((a,b)=>b.nw-a.nw)[0] : null;
       if(!prey){ r.turf=r.turf||{}; const reg=tySite(r.home).reg; r.turf[reg]=tyClamp(tyTurf(r,reg)+3, 0, 100); }
       if(prey){
@@ -6025,9 +6040,12 @@ function tyRivalAct(r){
           /* 第三十六輪:同時最多兩支在路上 —— 你當榜首時大家都想打你,不限制會六支一起壓到台北 */
           if(!tyThreats().some(x=>x.rid===r.id) && tyThreats().length < 2) tyRivalMarch(r, g);
           else TY.reg[g].comp += 1;
-        }else if(how===1){
-          TY.heat=tyClamp(TY.heat+7,0,120);
-          tyLog('rival', `${r.nm}把你的架構整理成一份簡報,送到了不該送的地方。關注度 +7。`, r.id);
+        }else if(how===1 && TY.leakT!==TY.t){
+          /* 第三十七輪:一季最多一份簡報、+5(原本 +7 而且每個人都能送 —— 一季兩動之後,
+             打過幾個對手的人一季會被送四五份,十一季就被起訴) */
+          TY.leakT=TY.t;
+          TY.heat=tyClamp(TY.heat+5,0,120);
+          tyLog('rival', `${r.nm}把你的架構整理成一份簡報,送到了不該送的地方。關注度 +5。`, r.id);
           TY_RV_EV.push({ k:'leak', rid:r.id });
         }else{
           TY.fame=tyClamp(TY.fame-5,0,100);
@@ -6340,9 +6358,9 @@ function tyDisband(id){
    再加上原本就有的關注度(+8 / +4)與記恨(對手會派兵回來打你),狂轟一個人是可以的,但很貴、很醒目、效果遞減。 */
 const TY_STRIKES = {
   missile: { nm:'做空飛彈', ic:'🚀', cd:2, pct:.02, min:2e8,
-    dsc:'對一個對手的控股公司放空狙擊:他的身家 −4~8%,你賺回其中兩成(最多花費的 1.5 倍)。關注 +8、他對你 −30。冷卻 2 季;連發會加價、連打同一個人效果遞減。' },
+    dsc:'對一個對手的控股公司放空狙擊:他的身家 −4~8%,你賺回其中兩成(最多花費的 1.5 倍)。股價一跌他的軍費就斷:路上的部隊攻擊力 ×0.7、各地駐軍勢力 −3。關注 +8、他對你 −30。冷卻 2 季;連發會加價、連打同一個人效果遞減。' },
   air:     { nm:'輿論空襲', ic:'✈', cd:1, pct:.015, min:1.5e8,
-    dsc:'在一個城市所在的地區對一個對手發動媒體轟炸:他在那個地區的勢力 −12、對你 −15。名氣 −2、關注 +4。冷卻 1 季;連發會加價、連打同一個人效果遞減。' },
+    dsc:'在一個城市所在的地區對一個對手發動媒體轟炸:他在那個地區的勢力 −12、對你 −15。名氣 −2、關注 +4。打在正往你這裡來的部隊上:攻擊力 ×0.4,太弱就撤回(防守不扣名氣)。你正在那一區打他:空中支援,勝率 +15%。冷卻 1 季;連發會加價、連打同一個人效果遞減。' },
 };
 const TY_STRIKE_WIN = 4;                                   // 「最近」= 4 季
 const tyStrikeLog = () => (TY.strikes = TY.strikes || []);
@@ -6780,7 +6798,7 @@ const tyUnitHeat = u => tyGenIs(u,'pr') ? 0 : 1;
      防守力:他在那裡的勢力 ÷ 25 × 0.9,他身家比你大再 +0.3
      勝率 = 0.25 + 0.3 ×(攻 − 防),夾在 10%~90%
    打贏(商戰的語言:搶下他的市場):他在那一區勢力 −18、身家 −3%,其中一半的訂單變成你的現金;
-     當地競爭 −1.5(你的事業現金流變好)。名氣 +3、關注 +5、他 −25。
+     當地競爭 −1.5(你的事業現金流變好)。名氣 +3、關注 +3、他 −25。
    打輸:你在那一區最弱的一支戰鬥部隊被打散(那筆錢就沒了),他 −15、關注 +3。
    花費:行動 2 點 + 身家 1% 的作戰費。
    ========================================================================= */
@@ -6842,7 +6860,7 @@ function tyAssaultApply(rid, site, reg, win, p, cost, done){
     r.nw-=cut; TY.cash+=cut*.5;
     TY.reg[reg].comp=Math.max(0,(TY.reg[reg].comp||0)-1.5);
     r.rel=tyClamp((r.rel||0)-25,-100,100);
-    TY.fame=tyClamp(TY.fame+3,0,100); TY.heat=tyClamp(TY.heat+5*heat,0,120);
+    TY.fame=tyClamp(TY.fame+3,0,100); TY.heat=tyClamp(TY.heat+3*heat,0,120);     // 第三十七輪 5 → 3:即時制一打就是好幾場
     tyLog('unit', `⚔ 進攻${r.nm}在${tySite(site).nm}的駐軍:打贏了。他在${TY_REGIONS[reg].nm}勢力 −18,${tyM(cut*.5)} 的訂單轉到你這邊。`);
     if(r.nw<2e8) tyRivalDown(r,'me','被你一路打到撐不下去');
     tySave();
@@ -6854,7 +6872,7 @@ function tyAssaultApply(rid, site, reg, win, p, cost, done){
   tyUnits().splice(tyUnits().indexOf(weak),1);
   tyArmyClean();
   for(const g of tyGens()) if(g.u===weak.id) g.u=null;
-  r.rel=tyClamp((r.rel||0)-15,-100,100); TY.heat=tyClamp(TY.heat+3*heat,0,120);
+  r.rel=tyClamp((r.rel||0)-15,-100,100); TY.heat=tyClamp(TY.heat+2*heat,0,120);
   tyLog('unit', `⚔ 進攻${r.nm}在${tySite(site).nm}的駐軍:打輸了,${TY_UNITS[weak.k].nm}被打散。`);
   tySave();
   return `<b>⚔ 打輸了。</b>你的${TY_UNITS[weak.k].ic}${TY_UNITS[weak.k].nm}被打散(招募它的錢沒了)。`
@@ -6872,7 +6890,7 @@ function tyOccupyTurn(){
     L.st.ctl=Math.min(100, L.st.ctl + here.reduce((a,u)=>a+tyOccRate(u),0));
     const trib=L.nw*.015*here.filter(u=>(TY_OCC[u.k]||0)>=10).length;
     gain+=trib; TY.tribute=(TY.tribute||0)+trib;
-    TY.heat=tyClamp(TY.heat+.6*here.reduce((a,u)=>a+tyUnitHeat(u),0),0,120);
+    TY.heat=tyClamp(TY.heat+.4*here.reduce((a,u)=>a+tyUnitHeat(u),0),0,120);
     if(L.st.ctl>=100){ tyLocalTake(id,'army'); TY_LAST_TAKE={ site:id }; }
   }
   for(const id in (TY.loc||{})){ const st=TY.loc[id]; if(!st.gone && st.ctl>0 && !occ.has(id)) st.ctl=Math.max(0, st.ctl-10); }
@@ -6948,6 +6966,8 @@ const tyStrikeReady = k => tyTester() || ((TY.cd||{})[k]||0) <= TY.t;
 function tyStrikeTarget(k, site){
   const S=TY_SITE[site]; if(!S) return null;
   if(k==='missile') return tyRivalsA().find(r=>r.home===site) || null;
+  const th=tyThreats().find(x=>x.site===site);                 // 正往這座城打過來的部隊優先(第三十七輪)
+  if(th && tyRival(th.rid)) return tyRival(th.rid);
   return tyRivalsA().filter(r=>tyTurf(r,S.reg)>0).sort((a,b)=>tyTurf(b,S.reg)-tyTurf(a,S.reg))[0] || null;
 }
 let TY_LAST_STRIKE=null;                      // 給畫面層播飛彈 / 空襲動畫(不進存檔)
@@ -6969,15 +6989,44 @@ function tyStrike(k, site){
     if(r.nw<2e8) tyRivalDown(r, 'me', '被你的做空飛彈打到身家不到 2 億');
     r.rel=tyClamp((r.rel||0)-30,-100,100);
     TY.heat=tyClamp(TY.heat+8,0,120);
+    /* 第三十七輪:股價被打下來 → 他的軍費(養部隊的錢)跟著斷。
+       飛彈打的是「公司」不是「部隊」,所以效果是間接的:他正在路上的部隊攻擊力 ×0.7,每個地區的駐軍(勢力)−3 */
+    let mil='';
+    const ths=tyThreats().filter(x=>x.rid===r.id);
+    for(const th of ths) th.pow*=.7;
+    for(const g in (r.turf||{})) r.turf[g]=tyClamp(tyTurf(r,g)-3*fat,0,100);
+    mil = ths.length ? `他的軍費跟著斷:路上的 ${ths.length} 支部隊攻擊力 ×0.7,各地駐軍勢力 −3。` : '他的軍費跟著斷:各地駐軍勢力 −3。';
     txt=`${r.nm}的身家被打掉 <b>${tyM(hit)}</b>${fatTxt},你的空單賺回 ${tyM(gain)}(花費 ${tyM(cost)})。`
-       +`他現在很想報復(關係 ${r.rel.toFixed(0)}),關注 +8。`;
+       +`${mil}他現在很想報復(關係 ${r.rel.toFixed(0)}),關注 +8。`;
     tyLog('strike', `🚀 做空飛彈命中${r.nm}(${S.nm}):他的身家 −${tyM(hit)},你賺回 ${tyM(gain)}。`);
+  }else if(tyThreats().some(x=>x.site===site && x.rid===r.id)){
+    /* 第三十七輪:空襲正往你這裡打的部隊 —— 媒體把他的併購案炒成醜聞,團隊士氣崩掉。
+       攻擊力 ×0.4;掉到 0.5 以下就直接撤回。對你是防守,所以不扣名氣、關注只 +2 */
+    const th=tyThreats().find(x=>x.site===site && x.rid===r.id);
+    const p0=th.pow; th.pow*= 1 - .6*Math.min(1,fat);
+    r.rel=tyClamp((r.rel||0)-10,-100,100); TY.heat=tyClamp(TY.heat+2,0,120);
+    if(th.pow<.5){
+      TY.threats=tyThreats().filter(x=>x!==th);
+      txt=`${r.nm}往${S.nm}的併購小組被輿論打散,<b>撤回去了</b>(花費 ${tyM(cost)})。關注 +2。`;
+      tyLog('strike', `✈ 空襲打散${r.nm}往${S.nm}的部隊。`);
+    }else{
+      txt=`${r.nm}往${S.nm}的部隊攻擊力 ${p0.toFixed(1)} → <b>${th.pow.toFixed(1)}</b>${fatTxt},你的防守率變成 ${(tyThreatBlock(th)*100).toFixed(0)}%(花費 ${tyM(cost)})。`;
+      tyLog('strike', `✈ 空襲${r.nm}往${S.nm}的部隊:攻擊力 ${p0.toFixed(1)} → ${th.pow.toFixed(1)}。`);
+    }
   }else{
+    /* 你正在這裡打他的駐軍:空中支援 —— 勝率 +15%(沒贏的那一擲重擲一次補上差額) */
+    const bt=tyBattles().find(b=>b.rid===r.id && b.reg===S.reg);
+    if(bt && !bt.air){
+      const p1=Math.min(.9, bt.p+.15);
+      if(!bt.win && bt.p<1) bt.win = tyRnd() < (p1-bt.p)/(1-bt.p);
+      bt.p=p1; bt.air=true;
+    }
     const before=tyTurf(r,S.reg);
     r.turf[S.reg]=tyClamp(before-12*fat,0,100);
     r.rel=tyClamp((r.rel||0)-15,-100,100);
     TY.fame=tyClamp(TY.fame-2,0,100); TY.heat=tyClamp(TY.heat+4,0,120);
     txt=`${r.nm}在${TY_REGIONS[S.reg].nm}的勢力 ${before.toFixed(0)} → <b>${tyTurf(r,S.reg).toFixed(0)}</b>${fatTxt}(花費 ${tyM(cost)})。`
+       +(bt && bt.air ? `<b>空中支援:這一場的勝率變成 ${(bt.p*100).toFixed(0)}%。</b>` : '')
        +`名氣 −2、關注 +4,他對你 −15。`;
     tyLog('strike', `✈ 輿論空襲${TY_REGIONS[S.reg].nm}:${r.nm}的勢力 −${(12*fat).toFixed(0)}。`);
   }
@@ -8227,6 +8276,7 @@ function tyNext(){
   TY.t++;
   TY.news=[];
   const M=TY.macro, prevRate=M.rate;
+  const invV0=TY.pos.map(p=>p.q>0 ? tyPosVal(p) : 0);      // 第三十七輪:這一季投資賺賠(給畫面回報;地區指數與價格都算進去)
 
   /* ---- 1. 景氣循環 ---- */
   const nx=TY_REGIME[M.reg].next;
@@ -8278,6 +8328,9 @@ function tyNext(){
   for(const a of TY_ASSETS){
     (TY.pxH[a.k]=TY.pxH[a.k]||[100]).push(+TY.px[a.k].toFixed(2));
   }
+  { let d=0, top=null;
+    TY.pos.forEach((p,i)=>{ if(!(p.q>0)) return; const x=tyPosVal(p)-(invV0[i]||0); d+=x; if(!top || Math.abs(x)>Math.abs(top.d)) top={ k:p.k, d:x }; });
+    TY.invLast = TY.pos.some(p=>p.q>0) ? { t:TY.t, d, top } : null; }
 
   /* ---- 3. 現金流 ---- */
   let inc=0;
@@ -8847,8 +8900,9 @@ function tyBuy(k, site){
   const got=tyUnitCount(p)-before;
   tyLog('trade',`在${tySite(site).nm}買進 ${a.nm} ${tyUnitTxt(got,a.u)}(${tyM(amt)})`);
   tySave();
-  return `在${tySite(site).nm}買進 <b>${tyUnitTxt(got,a.u)}</b>的${a.nm},花了 ${tyM(amt)}`
-       + `(每${a.u} ${tyM(tyUnitPx(k,site))},交易成本 ${tyM(amt*fee)})。`;
+  const o=tyAssetOutlook(k), exp=amt*(1-fee)*o.m;
+  return `在${tySite(site).nm}買進 <b>${tyUnitTxt(got,a.u)}</b>的${a.nm},花了 ${tyM(amt)}(交易成本 ${tyM(amt*fee)})。`
+       + `${o.tag.t}:${o.why} —— 下一季大概 <b class="${exp>=0?'up':'down'}">${exp>=0?'+':'−'}${tyM(Math.abs(exp))}</b>,季末會告訴你實際賺賠。`;
 }
 function tySell(k, site){
   const a=tyAsset(k); if(!a) return '';
@@ -9199,7 +9253,7 @@ function tyNeeds0(act, arg){
       const r=site ? tyStrikeTarget(k, site) : null;
       const out=[ tyNb('冷卻完成', tyStrikeReady(k),
                        `${d.nm}還在冷卻,${tyWhen((TY.cd||{})[k]||0)} 才能再用`) ];
-      if(site) out.push(tyNb(k==='missile'?`${tySite(site).nm}有對手的大本營`:`${TY_REGIONS[tySite(site).reg].nm}有對手的勢力`,
+      if(site) out.push(tyNb(k==='missile'?`${tySite(site).nm}有對手的大本營`:`${TY_REGIONS[tySite(site).reg].nm}有對手的勢力或來襲部隊`,
                              !!r, k==='missile'?'飛彈要打在對手的大本營 —— 這座城市沒有對手住在這裡'
                                                :'這個地區沒有任何對手的勢力,轟炸沒有對象'));
       out.push(cashFor(tyStrikeCost(k)));
@@ -9920,6 +9974,40 @@ function tyFeeOf(k, site){
   return fee;
 }
 /* 這筆錢在這個市場買得到什麼 —— 買進按鈕底下那一行 */
+/* =========================================================================
+   投資看得懂(第三十七輪)
+   -------------------------------------------------------------------------
+   使用者:「投資那部分有點難理解,可以簡單一點,我要有回饋的感覺」。
+   每一種資產算出**下一季的期望報酬**與**波動**,用的就是規則本身的公式(tyNext 的 step):
+     期望 = 長期成長 + 景氣敏感度 × 預期景氣 + 利率敏感度 × 預期利率變化 + 通膨項
+   預期景氣 / 利率 = 依「景氣會怎麼轉」的機率加權(TY_REGIME.next)—— 不偷看亂數,是誠實的預期。
+   顯示成 🟢 順風 / 🟡 普通 / 🔴 逆風,一句白話說為什麼,再加「買這筆,下一季大概 +多少(最好 / 最差)」。
+   ========================================================================= */
+function tyAssetOutlook(k){
+  const a=tyAsset(k), M=TY.macro, nx=TY_REGIME[M.reg].next;
+  let es=0, er=0;
+  for(const [g,p] of Object.entries(nx)){ const R=TY_REGIME[g]; es+=p*R.senti; er+=p*(R.tgt-M.rate)*.5; }
+  const parts={ grow:a.drift, senti:a.beta*es, rate:a.rat*er, inf:a.inf*((M.inf-2)/100*3) };
+  const m=parts.grow+parts.senti+parts.rate+parts.inf;
+  const big=Object.entries(parts).filter(([k])=>k!=='grow').sort((x,y)=>Math.abs(y[1])-Math.abs(x[1]))[0];
+  let why='長期慢慢漲,這一季沒有特別的風向';
+  if(big && Math.abs(big[1])>.004){
+    const up=big[1]>0;
+    why = big[0]==='senti' ? (up ? (es>0?'景氣好,它跟著漲':'景氣差,資金躲到它這裡') : (es>0?'景氣好,資金跑去更刺激的地方':'景氣差,它會被拖累'))
+        : big[0]==='rate'  ? (up ? (er>0?'利率要升,它賺更多':'利率要降,它會漲') : (er>0?'利率要升,它會被壓':'利率要降,它吃虧'))
+        : (up ? '通膨高,它漲價轉嫁得出去' : '通膨高,它的價值被吃掉');
+  }
+  const tag = m>=.015 ? { c:'up', t:'🟢 順風' } : m>=0 ? { c:'mid', t:'🟡 普通' } : { c:'down', t:'🔴 逆風' };
+  return { m, v:a.vol, why, tag };
+}
+/* 白話版:買這一筆,下一季大概會怎樣 */
+function tyBuySimple(k, site){
+  const amt=tyOrderAmt(); if(amt<1e6) return '現金不夠,連一筆像樣的單都下不了。';
+  const o=tyAssetOutlook(k), fee=tyFeeOf(k, site);
+  const exp=amt*(1-fee)*o.m, hi=amt*(1-fee)*(o.m+o.v), lo=amt*(1-fee)*(o.m-o.v);
+  return `買 <b>${tyM(amt)}</b> → 下一季大概 <b class="${exp>=0?'up':'down'}">${exp>=0?'+':'−'}${tyM(Math.abs(exp))}</b>`
+       + `(運氣好 +${tyM(Math.max(0,hi))}、運氣差 −${tyM(Math.max(0,-lo))})`;
+}
 function tyBuyPreview(k, site){
   const a=tyAsset(k), amt=tyOrderAmt();
   if(amt<1e6) return '現金不夠,連一筆像樣的單都下不了。';
@@ -10590,6 +10678,7 @@ function tyTroopTab(){
           · 攻擊力 ${th.pow.toFixed(1)}</div>
         <div class="th-n">擋不住的話:${TY_REGIONS[th.reg].nm}競爭度 +${(2.5*th.pow).toFixed(1)}、
           ${escH(S.nm)}的事業被挖走 6% 資本。律師團防守力最高(1.0),併購小組 0.7。</div>
+        <div class="toe-b">${tyActBtn('strike', { k:'air', site:th.site }, `✈ 空襲這支(${tyM(tyStrikeCost('air'))})`, ` data-k="air" data-site="${th.site}"`)}</div>
       </div>`;
   }).join('') : '';
 
@@ -10693,7 +10782,10 @@ function tyAimStrike(k){
   const d=TY_STRIKES[k];
   W3D.aim({ from:tySite(TY.home), strike:k, label:`${d.ic} ${d.nm}的目標?`,
     valid: id=>!!tyStrikeTarget(k, id),
-    hint: id=>{ const r=tyStrikeTarget(k, id); return r ? `打擊 ${r.ic||''} ${r.nm}` : (k==='missile'?'這裡沒有對手的大本營':'這個地區沒有對手的勢力'); },
+    hint: id=>{ const r=tyStrikeTarget(k, id); if(!r) return k==='missile'?'這裡沒有對手的大本營':'這個地區沒有對手的勢力';
+      if(k==='air' && tyThreats().some(x=>x.site===id)) return `打散 ${r.ic||''} ${r.nm} 來襲的部隊`;
+      if(k==='air' && tyBattles().some(b=>b.rid===r.id && b.reg===tySite(id).reg)) return `空中支援:打 ${r.ic||''} ${r.nm} 的那一場勝率 +15%`;
+      return `打擊 ${r.ic||''} ${r.nm}`; },
     pick: id=>{ TY_LAST_STRIKE=null; TY_MSG=tyDo('strike', ()=>tyStrike(k, id)); renderPage(); tyPlayLast(); } });
 }
 
@@ -13355,6 +13447,10 @@ function tyQuarterGo(auto){
     Object.values(once).slice(0,3).forEach((m,i)=>setTimeout(()=>W3D.attackAt(m.to, m.k, { noCam:!!auto }), 2600+i*2600));
   }
   if(TY_LAST_LAND){ TY_LAST_LAND=false; tyToast('🔴 首批登陸火星成功!', { ty:'watchland', lab:'看登陸' }); }
+  /* 投資的回饋:每一季結算完,右上角跳一則這一季投資賺賠(使用者:「我要有回饋的感覺」) */
+  const L=TY.invLast;
+  if(L && L.t===TY.t && Math.abs(L.d)>1e6)
+    tyToast(`${L.d>=0?'📈':'📉'} 你的投資這一季 <b>${L.d>=0?'+':'−'}${tyM(Math.abs(L.d))}</b>${L.top?`(${escH(tyAsset(L.top.k).nm)} ${L.top.d>=0?'+':'−'}${tyM(Math.abs(L.top.d))})`:''}`, null, 6000);
   if(TY.done==='win') tySfx('unlock','next');
 }
 function tyClockTick(){
@@ -13629,12 +13725,21 @@ function tyPickHTML(){
     case 'invest': {
       const chips=[['.1','10%'],['.25','25%'],['.5','50%'],['1','全部']].map(([v,t])=>
         `<button type="button" class="ty-chip${TY_AMT==null&&Math.abs(TY_SIZE-+v)<1e-9?' on':''}" data-ty="size" data-v="${v}">${t}</button>`).join('');
-      body=tyPartnerGate(id)+`<div class="ty-sizebar"><span>每次下多少現金</span>${chips}</div>`+tyInvestOpts(id).map(a=>{
+      /* 第三十七輪:依「這一季順不順風」排序,一眼看出該買什麼;細節收到小字 */
+      const L=TY.invLast;
+      const last = L && L.t===TY.t && Math.abs(L.d)>1e6
+        ? `<div class="expo-note inv-last">上一季你的投資 <b class="${L.d>=0?'up':'down'}">${L.d>=0?'+':'−'}${tyM(Math.abs(L.d))}</b>${
+            L.top?`(${escH(tyAsset(L.top.k).nm)} ${L.top.d>=0?'+':'−'}${tyM(Math.abs(L.top.d))})`:''}</div>` : '';
+      const opts=tyInvestOpts(id).map(a=>({ a, o:tyAssetOutlook(a.k) })).sort((x,y)=>y.o.m-x.o.m);
+      body=tyPartnerGate(id)+last+`<div class="ty-sizebar"><span>每次下多少現金</span>${chips}</div>`+opts.map(({a,o},i)=>{
         const img=PX.img('pk:as:'+a.k, PX.assetSprite(a.k), { fit:[56,64] });
         const p=TY.pos.find(x=>x.k===a.k && x.site===id);
-        return row(img, `${a.ic} ${escH(a.nm)}`, tyBuyPreview(a.k, id),
+        const pl=p&&p.q>0 ? tyPosVal(p)-p.cb : 0;
+        return row(img, `${a.ic} ${escH(a.nm)} <i class="inv-tag ${o.tag.c}">${o.tag.t}</i>${i===0&&o.m>0?' <i class="inv-best">👍 現在最順</i>':''}`,
+          `<span class="inv-why">${escH(o.why)} · 預期每季 <b class="${o.m>=0?'up':'down'}">${o.m>=0?'+':''}${(o.m*100).toFixed(1)}%</b>,波動 ±${(o.v*100).toFixed(0)}%</span><br>${tyBuySimple(a.k, id)}`,
           tyActBtn('buy', null, '買', ` data-k="${a.k}" data-site="${id}"`),
-          p&&p.q>0?`<em class="pk-d">已持有 ${tyM(tyPosVal(p))}</em>`:'', '');
+          p&&p.q>0?`<em class="pk-d">已持有 ${tyM(tyPosVal(p))} · <b class="${pl>=0?'up':'down'}">${pl>=0?'賺':'賠'} ${tyM(Math.abs(pl))}</b></em>`:'',
+          `<em class="pk-d">${escH(a.dsc)}</em>`);
       }).join('');
       break; }
     case 'upgrade':

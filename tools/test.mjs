@@ -720,8 +720,10 @@ test('帝國:對手會擴張、互相併購、記恨,而且談得動', async (br
     const home0 = r.home; r.home = site.id; TY_PWC = null;
     const his = tyCountryColor({ properties: { ISO_A2: site.iso } });
     // 同一區、但他在那一國什麼都沒有 → 沒人的地方
-    const other = TY_SITES.find(x => x.reg === reg && x.iso !== site.iso && !tyRivalsA().some(q => q !== r && tySite(q.home).iso === x.iso));
     r.home = home0; TY_PWC = null;
+    // 第三十六輪起:分部與駐軍也算「有人在」,所以要挑一個沒有任何人的分部、駐軍的國家
+    const has = new Set([...tyRivalsA().flatMap(q => tyRvBlds(q).map(b => tySite(b.site).iso)), ...tyRivalForces().map(f => tySite(f.site).iso)]);
+    const other = TY_SITES.find(x => x.reg === reg && x.iso !== site.iso && !has.has(x.iso) && !tyRivalsA().some(q => q !== r && tySite(q.home).iso === x.iso));
     const empty = other ? tyCountryColor({ properties: { ISO_A2: other.iso } }) : null;
     r.turf[reg] = was;
     if (empty) return { his, reg, myTurf: tyMyTurf(reg), col: TY_RVCOL[r.id], empty, otherIso: other.iso };
@@ -2447,6 +2449,80 @@ test('帝國第二十輪:月球 / 火星建地(登月、火星計畫前置、補
   ok(r.grabbed, `強行收購:建地換手、對手記恨 −25(${r.grab})`);
   ok(r.pick, '建地面板畫得出來');
   ok(r.race, '對手會登月、搶建地');
+  ok(page.__errors.length === 0, `有 JS 錯誤:\n      ${page.__errors.join('\n      ')}`);
+  await page.__ctx.close();
+});
+
+test('帝國第二十九輪:空襲打來襲部隊 / 空中支援、飛彈斷軍費、平衡(大者難長、反壟斷、簡報一季一次)、投資看得懂 + 回饋', async (browser) => {
+  const page = await freshPage(browser, { seed: SEED, hash: '#/tycoon' });
+  const r = await page.evaluate(() => {
+    const out = {};
+    // 空襲打正往你這裡來的部隊:攻擊力 ×0.4,太弱就撤回
+    tyStart('heir', 101); TY_NEWCARD.length = 0; TY.cash = 900e8;
+    const a = tyRivalsA()[0]; a.rel = -80;
+    tyRivalMarch(a, tySite(TY.home).reg);
+    const th = tyThreats()[0]; const p0 = th.pow;
+    out.tgt = tyStrikeTarget('air', th.site) === a;
+    tyStrike('air', th.site);
+    out.air = tyThreats().length === 0 || Math.abs(tyThreats()[0].pow - p0 * .4) < 1e-9;
+    // 攻擊力很高的那一支:打一次還在,防守率變高
+    TY.cd = {}; TY.strikes = [];
+    tyRivalMarch(a, tySite(TY.home).reg); const th2 = tyThreats()[0]; th2.pow = 3; const b0 = tyThreatBlock(th2);
+    tyStrike('air', th2.site); out.weak = tyThreats().includes(th2) && tyThreatBlock(th2) > b0;
+    // 空中支援:你正在打他 → 勝率 +15%
+    tyStart('heir', 102); TY.rt = true; TY_NEWCARD.length = 0; TY.cash = 900e8; TY.ap = 9;
+    const f = tyRivalForces()[0];
+    for (let i = 0; i < 2; i++) tyRecruit('raid');
+    for (const u of tyUnits()) { u.site = f.site; u.to = null; }
+    tyAssault(f.r.id, f.site); const bt = tyBattles()[0], pb = bt.p;
+    tyStrike('air', f.site); out.support = bt.air && Math.abs(bt.p - Math.min(.9, pb + .15)) < 1e-9;
+    // 做空飛彈:他路上的部隊攻擊力 ×0.7、各地駐軍勢力 −3
+    tyStart('heir', 103); TY_NEWCARD.length = 0; TY.cash = 900e8;
+    const m = tyRivalsA()[0]; m.rel = -80; tyRivalMarch(m, tySite(TY.home).reg);
+    const mt = tyThreats()[0], mp = mt.pow, g = Object.keys(m.turf).find(k => m.turf[k] > 10), t0 = m.turf[g];
+    tyStrike('missile', m.home);
+    out.missile = Math.abs(mt.pow - mp * .7) < 1e-9 && m.turf[g] < t0;
+    // 平衡:比中位數大很多的人長得比較慢;大的不准再吃
+    tyStart('heir', 104); TY_NEWCARD.length = 0;
+    out.med = tySizeMed() > 0;
+    // 簡報一季最多一份
+    tyStart('heir', 105); TY_NEWCARD.length = 0; TY.t = 8;
+    for (const x of tyRivalsA()) { x.rel = -90; x.nw = tyShownNW() * 3; }
+    const h0 = TY.heat; const orig = window.tyRnd; let i = 0;
+    window.tyRnd = () => [.7, .6][i++ % 2];         // 走到「對你出手」、手法選「簡報」
+    try { for (const x of tyRivalsA()) tyRivalAct(x); } finally { window.tyRnd = orig; }
+    out.leak = TY.heat - h0 <= 5 + 1e-9 && TY.log.filter(l => /簡報/.test(l.txt)).length === 1;
+    // 投資看得懂:期望報酬、順風逆風、排序、白話
+    tyStart('heir', 106); TY_NEWCARD.length = 0; TY.cash = 100e8;
+    const o = tyAssetOutlook('semi');
+    out.outlook = typeof o.m === 'number' && isFinite(o.m) && o.v > 0 && /順風|普通|逆風/.test(o.tag.t) && o.why.length > 3;
+    const id = TY_SITES.find(x => tyInvestOpts(x.id).length >= 4).id;
+    TY_PICK = { k: 'invest', site: id }; TY_MODAL = 'pick'; renderPage();
+    const tags = [...document.querySelectorAll('.inv-tag')].length, simple = /下一季大概/.test(document.querySelector('#tyRoot').textContent);
+    const ms = tyInvestOpts(id).map(a => tyAssetOutlook(a.k).m).sort((x, y) => y - x);
+    const shown = [...document.querySelectorAll('.pk-o [data-ty="buy"]')].map(b => tyAssetOutlook(b.dataset.k).m);
+    out.pick = tags === tyInvestOpts(id).length && simple && JSON.stringify(shown) === JSON.stringify(ms);
+    TY_MODAL = null; TY_PICK = null; renderPage();
+    // 回饋:季末記下投資賺賠
+    TY_SIZE = .5; const msg = tyBuy('semi', id);
+    out.buyMsg = /下一季大概/.test(msg);
+    const v0 = TY.pos.filter(p => p.q > 0).reduce((s, p) => s + tyPosVal(p), 0);
+    tyNext();
+    const v1 = TY.pos.filter(p => p.q > 0).reduce((s, p) => s + tyPosVal(p), 0);
+    out.inv = TY.invLast && TY.invLast.t === TY.t && Math.abs(TY.invLast.d - (v1 - v0)) < Math.max(1, Math.abs(v1) * 1e-9);
+    return out;
+  });
+  ok(r.tgt, '空襲的目標:正往這座城來的部隊優先');
+  ok(r.air, '空襲來襲部隊:攻擊力 ×0.4(太弱就撤回)');
+  ok(r.weak, '攻擊力高的打一次還在,但你的防守率變高');
+  ok(r.support, '你正在打他:空中支援勝率 +15%');
+  ok(r.missile, '做空飛彈斷軍費:路上部隊 ×0.7、駐軍勢力下降');
+  ok(r.med, '中位數算得出來');
+  ok(r.leak, '對手送簡報一季最多一份、+5');
+  ok(r.outlook, '每種資產有期望報酬、波動、順風 / 逆風、白話理由');
+  ok(r.pick, '投資選單依順風程度排序,每一列有標籤與「下一季大概」');
+  ok(r.buyMsg, '買進的回覆告訴你下一季大概賺賠');
+  ok(r.inv, '季末記下這一季投資實際賺賠');
   ok(page.__errors.length === 0, `有 JS 錯誤:\n      ${page.__errors.join('\n      ')}`);
   await page.__ctx.close();
 });
