@@ -4539,6 +4539,30 @@
   .ty-unit .u-go{display:flex;gap:5px;align-items:center;flex-wrap:wrap;flex:1 1 220px;justify-content:flex-end;min-width:0}
   .ty-unit select{font:inherit;font-size:12px;max-width:100%;min-width:0;flex:1 1 120px;
     background:#0f2233;color:var(--g-t);border:1px solid var(--g-line2);border-radius:5px;padding:5px 6px}
+  .cm-bar{display:flex;flex-direction:column;gap:6px;padding:8px 10px;margin:6px 0;border:1px solid var(--g-line2);border-radius:8px;background:rgba(15,34,51,.6)}
+  .cm-r{display:flex;gap:5px;align-items:center;flex-wrap:wrap;min-width:0}
+  .cm-r select{font:inherit;font-size:12px;min-width:0;flex:1 1 150px;max-width:100%;
+    background:#0f2233;color:var(--g-t);border:1px solid var(--g-line2);border-radius:5px;padding:5px 6px}
+  .cm-n{font-size:12.5px;margin-right:auto}
+  .cm-l{font-size:11px;color:var(--g-t3);width:30px;flex:0 0 auto}
+  .cm-seg{font:inherit;font-size:12px;padding:5px 9px;border-radius:5px;cursor:pointer;flex:1 1 auto;
+    border:1px solid var(--g-line2);background:#0f2233;color:var(--g-t2)}
+  .cm-seg.on{background:rgba(var(--accent-rgb),.22);border-color:var(--accent);color:var(--g-t)}
+  .cm-hint{font-size:10.5px;color:var(--g-t3);line-height:1.6}
+  .cm-list{display:flex;flex-direction:column;gap:3px}
+  .cm-army{border:1px solid rgba(255,216,74,.35);border-radius:7px;padding:3px 4px 4px;background:rgba(255,216,74,.04)}
+  .cm-ah,.cm-u{font:inherit;display:flex;align-items:center;gap:8px;width:100%;text-align:left;cursor:pointer;
+    background:none;border:0;border-bottom:1px solid var(--g-line);color:var(--g-t);padding:6px 4px;min-width:0}
+  .cm-ah{border-bottom:0;font-size:12.5px}
+  .cm-ah span{font-size:11px;color:var(--g-t3);margin-left:auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .cm-army .cm-u{padding-left:18px}
+  .cm-u.on,.cm-ah.on{background:rgba(var(--accent-rgb),.12)}
+  .cm-ck{font-style:normal;font-size:14px;color:var(--accent);flex:0 0 auto}
+  .cm-u .u-ic{font-size:18px;width:24px;text-align:center;flex:0 0 auto}
+  .cm-nm{display:flex;flex-direction:column;gap:1px;min-width:0;flex:1 1 auto}
+  .cm-nm b{font-size:12.5px}
+  .cm-nm em{font-style:normal;font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .cm-at{color:var(--g-t2)} .cm-mv{color:#7fd4ff} .cm-war{color:#ff8a80} .cm-wait{color:#ffd84a}
   .ty-ucards{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:8px}
   .ty-ucard{border:1px solid var(--g-line);border-radius:8px;padding:10px 11px;background:rgba(15,34,51,.6);min-width:0}
   .ty-ucard .uc-h{display:flex;align-items:baseline;gap:6px;flex-wrap:wrap}
@@ -4734,6 +4758,11 @@
   #w3dUnitPop .up-b button{flex:1;font:inherit;font-size:12.5px;cursor:pointer;padding:6px 4px;border-radius:5px;
     color:#fff;background:linear-gradient(180deg,#2f8fd0,#1b6aa4);border:1px solid #57b6ee}
   #w3dUnitPop .up-b .pn{background:#15283a;border-color:#3a6288}
+  #w3dUnitPop .up-o{display:flex;align-items:center;gap:4px;font-size:11px;color:#9fb6c8;margin-top:6px}
+  #w3dUnitPop .sg{font:inherit;font-size:11.5px;flex:1;cursor:pointer;padding:4px 3px;border-radius:5px;
+    background:#0f2233;border:1px solid #2a4a66;color:#b8cad8}
+  #w3dUnitPop .sg.on{background:#1e4f7a;border-color:#6fd0ff;color:#fff}
+  #w3dUnitPop .ar{font-style:normal;font-size:10.5px;color:#ffd84a;margin-left:auto}
   #w3dUnitPop .up-n{font-size:11px;color:#8aa3b8;margin-top:6px}
   .w3d-tag{cursor:grab} .w3d-tag:active{cursor:grabbing}
   .w3d-boom{position:absolute;width:20px;height:20px;margin:-10px 0 0 -10px;border-radius:50%;pointer-events:none;
@@ -6060,14 +6089,102 @@ function tyUnitArrive(u){
   const site=u.to; u.site=site; u.to=null; u.from=null;
   tyLog('unit', `${TY_UNITS[u.k].nm}抵達${tySite(site).nm}。`);
   let msg=`${TY_UNITS[u.k].ic} ${TY_UNITS[u.k].nm}抵達${escH(tySite(site).nm)}`;
-  if(u.ord!=='hold' && (TY_ATK[u.k]||0)>=.4){
-    const f=tyRivalForces().find(x=>x.site===site) || tyRivalForces().find(x=>x.reg===tySite(site).reg && tyTurf(x.r,x.reg)>0 && x.site===site);
-    if(f && !tyBattles().some(b=>b.rid===f.r.id && b.site===site)){
+  if(u.ord!=='hold'){
+    /* 同一道命令派出去的(u.wave):「到齊再打」→ 還有人在路上就先等;最後一支到了才一起開打 */
+    const mates=u.wave ? tyUnits().filter(x=>x!==u && x.wave===u.wave && x.to===site) : [];
+    if(u.wm==='mass' && mates.length){
+      u.pend=false;
+      const all=tyUnits().filter(x=>x.wave===u.wave && (x.to===site || x.site===site)).length;
+      return msg+` —— 等其他部隊到齊(${all-mates.length}/${all})`;
+    }
+    const f=tyRivalForces().find(x=>x.site===site);
+    if(f){
+      const atkHere=tyUnitsIn(tySite(site).reg).some(x=>(TY_ATK[x.k]||0)>=.4);
+      if(!atkHere) return msg;
+      if(tyBattles().some(b=>b.rid===f.r.id && b.site===site)){ u.pend=true; return msg+' —— 前面還在打,排隊接著上'; }
       const r=tyAutoAssault(f.r.id, site);
       if(r) msg+=` —— ${r}`;
     }
   }
   return msg;
+}
+/* 「依到達順序」排隊的部隊:前一場打完、那裡還有對手駐軍 → 接著開打下一場 */
+function tyQueuedAssaults(){
+  const out=[];
+  for(const u of tyUnits()) if(u.pend && !u.to){
+    const site=u.site, f=tyRivalForces().find(x=>x.site===site);
+    if(!f){ for(const x of tyUnits()) if(x.site===site) x.pend=false; continue; }
+    if(tyBattles().some(b=>b.site===site)) continue;
+    for(const x of tyUnits()) if(x.site===site) x.pend=false;
+    const r=tyAutoAssault(f.r.id, site);
+    if(r) out.push({ arr:true, site, k:u.k, txt:`${TY_UNITS[u.k].ic} 排隊的部隊接著上 —— ${r}` });
+  }
+  return out;
+}
+
+/* =========================================================================
+   軍團與一次派遣(第三十四輪)
+   -------------------------------------------------------------------------
+   使用者:「可以一次選好幾支軍隊,集結成軍團或拆散,一次進攻一個地區;
+            有一個介面一次看到全部軍隊在幹嘛、一次操控;派很多支去同一個目標時,
+            可以選依到達順序攻擊,或所有軍隊到齊了再一次攻擊」
+   - 軍團 = 同一個 u.grp 的部隊。只是編組(方便一次選),沒有數值加成,不花指揮點
+   - 一次派遣 tyDeployMany:一道命令只花 1 點指揮點(一支一支派是每支 1 點)
+       ord  'attack' 到了有對手駐軍就打 / 'hold' 只駐紮
+       mode 'mass'   到齊再打:勝率用到齊的全部兵力算(比較高,但要等最慢那支)
+            'seq'    依到達順序:先到的先打(快,但兵力少、勝率低;前一場還在打的就排隊接著上)
+   ========================================================================= */
+const tyArmies = () => (TY.armies = TY.armies || []);
+function tyArmyOf(u){ return u && u.grp ? tyArmies().find(a=>a.id===u.grp) || null : null; }
+function tyArmyForm(ids){
+  const us=tyUnits().filter(u=>ids.includes(u.id));
+  if(us.length<2) return '軍團至少要兩支部隊 —— 先勾選兩支以上。';
+  TY.armyId=(TY.armyId||0)+1;
+  const used=new Set(tyArmies().map(a=>a.no));
+  let no=1; while(used.has(no)) no++;
+  const a={ id:TY.armyId, no, nm:`第${no}軍團` };
+  tyArmies().push(a);
+  for(const u of us) u.grp=a.id;
+  tyArmyClean();
+  tyLog('unit', `${us.length} 支部隊編成${a.nm}。`);
+  tySave();
+  return `<b>🎖 ${a.nm}成軍。</b>${us.map(u=>TY_UNITS[u.k].ic).join('')} 共 ${us.length} 支 —— 之後勾選軍團就是一次選全部。`;
+}
+function tyArmySplit(ids){
+  const us=tyUnits().filter(u=>ids.includes(u.id) && u.grp);
+  if(!us.length) return '勾選的部隊不在任何軍團裡。';
+  const nm=[...new Set(us.map(u=>tyArmyOf(u)&&tyArmyOf(u).nm).filter(Boolean))].join('、');
+  for(const u of us) u.grp=null;
+  tyArmyClean();
+  tyLog('unit', `${nm}拆散。`);
+  tySave();
+  return `<b>拆散 ${escH(nm)}。</b>部隊還在原地,可以各自派遣。`;
+}
+/* 剩不到兩支的軍團自動解編 */
+function tyArmyClean(){
+  TY.armies=tyArmies().filter(a=>{ const n=tyUnits().filter(u=>u.grp===a.id); if(n.length<2){ for(const u of n) u.grp=null; return false; } return true; });
+}
+function tyDeployMany(ids, site, opt){
+  opt=opt||{};
+  const us=tyUnits().filter(u=>ids.includes(u.id));
+  if(!us.length) return '先勾選要派的部隊。';
+  if(!TY_SITE[site]) return '先選目的地。';
+  TY.wave=(TY.wave||0)+1;
+  const ok=[], skip=[];
+  for(const u of us){
+    const why=tyBlock('deploy', { u, site });
+    if(why){ skip.push(`${TY_UNITS[u.k].ic}${TY_UNITS[u.k].nm}`); continue; }
+    u.ord=opt.ord==='hold' ? 'hold' : 'attack';
+    tyDeploy(u.id, site);
+    u.wave=TY.wave; u.wm=opt.mode==='seq' ? 'seq' : 'mass'; u.pend=false;
+    ok.push(u);
+  }
+  if(!ok.length) return `沒有部隊出發:${skip.join('、')}已經在那裡、在路上,或到不了。`;
+  const far=TY.rt ? Math.max(...ok.map(u=>u.eta-u.dep)) : 0;
+  const how = ok[0].ord==='hold' ? '到了只駐紮' : (ok.length>1 && ok[0].wm==='mass' ? '<b>全部到齊再一起進攻</b>' : '到了有對手駐軍就<b>依到達順序</b>進攻');
+  return `<b>${ok.map(u=>TY_UNITS[u.k].ic).join('')} ${ok.length} 支部隊出發 → ${escH(tySite(site).nm)}。</b>`
+       + (TY.rt ? `最慢那支大約 ${Math.round(far*TY_QMS[1]/1000)} 秒後到(1×),` : '下一季到位,')
+       + `${how}。一道命令只花 1 點指揮點。${skip.length?`(${skip.join('、')}沒有動:已經在那裡或到不了)`:''}`;
 }
 /* 到了自動開打:跟按「進攻」一樣擲勝負、付作戰費,但不另外扣指揮點(派兵時已經付過) */
 function tyAutoAssault(rid, site){
@@ -6083,7 +6200,9 @@ function tyAutoAssault(rid, site){
 /* 即時制每一格:走到的部隊、錯開行動的對手。回傳要通知玩家的訊息 */
 function tyLiveTick(){
   const now=TY.t+(TY.prog||0), out=[];
-  for(const u of tyUnits().slice()) if(u.to && u.eta<=now){ const site=u.to, k=u.k; out.push({ arr:true, site, k, txt:tyUnitArrive(u) }); }
+  const arr=tyUnits().filter(u=>u.to && u.eta<=now).sort((a,b)=>a.eta-b.eta);     // 先到的先處理(依到達順序)
+  for(const u of arr){ const site=u.to, k=u.k; out.push({ arr:true, site, k, txt:tyUnitArrive(u) }); }
+  out.push(...tyQueuedAssaults());
   // 對手:這一季還沒動的人,依順序錯開(每人一個時間點)
   const pend=tyRivalsA().filter(r=>r.actPend);
   if(pend.length && TY.t>=3){
@@ -6142,6 +6261,7 @@ function tyDeploy(id, site){
      那是給你反應的時間。距離還是有意義:它決定出發動畫是搭飛機還是走海運。 */
   const n=1;
   u.to=site; u.dep=TY.t; u.eta=TY.t+n;
+  u.wave=null; u.wm=null; u.pend=false;          // 單獨改派 = 脫離原本那一道命令(tyDeployMany 會再設回去)
   /* 即時制(第三十三輪):依距離慢慢走過去 —— 1× 大約 6~20 秒(使用者:「依照距離決定時間,不要太久」)。
      到了照 u.ord 做事:attack = 那裡有對手駐軍就直接開打;hold = 只駐紮 */
   if(TY.rt){ u.dep=TY.t+(TY.prog||0); u.eta=u.dep+tyMoveQ(from, site); u.from=from; if(!u.ord) u.ord='attack'; }
@@ -6157,6 +6277,7 @@ function tyDisband(id){
   const u=tyUnits().find(x=>x.id===id);
   if(!u) return '';
   TY.units=tyUnits().filter(x=>x.id!==id);
+  tyArmyClean();
   tyLog('unit', `解散${TY_UNITS[u.k].nm}。`);
   tySave();
   return `${TY_UNITS[u.k].nm}解散了。招募費不會退,但維持費從下一季起就不用再付。`;
@@ -6693,6 +6814,7 @@ function tyAssaultApply(rid, site, reg, win, p, cost, done){
   const weak=o.mine.slice().sort((a,b)=>TY_ATK[a.k]-TY_ATK[b.k])[0];
   if(!weak){ tySave(); return '⚔ 打輸了 —— 你的部隊已經撤離那一區。'; }
   tyUnits().splice(tyUnits().indexOf(weak),1);
+  tyArmyClean();
   for(const g of tyGens()) if(g.u===weak.id) g.u=null;
   r.rel=tyClamp((r.rel||0)-15,-100,100); TY.heat=tyClamp(TY.heat+3*heat,0,120);
   tyLog('unit', `⚔ 進攻${r.nm}在${tySite(site).nm}的駐軍:打輸了,${TY_UNITS[weak.k].nm}被打散。`);
@@ -10091,6 +10213,73 @@ function tyGenHTML(){
     ${have}
     <div class="ty-ucards">${cards}</div>`;
 }
+/* 指揮中心(第三十四輪):全部部隊在幹嘛一眼看完,勾選 → 一次派遣 / 編軍團 / 拆散 / 解散 */
+let TY_USEL = new Set(), TY_UTGT = '', TY_UORD = { ord:'attack', mode:'mass' };
+function tyUnitStatus(u){
+  const now=TY.t+(TY.prog||0);
+  const ordTxt = x => x.ord==='hold' ? '🛡 只駐紮'
+    : (x.wm==='mass' && tyUnits().some(y=>y!==x && y.wave===x.wave && x.wave) ? '⚔ 到齊再打' : '⚔ 到了就打');
+  if(u.to){
+    const left = TY.rt ? `${Math.max(0,Math.ceil((u.eta-now)*TY_QMS[TY_SPEED||1]/1000))} 秒` : `${Math.max(1,u.eta-TY.t)} 季`;
+    return { c:'mv', t:`→ ${tySite(u.to).nm} · ${left}後到 · ${ordTxt(u)}` };
+  }
+  const S=tySite(u.site);
+  if(tyBattles().some(b=>b.site===u.site)) return { c:'war', t:`⚔ 戰鬥中 · ${S.nm}` };
+  if(u.pend) return { c:'wait', t:`⏳ 排隊接著打 · ${S.nm}` };
+  if(u.wave && u.wm==='mass' && u.ord!=='hold'){
+    const w=tyUnits().filter(x=>x.wave===u.wave), on=w.filter(x=>x.to===u.site).length;
+    if(on) return { c:'wait', t:`⏳ 等到齊 ${w.length-on}/${w.length} · ${S.nm}` };
+  }
+  const occ = TY.loc && TY.loc[u.site] && !TY.loc[u.site].gone && (TY_OCC[u.k]||0) ? ' · 佔領中' : '';
+  return { c:'at', t:`駐 ${S.nm} · ${TY_REGIONS[S.reg].nm}${occ}` };
+}
+function tyDestAll(sel){
+  const mine=new Set(tyMySites().map(s=>s.id)), rv=new Set(tyRivalsA().map(r=>r.home));
+  const fs=new Set(tyRivalForces().map(f=>f.site));
+  const opt=s=>`<option value="${s.id}"${s.id===sel?' selected':''}>${escH(s.nm)}(${TY_REGIONS[s.reg].nm})</option>`;
+  const g=(lab,list)=>list.length?`<optgroup label="${lab}">${list.map(opt).join('')}</optgroup>`:'';
+  return g('對手駐軍(可以進攻)', TY_SITES.filter(s=>fs.has(s.id)))
+       + g('你的據點', TY_SITES.filter(s=>mine.has(s.id)&&!fs.has(s.id)))
+       + g('對手大本營', TY_SITES.filter(s=>rv.has(s.id)&&!mine.has(s.id)&&!fs.has(s.id)))
+       + g('其他城市', TY_SITES.filter(s=>!mine.has(s.id)&&!rv.has(s.id)&&!fs.has(s.id)&&!s.minor))
+       + g('各國首都(有地方富豪,可以佔領)', TY_SITES.filter(s=>!mine.has(s.id)&&!rv.has(s.id)&&!fs.has(s.id)&&s.minor)
+           .sort((a,b)=>a.sub.localeCompare(b.sub,'zh-Hant')));
+}
+function tyCmdHTML(){
+  tyArmyClean();
+  const U=tyUnits();
+  if(!U.length) return '<div class="empty">還沒有部隊。從下面招募第一支 —— 一開始最划算的通常是經理人(派到你事業最大的城市)。</div>';
+  for(const id of [...TY_USEL]) if(!U.some(u=>u.id===id)) TY_USEL.delete(id);
+  const n=TY_USEL.size, selU=U.filter(u=>TY_USEL.has(u.id));
+  const row=u=>{ const d=TY_UNITS[u.k], st=tyUnitStatus(u), on=TY_USEL.has(u.id), g=tyGenOf(u);
+    return `<button type="button" class="cm-u${on?' on':''}" data-ty="usel" data-id="${u.id}" aria-pressed="${on}">
+      <i class="cm-ck">${on?'☑':'☐'}</i><span class="u-ic">${d.ic}</span>
+      <span class="cm-nm"><b>${d.nm}</b>${g?` <i class="u-gen">${TY_GENS[g.k].ic}${escH(g.nm)}</i>`:''}<em class="cm-${st.c}" data-t="${escH(st.t)}">${escH(st.t)}</em></span></button>`; };
+  const armies=tyArmies().map(a=>{ const us=U.filter(u=>u.grp===a.id), all=us.every(u=>TY_USEL.has(u.id));
+    const where=[...new Set(us.map(u=>tySite(u.to||u.site).nm))].join('、');
+    return `<div class="cm-army"><button type="button" class="cm-ah${all?' on':''}" data-ty="uselarmy" data-g="${a.id}" aria-pressed="${all}">
+        <i class="cm-ck">${all?'☑':'☐'}</i><b>🎖 ${escH(a.nm)}</b><span>${us.length} 支 · ${escH(where)}</span></button>
+      ${us.map(row).join('')}</div>`; }).join('');
+  const loose=U.filter(u=>!u.grp).map(row).join('');
+  const seg=(k,v,lab)=>`<button type="button" class="cm-seg${TY_UORD[k]===v?' on':''}" data-ty="uopt" data-k="${k}" data-v="${v}" aria-pressed="${TY_UORD[k]===v}">${lab}</button>`;
+  const canGo = n && TY_UTGT;
+  const inArmy = selU.some(u=>u.grp);
+  return `<div class="cm-bar">
+      <div class="cm-r"><b class="cm-n">已選 ${n} 支</b>
+        <button type="button" class="ty-b alt" data-ty="uselall">全選</button>
+        <button type="button" class="ty-b alt" data-ty="uselnone"${n?'':' disabled'}>全不選</button></div>
+      <div class="cm-r"><select data-utgt aria-label="派去哪裡"><option value="">目的地…</option>${tyDestAll(TY_UTGT)}</select>
+        <button type="button" class="ty-b alt" data-ty="uaim"${n?'':' disabled'} title="在地圖上點目標城市">🎯 地圖上選</button></div>
+      <div class="cm-r"><span class="cm-l">到了</span>${seg('ord','attack','⚔ 進攻')}${seg('ord','hold','🛡 駐紮')}</div>
+      ${TY_UORD.ord==='attack'?`<div class="cm-r"><span class="cm-l">多支</span>${seg('mode','mass','全部到齊再打')}${seg('mode','seq','依到達順序打')}</div>
+      <div class="cm-hint">${TY_UORD.mode==='mass'?'到齊再打:勝率用全部兵力算,比較高,但要等最慢那支。':'依到達順序:先到的先打,快但兵力少、勝率低;前一場還在打的就排隊接著上。'}</div>`:''}
+      <div class="cm-r">${tyActBtn('march', null, `出發(${n} 支 · 1 點)`, canGo?'':' disabled')}
+        <button type="button" class="ty-b alt" data-ty="armyform"${n>=2?'':' disabled'}>🎖 編成軍團</button>
+        <button type="button" class="ty-b alt" data-ty="armysplit"${inArmy?'':' disabled'}>拆散軍團</button>
+        <button type="button" class="ty-b alt" data-ty="disbandsel"${n?'':' disabled'}>解散</button></div>
+    </div>
+    <div class="cm-list">${armies}${loose}</div>`;
+}
 function tyTroopTab(){
   const U=tyUnits(), T=tyThreats();
   const threats = T.length ? T.map(th=>{
@@ -10107,23 +10296,7 @@ function tyTroopTab(){
       </div>`;
   }).join('') : '';
 
-  const mine = U.length ? U.map(u=>{
-    const d=TY_UNITS[u.k], sel=TY_DEP[u.id] || '';
-    return `<div class="ty-unit">
-        <span class="u-ic">${d.ic}</span>
-        <span class="u-nm"><b>${d.nm}</b>${tyGenOf(u)?` <i class="u-gen">${TY_GENS[tyGenOf(u).k].ic} ${escH(tyGenOf(u).nm)}</i>`:''}${tyUnitWhere(u)}<em>維持費 ${tyM(u.up*(tyGenIs(u,'logi')?.5:1))}/季</em></span>
-        <span class="u-go">
-          <select data-dep="${u.id}" aria-label="${escH(d.nm)}要派去哪裡">
-            <option value="">派去…</option>${tyDestOpts(u, sel)}</select>
-          <button type="button" class="ty-b" data-ty="deploy" data-id="${u.id}"${sel?'':' disabled aria-disabled="true"'}
-            title="${sel?'出發':'先選目的地'}">出發</button>
-          <button type="button" class="ty-b alt" data-ty="aim" data-k="unit" data-id="${u.id}"
-            title="在地圖上拉一條線到目標城市">🎯 地圖上選</button>
-          ${TY.rt?`<button type="button" class="ty-b alt" data-ty="uord" data-id="${u.id}" title="到了目的地之後做什麼">到了:${u.ord==='hold'?'🛡 只駐紮':'⚔ 有對手就進攻'}</button>`:''}
-          <button type="button" class="ty-b alt" data-ty="disband" data-id="${u.id}">解散</button>
-        </span>
-      </div>`;
-  }).join('') : '<div class="empty">還沒有部隊。從下面招募第一支 —— 一開始最划算的通常是經理人(派到你事業最大的城市)。</div>';
+  const mine = tyCmdHTML();
 
   const cards = Object.entries(TY_UNITS).map(([k,d])=>`
     <div class="ty-ucard">
@@ -10157,9 +10330,7 @@ function tyTroopTab(){
   }).join('');
 
   return `${T.length?`<div class="p-sec">來襲<span>${T.length} 支正在路上</span></div>${threats}`:''}
-    <div class="p-sec">你的部隊<span>${U.length} / ${TY_UNIT_MAX} · 維持費 ${tyM(tyUnitUpkeep())}/季</span></div>
-    <div class="expo-note">派出去的部隊<b>下一季就到位</b>、開始生效。遠的地方搭飛機,
-      併購小組跨海走海運。最快的派法:<b>點地圖上的部隊,拉一條線到目標城市</b>。</div>
+    <div class="p-sec">指揮中心<span>${U.length} / ${TY_UNIT_MAX} 支 · 維持費 ${tyM(tyUnitUpkeep())}/季</span></div>
     ${mine}
     ${tyGenHTML()}
     <div class="p-sec">打擊<span>有冷卻時間 · 打出去對手會記恨</span></div>
@@ -10213,9 +10384,8 @@ function tyAimUnits(units){
       return r ? `${r.ic||''} ${r.nm}的大本營 · 併購小組駐紮後敵意收購 +10%/支` : '';
     },
     pick: id=>{
-      const msgs=[];
-      for(const u of units){ TY_LAST_MOVE=null; const m=tyDo('deploy', ()=>tyDeploy(u.id, id)); msgs.push(m); tyPlayLast(); }
-      TY_MSG=msgs.join('<br>'); renderPage();
+      TY_LAST_MOVE=null;
+      TY_MSG=tyDo('march', ()=>tyDeployMany(units.map(u=>u.id), id, TY_UORD)); renderPage(); tyPlayLast();
     } });
 }
 function tyAimStrike(k){
@@ -12597,7 +12767,7 @@ function tycoonPage(){
      達成條件就解鎖新牌、跳一張翻牌動畫。解鎖紀錄存在 TY.cards,不擲骰。
    ========================================================================= */
 const TY_AP_COST = { found:2, upgrade:1, expand:1, ipo:1, reverse:1, buy:1, short:1,
-  recruit:1, recruitTo:1, deploy:1, strike:2, partner:1, movehome:1, lobby:1, media:1,
+  recruit:1, recruitTo:1, deploy:1, march:1, strike:2, partner:1, movehome:1, lobby:1, media:1,
   charity:1, trust:1, holdco:1, recon:1, launch:1, mars:2, moonland:2, spacebuild:2, spacegrab:2, localbuy:2, genhire:1, assault:2 };
 const tyApCost = act => String(act).startsWith('deal:') ? 1 : (TY_AP_COST[act] || 0);
 const tyApMax  = () => tyTester() ? 99 : Math.min(9, 6 + Math.floor((TY && TY.infl || 0) / 25))
@@ -12896,7 +13066,16 @@ function tyClockTick(){
 
     if(TY.prog>=1){ TY.prog-=1; tyQuarterGo(true); return; }
   }
-  tyClockPaint(); tyBattlesPaint(); tyMovesPaint();
+  tyClockPaint(); tyBattlesPaint(); tyMovesPaint(); tyCmdLive();
+}
+/* 指揮中心開著的時候,每支部隊的狀態(還剩幾秒、等到齊)跟著時間更新 —— 只換那一行字,不重畫整頁 */
+function tyCmdLive(){
+  if(TY_MODAL!=='troop') return;
+  for(const el of document.querySelectorAll('.cm-u[data-id]')){
+    const u=tyUnits().find(x=>x.id===+el.dataset.id), em=el.querySelector('.cm-nm em'); if(!u || !em) continue;
+    const st=tyUnitStatus(u);
+    if(em.dataset.t!==st.t){ em.dataset.t=st.t; em.className='cm-'+st.c; em.textContent=st.t; }
+  }
 }
 setInterval(tyClockTick, 100);
 addEventListener('keydown', e=>{
@@ -13312,6 +13491,10 @@ const TY_ACT = {
   spacegrab: e=>tySpaceGrab(e.dataset.w, +e.dataset.i),
   mars:   ()=>tyMarsGo(),
   deploy: e=>tyDeploy(+e.dataset.id, e.dataset.site || TY_DEP[e.dataset.id]),
+  march:     ()=>{ TY_LAST_MOVE=null; return tyDeployMany([...TY_USEL], TY_UTGT, TY_UORD); },
+  armyform:  ()=>tyArmyForm([...TY_USEL]),
+  armysplit: ()=>tyArmySplit([...TY_USEL]),
+  disbandsel:()=>{ const ids=[...TY_USEL]; for(const id of ids) tyDisband(id); TY_USEL.clear(); return `解散 ${ids.length} 支部隊。`; },
   disband:e=>tyDisband(+e.dataset.id),
   strike: e=>tyStrike(e.dataset.k, e.dataset.site || TY_STRK[e.dataset.k]),
   /* 談條件。七種都走同一支 —— data-k 是哪一種、data-r 是對誰。 */
@@ -13388,6 +13571,9 @@ function bindTycoon(root){
   });
   el.querySelectorAll('select[data-strk]').forEach(sel=>{
     sel.onchange=()=>{ TY_STRK[sel.dataset.strk]=sel.value; renderPage(); };
+  });
+  el.querySelectorAll('select[data-utgt]').forEach(sel=>{
+    sel.onchange=()=>{ TY_UTGT=sel.value; renderPage(); };
   });
   el.querySelectorAll('select[data-dep]').forEach(sel=>{
     sel.onchange=()=>{ TY_DEP[sel.dataset.dep]=sel.value; renderPage(); };
@@ -13518,6 +13704,13 @@ function bindTycoon(root){
     if(a==='spdc'){ TY_SPEED = TY_SPEED>=3 ? 1 : TY_SPEED+1; TY_SPEED_LAST=TY_SPEED; tyClockPaint(); tySfx('pick','tap'); return; }
     if(a==='watchrocket'){ if(window.W3D && W3D.chaseRocket && W3D.chaseRocket()){ TY_MODAL=null; renderPage(); } else { TY_MSG='火箭已經到了。'; renderPage(); } return; }
     if(a==='watchland'){ TY_MODAL=null; tyOpenPlanet('mars', { landing:true }); return; }
+    if(a==='usel'){ const id=+b.dataset.id; TY_USEL.has(id)?TY_USEL.delete(id):TY_USEL.add(id); renderPage(); return; }
+    if(a==='uselarmy'){ const us=tyUnits().filter(u=>u.grp===+b.dataset.g), all=us.every(u=>TY_USEL.has(u.id));
+      for(const u of us) all?TY_USEL.delete(u.id):TY_USEL.add(u.id); renderPage(); return; }
+    if(a==='uselall'){ for(const u of tyUnits()) TY_USEL.add(u.id); renderPage(); return; }
+    if(a==='uselnone'){ TY_USEL.clear(); renderPage(); return; }
+    if(a==='uopt'){ TY_UORD[b.dataset.k]=b.dataset.v; renderPage(); return; }
+    if(a==='uaim'){ const us=tyUnits().filter(u=>TY_USEL.has(u.id)); if(us.length) tyAimUnits(us); return; }
     if(a==='uord'){ const u=tyUnits().find(x=>x.id===+b.dataset.id); if(u){ u.ord = u.ord==='hold' ? 'attack' : 'hold'; tySave(); } renderPage(); return; }
     if(a==='toastx'){ TY_TOASTS=TY_TOASTS.filter(t=>t.id!==+b.dataset.k); tyToastPaint(); return; }
     if(a==='sfx'){ if(window.SFX) SFX.toggle(); renderPage(); return; }
