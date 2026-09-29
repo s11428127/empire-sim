@@ -2459,6 +2459,37 @@ test('帝國第二十輪:月球 / 火星建地(登月、火星計畫前置、補
   await page.__ctx.close();
 });
 
+test('帝國第三十三輪:品牌稀釋、借越滿越貴、經濟霸權第 10 季起、地圖浮字', async (browser) => {
+  const page = await freshPage(browser, { seed: SEED, hash: '#/tycoon' });
+  const r = await page.evaluate(() => {
+    const out = {};
+    tyStart('heir', 141); TY_NEWCARD.length = 0; TY.fame = 80; TY.cash = 900e8;
+    const r1 = tyBrandRate(1);
+    for (const s of TY_SITES.filter(x => !x.minor).slice(0, 8)) if (tyCanDo('found', { k: 'brand', site: s.id })) tyFound('brand', s.id);
+    const n = TY.biz.filter(b => b.k === 'brand').length, rn = tyBrandRate(0);
+    out.dilute = n >= 3 && rn < r1 && Math.abs(rn - (.015 + 80 / (1 + .15 * (n - 1)) / 100 * .2)) < 1e-9;
+    // 借越滿越貴
+    tyStart('heir', 142); TY_NEWCARD.length = 0; TY.debt = 0;
+    const r0 = tyRate(); TY.debt = tyBorrowMax() * .9; const rHi = tyRate();
+    out.spread = rHi > r0 + 1.5;
+    // 經濟霸權:第 10 季前不算
+    tyStart('heir', 143); TY.rt = true; TY_NEWCARD.length = 0; TY.cash = 5000e8;
+    tyNext(); tyNext(); tyNext();
+    out.early = !TY.done && !TY.econHold;
+    // 浮字:季末收入、戰鬥結果都不丟例外、會生出元素(有 3D 時)
+    let threw = false;
+    try { TY_BATTLE_DONE.push({ site: TY.home, win: true }); tyLiveFloats(); } catch (e) { threw = true; }
+    out.floats = !threw && TY_BATTLE_DONE.length === 0;
+    return out;
+  });
+  ok(r.dilute, '品牌授權掛越多家,每一家的報酬率越低(稀釋)');
+  ok(r.spread, '借到額度的九成,利率比沒借時高');
+  ok(r.early, '第 10 季之前不算經濟霸權');
+  ok(r.floats, '戰鬥結果、對手擴張的浮字不會丟例外');
+  ok(page.__errors.length === 0, `有 JS 錯誤:\n      ${page.__errors.join('\n      ')}`);
+  await page.__ctx.close();
+});
+
 test('帝國第三十二輪:威脅卡、國家顏色只看在場的人、三條勝利路、預先轟炸、變現賺賠、城市優缺點、漲跌色', async (browser) => {
   const page = await freshPage(browser, { seed: SEED, hash: '#/tycoon' });
   const r = await page.evaluate(() => {
@@ -3031,6 +3062,7 @@ test('帝國第二十四輪:即時制(時鐘、指揮點回復、施工、血量
     TY.prog += .2; const res = tyBattlesTick(); out.resolved = res.length === 1 && tyBattles().length === 0 && /打(贏|輸)了/.test(res[0]);
     // 勝利:經濟霸權要連續兩季
     tyStart('heir', 51); TY.rt = true; TY_NEWCARD.length = 0;
+    TY.t = 10;                                        // 第四十一輪起:第 10 季起才算
     TY.cash = 5000e8; tyNext(); out.econ1 = !TY.done && TY.econHold === 1; tyNext();
     out.econ = TY.done === 'win' && TY.win === 'econ' && TY.winQ === TY.t + 1;
     out.rec = !!JSON.parse(localStorage.getItem('ty-best-v1') || '{}')['heir:econ'];
