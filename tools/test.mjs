@@ -2451,6 +2451,91 @@ test('帝國第二十輪:月球 / 火星建地(登月、火星計畫前置、補
   await page.__ctx.close();
 });
 
+test('帝國第二十六輪:指揮中心(勾選、一次派遣)、軍團、到齊再打 vs 依到達順序', async (browser) => {
+  const page = await freshPage(browser, { seed: SEED, hash: '#/tycoon' });
+  const r = await page.evaluate(() => {
+    const out = {};
+    const setup = (seed) => { tyStart('heir', seed); TY.rt = true; TY_NEWCARD.length = 0; TY.cash = 900e8; TY.ap = 9;
+      for (let i = 0; i < 3; i++) tyRecruit('raid'); TY.ap = 9; return tyRivalForces()[0]; };
+    // 軍團:編成 / 拆散;少於兩支自動解編
+    let f = setup(71); const ids = tyUnits().map(u => u.id);
+    out.one = /至少/.test(tyArmyForm([ids[0]]));
+    tyArmyForm(ids); out.form = tyArmies().length === 1 && tyUnits().every(u => u.grp === tyArmies()[0].id) && tyArmies()[0].nm === '第1軍團';
+    tyArmySplit([ids[0]]); out.split1 = tyUnits().find(u => u.id === ids[0]).grp == null && tyArmies().length === 1;
+    tyDisband(ids[1]); out.auto = tyArmies().length === 0 && tyUnits().every(u => !u.grp);
+    // 一次派遣只花 1 點指揮點
+    f = setup(72); const ap0 = TY.ap;
+    const all = tyUnits().map(u => u.id);
+    // 讓三支從不同城市出發 → 抵達時間不同
+    const homes = ['tpe', 'sha', 'sin'].filter(id => TY_SITE[id] && id !== f.site);
+    tyUnits().forEach((u, i) => { u.site = homes[i % homes.length]; });
+    TY.prog = 0;
+    const msg = tyDo('march', () => tyDeployMany(all, f.site, { ord: 'attack', mode: 'mass' }));
+    out.ap = ap0 - TY.ap === 1 && /3 支部隊出發/.test(msg); out.msg = msg;
+    out.wave = new Set(tyUnits().map(u => u.wave)).size === 1 && tyUnits().every(u => u.wm === 'mass');
+    // 到齊再打:先到的等,最後一支到了才開打一場
+    const etas = tyUnits().map(u => u.eta).sort((a, b) => a - b);
+    TY.prog = etas[0] - TY.t + 1e-4; tyLiveTick();
+    out.wait = tyBattles().length === 0 && /等到齊/.test(tyUnitStatus(tyUnits().find(u => !u.to)).t);
+    TY.prog = etas[2] - TY.t + 1e-4; const ev = tyLiveTick();
+    out.mass = tyBattles().length === 1 && tyUnits().every(u => !u.to);
+    out.massP = tyBattles()[0] && Math.abs(tyBattles()[0].p - tyAssaultOdds(f.r.id, f.site).p) < 1e-9;
+    // 依到達順序:第一支到就開打;後面到的排隊,前一場打完接著打
+    f = setup(73);
+    tyUnits().forEach((u, i) => { u.site = homes[i % homes.length]; });
+    TY.prog = 0; tyDeployMany(tyUnits().map(u => u.id), f.site, { ord: 'attack', mode: 'seq' });
+    const e2 = tyUnits().map(u => u.eta).sort((a, b) => a - b);
+    TY.prog = e2[0] - TY.t + 1e-4; tyLiveTick();
+    out.seq1 = tyBattles().length === 1;
+    TY.prog = e2[2] - TY.t + 1e-4; tyLiveTick();
+    const q = tyUnits().filter(u => u.pend).length; out.queued = q >= 1 || tyBattles().length === 1;
+    const b1 = tyBattles()[0]; TY.prog = Math.max(TY.prog, b1.at + b1.dur - TY.t) + 1e-4; tyBattlesTick(); tyLiveTick();
+    const still = tyRivalForces().some(x => x.site === f.site);
+    out.next = still ? tyBattles().length === 1 : tyUnits().every(u => !u.pend);
+    // 單獨改派 → 脫離原本那一道命令
+    const u9 = tyUnits()[0]; tyDeploy(u9.id, TY.home); out.leave = u9.wave == null && u9.wm == null;
+    // 只駐紮的整批:到了不打
+    f = setup(74); TY.prog = 0;
+    tyDeployMany(tyUnits().map(u => u.id), f.site, { ord: 'hold', mode: 'mass' });
+    TY.prog = .9; tyLiveTick(); out.hold = tyBattles().length === 0 && tyUnits().every(u => u.site === f.site);
+    // 指揮中心:勾選、全選、目的地、出發
+    f = setup(75); TY_USEL.clear(); TY_UTGT = ''; TY_MODAL = 'troop'; renderPage();
+    out.rows = document.querySelectorAll('.cm-u').length === 3;
+    out.goOff = document.querySelector('[data-ty="march"]').disabled;
+    document.querySelector('[data-ty="uselall"]').click();
+    out.sel = TY_USEL.size === 3;
+    document.querySelector('[data-ty="armyform"]').click();
+    out.armyUi = !!document.querySelector('.cm-army') && tyArmies().length === 1;
+    document.querySelector('[data-ty="uselnone"]').click();
+    document.querySelector('[data-ty="uselarmy"]').click(); out.armySel = TY_USEL.size === 3;
+    const sel = document.querySelector('select[data-utgt]'); sel.value = f.site; sel.dispatchEvent(new Event('change'));
+    document.querySelector('[data-ty="march"]').click();
+    out.went = tyUnits().every(u => u.to === f.site);
+    out.status = [...document.querySelectorAll('.cm-u em')].every(e => /→/.test(e.textContent));
+    TY_MODAL = null; renderPage();
+    return out;
+  });
+  ok(r.one, '軍團至少兩支');
+  ok(r.form, '勾選的部隊編成「第1軍團」');
+  ok(r.split1, '拆出一支,剩下的還是軍團');
+  ok(r.auto, '剩不到兩支的軍團自動解編');
+  ok(r.ap, `一次派遣只花 1 點指揮點:${r.msg}`);
+  ok(r.wave, '同一道命令的部隊同一個批次');
+  ok(r.wait, '到齊再打:先到的等,狀態寫「等到齊」');
+  ok(r.mass, '到齊再打:最後一支到了才開打一場');
+  ok(r.massP, '到齊再打的勝率用全部兵力算');
+  ok(r.seq1, '依到達順序:第一支到就開打');
+  ok(r.queued, '依到達順序:前一場還在打,後到的排隊');
+  ok(r.next, '前一場打完,排隊的接著打(或駐軍已經沒了就不排)');
+  ok(r.leave, '單獨改派就脫離原本那一道命令');
+  ok(r.hold, '整批「只駐紮」到了不打');
+  ok(r.rows && r.goOff, '指揮中心列出每一支部隊;沒選目的地不能出發');
+  ok(r.sel && r.armyUi && r.armySel, '全選、編軍團、勾軍團一次選全部');
+  ok(r.went && r.status, '指揮中心一次派遣,狀態顯示行軍中');
+  ok(page.__errors.length === 0, `有 JS 錯誤:\n      ${page.__errors.join('\n      ')}`);
+  await page.__ctx.close();
+});
+
 test('帝國第二十五輪:即時制對手錯開行動、部隊依距離行軍、到了進攻或駐紮、補給線', async (browser) => {
   const page = await freshPage(browser, { seed: SEED, hash: '#/tycoon' });
   const r = await page.evaluate(() => {
@@ -2489,10 +2574,10 @@ test('帝國第二十五輪:即時制對手錯開行動、部隊依距離行軍�
     out.s0 = tySupply(reg).bonus;
     TY.biz.push({ ...TY.biz[0], site: g.site }); out.s1 = tySupply(reg).bonus;
     TY.partners = { [reg]: 1 }; out.s2 = tySupply(reg).bonus;
-    // 部隊面板:切換「到了進攻 / 只駐紮」
+    // 指揮中心:切換「到了進攻 / 只駐紮」
     TY_MODAL = 'troop'; renderPage();
-    const btn = document.querySelector('[data-ty="uord"]'); out.btn = !!btn;
-    if (btn) { btn.click(); out.tog = u1.ord === 'attack'; }
+    const btn = document.querySelector('[data-ty="uopt"][data-k="ord"][data-v="hold"]'); out.btn = !!btn;
+    if (btn) { btn.click(); out.tog = TY_UORD.ord === 'hold'; TY_UORD.ord = 'attack'; }
     TY_MODAL = null; renderPage();
     return out;
   });
@@ -2506,7 +2591,7 @@ test('帝國第二十五輪:即時制對手錯開行動、部隊依距離行軍�
   ok(r.auto, '抵達時那裡有對手駐軍 → 自動開打');
   ok(r.hold, '「只駐紮」命令:抵達不開打');
   ok(r.s0 === 0 && Math.abs(r.s1 - .25) < 1e-9 && Math.abs(r.s2 - .4) < 1e-9, `補給線 0 → 25% → 40%:${[r.s0, r.s1, r.s2]}`);
-  ok(r.btn && r.tog, '部隊面板可以切換到了之後要進攻還是駐紮');
+  ok(r.btn && r.tog, '指揮中心可以切換到了之後要進攻還是駐紮');
   ok(page.__errors.length === 0, `有 JS 錯誤:\n      ${page.__errors.join('\n      ')}`);
   await page.__ctx.close();
 });

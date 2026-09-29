@@ -2372,16 +2372,31 @@ function unitPop(d, x, y){
   if(!UPOP || !UPOP.isConnected){ UPOP = document.createElement('div'); UPOP.id = 'w3dUnitPop'; host.appendChild(UPOP); }
   const units = d._units.slice();
   const here = units[0].to || units[0].site, inc = units.filter(u => u.to).length;
-  const where = `${tySite(here).nm} · ${units.length - inc} 支駐紮${inc ? ` · ${inc} 支下季到位` : ''}`;
+  const where = `${tySite(here).nm} · ${units.length - inc} 支駐紮${inc ? ` · ${inc} 支在路上` : ''}`;
+  const O = (typeof TY_UORD !== 'undefined') ? TY_UORD : { ord:'attack', mode:'mass' };
+  const seg = (k, v, lab) => `<button type="button" class="sg${O[k] === v ? ' on' : ''}" data-k="${k}" data-v="${v}">${lab}</button>`;
   UPOP.innerHTML = `<div class="up-h"><b>${units.length} 支部隊</b><em>${escH(where)}</em><button type="button" class="x">✕</button></div>`
-    + units.map(u => `<label><input type="checkbox" checked data-u="${u.id}"> ${TY_UNITS[u.k].ic} ${escH(TY_UNITS[u.k].nm)}</label>`).join('')
-    + `<div class="up-b"><button type="button" class="go">🎯 拉線派遣</button><button type="button" class="pn">部隊面板</button></div>`
+    + units.map(u => { const a = typeof tyArmyOf === 'function' && tyArmyOf(u);
+        return `<label><input type="checkbox" checked data-u="${u.id}"> ${TY_UNITS[u.k].ic} ${escH(TY_UNITS[u.k].nm)}${a ? ` <i class="ar">🎖${escH(a.nm)}</i>` : ''}</label>`; }).join('')
+    + `<div class="up-o">到了 ${seg('ord', 'attack', '⚔ 進攻')}${seg('ord', 'hold', '🛡 駐紮')}</div>`
+    + (O.ord === 'attack' && units.length > 1 ? `<div class="up-o">多支 ${seg('mode', 'mass', '到齊再打')}${seg('mode', 'seq', '依序打')}</div>` : '')
+    + `<div class="up-b"><button type="button" class="go">🎯 拉線派遣</button><button type="button" class="pn">指揮中心</button></div>`
     + `<div class="up-n">也可以直接從部隊標籤拖一條線到城市</div>`;
+  UPOP.querySelectorAll('.sg').forEach(b => b.onclick = () => {
+    if(typeof TY_UORD !== 'undefined') TY_UORD[b.dataset.k] = b.dataset.v;
+    const off = [...UPOP.querySelectorAll('input:not(:checked)')].map(i => i.dataset.u);   // 重畫之後保留沒勾的
+    unitPop(d, x, y);
+    for(const id of off){ const i = UPOP.querySelector(`input[data-u="${id}"]`); if(i) i.checked = false; }
+  });
   UPOP.style.display = '';
   const w = host.clientWidth;
   UPOP.style.transform = `translate(${Math.min(w - 230, Math.max(6, x - 100))}px,${Math.max(6, y + 18)}px)`;
   UPOP.querySelector('.x').onclick = () => { UPOP.style.display = 'none'; };
-  UPOP.querySelector('.pn').onclick = () => { UPOP.style.display = 'none'; TY_MODAL = 'troop'; renderPage(); };
+  UPOP.querySelector('.pn').onclick = () => {
+    UPOP.style.display = 'none';
+    if(typeof TY_USEL !== 'undefined'){ TY_USEL.clear(); for(const i of UPOP.querySelectorAll('input:checked')) TY_USEL.add(+i.dataset.u); }
+    TY_MODAL = 'troop'; renderPage();
+  };
   UPOP.querySelector('.go').onclick = () => {
     const ids = [...UPOP.querySelectorAll('input:checked')].map(i => +i.dataset.u);
     UPOP.style.display = 'none';
