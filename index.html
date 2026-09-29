@@ -5007,6 +5007,11 @@
   .tycon[data-world][data-modal]:not([data-side]) .tg-pv{ visibility:hidden }
   .tg-world{ position:absolute; left:8px; top:8px; z-index:205; display:flex; flex-direction:column; gap:2px; max-width:min(70vw,520px);
     padding:6px 10px; background:rgba(19,34,49,.9); border:2px solid #000; box-shadow:0 3px 0 #000; font-family:'EmpirePixel',var(--sans) }
+  .tg-world .wb-x{ position:absolute; top:4px; right:4px; width:28px; height:28px; padding:0; font:inherit; font-size:13px; line-height:1; cursor:pointer;
+    display:flex; align-items:center; justify-content:center; background:#1b2a3a; color:#cfe3f5; border:2px solid #000; overflow:hidden }
+  .tg-world .wb-x img{ width:16px !important; height:16px !important; margin:0 }
+  .tg-world{ padding-right:36px !important }
+  .tg-world.min{ flex-direction:row; align-items:center; font:inherit; font-size:13px; color:#e8f1f8; cursor:pointer; padding:6px 10px !important }
   .tg-world b{ font-weight:400; font-size:16px; color:#e8f1f8 } .tg-world span{ font-size:12px; color:#9db4c8 } .tg-world em{ font-style:normal; font-size:11px; color:#6b8299 }
 
   /* ---- 對手出局卡 ---- */
@@ -11191,13 +11196,16 @@ function tyOpenCity(id, at){
     <div class="cv-list">${Object.keys(TY_CITY_ZN).filter(k=>n(k)).map(k=>`<p><b>${TY_CITY_ZN[k]}</b> ${d.zones[k].map(x=>x.tag).join('、')}</p>`).join('')}</div>`;
   tySfx('build','land');
 }
+let TY_WB_MIN = (()=>{ try{ return localStorage.getItem('ty-wb-min')==='1'; }catch(e){ return false; } })();
 function tyWorldBadge(){
   const sp=TY.space, st=sp?sp.mars.st:0, run=sp&&sp.mars.run?sp.mars.run.st:0, w=TY_PLANET;
   const nm=w==='moon'?'🌙 月球':'🔴 火星';
   const gate = tyTester() ? '🧪 測試人員:建地全部開放 · 把「建設」拖到白框' : w==='moon' ? (sp&&sp.moon ? '已登月 · 建地開放 · 把「建設」拖到白框' : '還沒登月 —— 點任何一塊建地,從那裡登月')
     : st>=4 ? '火星殖民地自給自足 · 建地開放 · 把「建設」拖到白框' : st>=3 ? '首批登陸 · 火星計畫走完(自給自足)才能蓋' : run ? `火星計畫第 ${run} 階段進行中 · 走完才能蓋` : '出「火星計畫」牌:四段走完才能在火星蓋';
   const P=tyPlots(w), mine=P.filter(p=>p.o==='me').length, rv=P.filter(p=>p.o&&p.o!=='me').length;
-  return `<div class="tg-world"><b>${nm}</b><span>${gate}</span>
+  /* 使用者:「左上那個火星的畫面可以關掉」—— 收起來只剩一顆小標籤(記住選擇),點一下再展開 */
+  if(TY_WB_MIN) return `<button type="button" class="tg-world min" data-ty="wbmax" title="展開說明">${nm} · 你 ${mine} 塊 ▸</button>`;
+  return `<div class="tg-world"><button type="button" class="wb-x" data-ty="wbmin" aria-label="收起說明">✕</button><b>${nm}</b><span>${gate}</span>
     <span>建地 ${P.length} 塊:你 <b class="up">${mine}</b> · 對手 <b class="down">${rv}</b> · 空 ${P.length-mine-rv}${sp&&sp.fee?` · 每季補給 ${tyM(sp.fee)}`:''}${sp&&sp.stalled===TY.t?' · <b class="down">補給斷了,停擺中</b>':''}</span>
     <em>點建地蓋東西 · 拖曳移動 · 滾輪 / 雙指縮放 · 連點兩下背景的地球飛回去</em></div>`;
 }
@@ -13112,6 +13120,7 @@ function bindTycoon(root){
     }
     if(a==='sfx'){ if(window.SFX) SFX.toggle(); renderPage(); return; }
     if(a==='fallok'){ TY_FALLQ.shift(); renderPage(); return; }
+    if(a==='wbmin'||a==='wbmax'){ TY_WB_MIN = a==='wbmin'; try{ localStorage.setItem('ty-wb-min', TY_WB_MIN?'1':'0'); }catch(e){} renderPage(); return; }
     if(a==='plotpick'){ tySpacePlot(b.dataset.w, +b.dataset.i); return; }
     if(a==='rvinfo'){ TY_MODAL='rival'; TY_RIVAL=b.dataset.k; TY_DEAL=null; renderPage(); return; }
     if(a==='gohq'){ const r=TY.rivals.find(x=>x.id===b.dataset.k); if(r){ TY_MODAL=null; tyPickSite(r.home); } return; }
