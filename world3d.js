@@ -2204,6 +2204,20 @@ W3D.animRecon = function(m, done){
   });
 };
 /* 打擊:飛彈從大本營拋過去;空襲是三架戰機編隊,飛過目標上空一路投彈 */
+/* 打擊的效果寫在地圖上(第四十輪:「要有一些顯示效果的動畫」)——
+   命中的那一刻,目標上方浮出一行字(−12 勢力、攻擊力 ×0.4…),往上飄、淡出 */
+function floatText(B, txt, cls){
+  const host = document.getElementById('tyGlobeHost'); if(!host || !B) return;
+  const p = W3D.screenOfLL(B.lat, B.lng); if(!p) return;
+  const r = host.getBoundingClientRect();
+  const el = document.createElement('div');
+  el.className = 'w3d-float ' + (cls || '');
+  el.innerHTML = txt;
+  el.style.left = (p.x - r.left) + 'px'; el.style.top = (p.y - r.top) + 'px';
+  host.appendChild(el);
+  setTimeout(() => el.remove(), 2600);
+}
+W3D.floatText = (id, txt, cls) => { if(typeof tySite === 'function') floatText(tySite(id), txt, cls); };
 W3D.animStrike = function(s){
   if(!W3D.ok || !s) return;
   const A = tySite(s.from), B = tySite(s.to);
@@ -2213,7 +2227,7 @@ W3D.animStrike = function(s){
     if(s.k === 'missile'){
       fly({ kind: 'missile', from: A, to: B, arc: clamp(km / 6000 * .25, .06, .36), dur: clamp(3500 + km * .3, 4000, 7000),
             trail: { col: ['rgba(200,200,200,0)', 'rgba(255,190,120,.95)'], w: 2.4 },
-            done: () => { boom(B.lat, B.lng, true); setTimeout(() => boom(B.lat + .08, B.lng - .1, false), 260); } });
+            done: () => { boom(B.lat, B.lng, true); setTimeout(() => boom(B.lat + .08, B.lng - .1, false), 260); if(s.fx) floatText(B, s.fx, s.fxc); } });
     }else{
       // 航線延伸過目標一截:戰機飛越目標上空投彈,再繼續飛走
       const beyond = tyGeoLerp(A, B, 1.25);
@@ -2230,7 +2244,7 @@ W3D.animStrike = function(s){
           for(let i = 0; i < 3; i++) setTimeout(() => {
             const lat = B.lat + off * .35 + (i - 1) * .12, lng = B.lng + (i - 1) * .16;
             fly({ kind: 'bomb', pts: [{ lat: P.lat, lng: P.lng, mode: 'bomb' }, { lat, lng, mode: 'bomb' }],
-                  arc: 0, dur: 700, done: () => boom(lat, lng, false) });
+                  arc: 0, dur: 700, done: () => { boom(lat, lng, false); if(s.fx && i === 2 && j === 0) floatText(B, s.fx, s.fxc); } });
             // 炸彈的高度:從戰機的高度直直掉下來
             const bb = ANIMS[ANIMS.length - 1]; bb.fall = P.alt;
           }, i * 170 + j * 60);
