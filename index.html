@@ -4563,6 +4563,9 @@
   .cm-nm b{font-size:12.5px}
   .cm-nm em{font-style:normal;font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .cm-at{color:var(--g-t2)} .cm-mv{color:#7fd4ff} .cm-war{color:#ff8a80} .cm-wait{color:#ffd84a}
+  .ty-threat.raid .toe-bar{position:relative;height:8px;border-radius:4px;background:#0f2233;margin:7px 0}
+  .ty-threat.raid .toe-bar u{position:absolute;left:0;top:0;bottom:0;background:#ff453a;border-radius:4px}
+  .ty-threat.raid .toe-b{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
   .rv-toe{border:1px solid rgba(255,216,74,.4);border-radius:8px;padding:9px 11px;margin:6px 0;background:rgba(255,216,74,.05)}
   .rv-toe .toe-h{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;font-size:13px}
   .rv-toe .toe-h span{font-size:11.5px;color:var(--g-t2);margin-left:auto}
@@ -5939,7 +5942,7 @@ function tyRivalTurn(){
     if(TY.t<3) continue;                 // 開局三季讓玩家先站穩
     /* 即時制(第三十三輪):動作不在換季那一瞬間做完,而是排在這一季中間、每個人錯開(tyRivalActTick)——
        使用者:「時間在跑的時候對手也可以開始有動作」。回合制照舊當場做。 */
-    if(TY.rt){ r.actPend=true; continue; }
+    if(TY.rt){ r.actPend=2; continue; }            // 即時制一季動兩次(第三十六輪:使用者覺得對手太弱)
     tyRivalAct(r);
   }
   /* 全部死光不可能,但保險:至少留一個對手,不然排名沒有意義。
@@ -5970,12 +5973,14 @@ function tyRivalAct(r){
          量測跑出來「首富」這個結局在九種策略裡一次都沒發生過。
          他們的行動要改變的是**地盤與名次**,不是憑空長錢。 */
       r.nw*=1.006;
+      /* 第三十六輪:擴張要「看得到」—— 四成五的機會在那個地區蓋一間分部(地圖上一棟他顏色的樓) */
+      if(tyRnd()<.45) tyRvBuild(r, pick);
       if(mine.has(pick) && !(r.pact&&r.pact>TY.t)){
         TY.reg[pick].comp += 1.2;
         r.rel = tyClamp((r.rel||0)-7, -100, 100);
         tyLog('rival', `${r.nm}打進${TY_REGIONS[pick].nm} —— 你在那裡的現金流會被壓一段時間。`, r.id);
       }else tyLog('rival', `${r.nm}往${TY_REGIONS[pick].nm}擴張(勢力 ${was.toFixed(0)} → ${tyTurf(r,pick).toFixed(0)})。`, r.id);
-    }else if(roll < .46){
+    }else if(roll < .40){
       /* ② 大吃小:併掉一個比自己小很多的對手。勢力相加。
          ⚠ 第二十八輪量測:原本「第 3 季起、12%、比他小 55% 就能吃」—— 18 局裡有 13 局到第 40 季
          只剩一個對手,好幾個人第 3~7 季就被吃掉(使用者:「玩到後面很多富豪都消失了」)。
@@ -5991,24 +5996,34 @@ function tyRivalAct(r){
         tyLog('rival', `${r.nm}把${prey.nm}整個買下來了。榜上少一個人,而他多了一塊地盤。`, r.id);
         TY_RV_EV.push({ k:'eat', rid:r.id, prey:prey.id, at:prey.home });
       }
-    }else if(roll < .56){
+    }else if(roll < .47){
       /* ③ 上市 / 大額募資:身家跳一段,但關注度也上去 */
       r.nw*=1.03+tyRnd()*.04; r.heat=tyClamp((r.heat||0)+8,0,100);
       tyLog('rival', `${r.nm}把旗下事業送上市,身家跳了一段。`, r.id);
       TY_RV_EV.push({ k:'ipo', rid:r.id });
-    }else if(roll < .66 + r.agg*.12){
-      /* ④ 對你出手 —— 只在關係壞、而且他比你大的時候。
-         三種手段,對應現實裡真的會發生的三件事。 */
+    }else if(roll < .60){
+      /* ⑤ 佔領小國(第三十六輪):買下一個他有勢力的地區裡的地方富豪 —— 那個國家變成他的顏色 */
+      if(!tyRvOccupy(r)) tyRvBuild(r, tySite(r.home).reg);
+    }else if(roll < .76 + r.agg*.12){
+      /* ④ 對你出手。以前只在「關係很壞、而且他比你大」時才會 —— 使用者:「對手太弱了,也不會來打我」。
+         現在:關係不好(< −15)且他至少有你一半大;或是**你是榜首**(大家都想把第一名拉下來,第 6 季起);
+         或是他比你大、又在你有生意的地區有勢力(搶地盤)。
+         三種手段 + 第四種:對你旗下的上市公司建倉(見 tyRaidStart)。 */
       const me=tyShownNW();
-      if((r.rel||0) < -25 && r.nw > me*.8){
+      const lead = me >= Math.max(0, ...tyRivalsA().map(x=>x.nw)) && TY.t>=6;
+      const clash = r.nw > me && tyMyRegions().some(g=>tyTurf(r,g)>=10);         // 他比你大、又跟你搶同一個地區
+      if(((r.rel||0) < -15 && r.nw > me*.5) || (lead && tyRnd() < .45 + (r.agg||0)*.3)
+         || (clash && tyRnd() < .25 + (r.agg||0)*.4)){
+        if(tyRnd()<.3 && tyRaidStart(r)){ r.rel=tyClamp((r.rel||0)-2,-100,100); return; }
         const mine=tyMyRegions();
-        const how=Math.floor(tyRnd()*3)%3;
+        const hx=tyRnd(), how = hx<.55 ? 0 : hx<.78 ? 1 : 2;     // 出兵最常見(看得到、擋得住的那一種)
         if(how===0 && mine.length){
           const g=mine[Math.floor(tyRnd()*mine.length)%mine.length];
           /* 以前這一下是當場生效(競爭 +2.2)。現在他派的是一支會走路的併購小組:
              你看得到它出發、看得到幾季後到,有時間把律師團調過去(見 tyUnitsTurn)。
              ⚠ 同一個人同時只派一支 —— 不然關係爛掉的對手會每季疊一支上來。 */
-          if(!tyThreats().some(x=>x.rid===r.id)) tyRivalMarch(r, g);
+          /* 第三十六輪:同時最多兩支在路上 —— 你當榜首時大家都想打你,不限制會六支一起壓到台北 */
+          if(!tyThreats().some(x=>x.rid===r.id) && tyThreats().length < 2) tyRivalMarch(r, g);
           else TY.reg[g].comp += 1;
         }else if(how===1){
           TY.heat=tyClamp(TY.heat+7,0,120);
@@ -6107,26 +6122,32 @@ function tyUnitArrive(u){
       const all=tyUnits().filter(x=>x.wave===u.wave && (x.to===site || x.site===site)).length;
       return msg+` —— 等其他部隊到齊(${all-mates.length}/${all})`;
     }
-    const f=tyRivalForces().find(x=>x.site===site);
+    /* 使用者:「軍隊到了就直接攻擊,除非我用駐軍模式」—— 目的地本身沒有駐軍,就打同一個地區裡最強的那一支 */
+    const f=tyForceNear(site);
     if(f){
       const atkHere=tyUnitsIn(tySite(site).reg).some(x=>(TY_ATK[x.k]||0)>=.4);
       if(!atkHere) return msg;
-      if(tyBattles().some(b=>b.rid===f.r.id && b.site===site)){ u.pend=true; return msg+' —— 前面還在打,排隊接著上'; }
-      const r=tyAutoAssault(f.r.id, site);
+      if(tyBattles().some(b=>b.rid===f.r.id && b.site===f.site)){ u.pend=true; return msg+' —— 前面還在打,排隊接著上'; }
+      const r=tyAutoAssault(f.r.id, f.site);
       if(r) msg+=` —— ${r}`;
     }
   }
   return msg;
 }
+/* 一座城附近可以打的對手駐軍:就在這座城的優先,不然同一個地區裡勢力最大的那一支 */
+function tyForceNear(site){
+  const F=tyRivalForces();
+  return F.find(x=>x.site===site) || F.filter(x=>x.reg===tySite(site).reg).sort((a,b)=>b.v-a.v)[0] || null;
+}
 /* 「依到達順序」排隊的部隊:前一場打完、那裡還有對手駐軍 → 接著開打下一場 */
 function tyQueuedAssaults(){
   const out=[];
   for(const u of tyUnits()) if(u.pend && !u.to){
-    const site=u.site, f=tyRivalForces().find(x=>x.site===site);
+    const site=u.site, f=tyForceNear(site);
     if(!f){ for(const x of tyUnits()) if(x.site===site) x.pend=false; continue; }
-    if(tyBattles().some(b=>b.site===site)) continue;
+    if(tyBattles().some(b=>b.site===f.site || b.site===site)) continue;
     for(const x of tyUnits()) if(x.site===site) x.pend=false;
-    const r=tyAutoAssault(f.r.id, site);
+    const r=tyAutoAssault(f.r.id, f.site);
     if(r) out.push({ arr:true, site, k:u.k, txt:`${TY_UNITS[u.k].ic} 排隊的部隊接著上 —— ${r}` });
   }
   return out;
@@ -6186,7 +6207,7 @@ function tyDeployMany(ids, site, opt){
     if(why){ skip.push(`${TY_UNITS[u.k].ic}${TY_UNITS[u.k].nm}`); continue; }
     u.ord=opt.ord==='hold' ? 'hold' : 'attack';
     tyDeploy(u.id, site);
-    u.wave=TY.wave; u.wm=opt.mode==='seq' ? 'seq' : 'mass'; u.pend=false;
+    u.wave=TY.wave; u.wm=opt.mode==='mass' ? 'mass' : 'seq'; u.pend=false;
     ok.push(u);
   }
   if(!ok.length) return `沒有部隊出發:${skip.join('、')}已經在那裡、在路上,或到不了。`;
@@ -6218,13 +6239,19 @@ function tyLiveTick(){
   if(pend.length && TY.t>=3){
     const all=tyRivalsA();
     for(const r of pend){
-      const i=all.indexOf(r), at=(i+1)/(all.length+1);
-      if((TY.prog||0) < at) continue;
-      r.actPend=false;
-      const n0=TY.log.length;
-      tyRivalAct(r);
-      const l=TY.log.slice(n0).find(x=>x.kind==='rival');
-      if(l) out.push({ rv:true, rid:r.id, txt:l.txt, bad:/⚠|打進|點名|簡報|派出/.test(l.txt) });
+      const i=all.indexOf(r);
+      /* 兩個時間點:前半季一次、後半季一次,每個人錯開 */
+      for(;;){
+        const n=r.actPend===true ? 1 : (r.actPend|0); if(n<=0){ r.actPend=false; break; }
+        const at=(n>=2 ? 0 : .5) + (i+1)/(all.length+1)*.5;
+        if((TY.prog||0) < at) break;
+        r.actPend = n-1 > 0 ? n-1 : false;
+        const n0=TY.log.length;
+        tyRivalAct(r);
+        if(!tyRival(r.id) || r.alive===false) break;
+        const l=TY.log.slice(n0).find(x=>x.kind==='rival');
+        if(l) out.push({ rv:true, rid:r.id, txt:l.txt, bad:/⚠|打進|點名|簡報|派出|舉牌|分部開在你/.test(l.txt) });
+      }
     }
   }
   if(out.length) tySave();
@@ -6642,10 +6669,11 @@ function tyLocal(id){
   const nw=base*tyClamp(tyRegIdx(s.reg),.4,3)*Math.pow(1.012, TY.t);   // 跟著當地景氣與時間長
   return { id, s, nm, nw, st, ic:'🎩' };
 }
-const tyLocalPrice = L => L.nw*1.2;
+const tyLocalPrice = L => L.nw*1.2*(L.st.rv ? 1.3 : 1);      // 被對手拿走的:要從他手上買,貴三成
 /* 接收:他的產業變成你在那座城的一家公司(估值 = 拿到的金額,見 tyAcqBiz 的理由) */
 function tyLocalTake(id, how){
   const L=tyLocal(id); if(!L || L.st.gone) return 0;
+  if(L.st.rv){ const rr=tyRival(L.st.rv); if(rr && how==='money') rr.nw+=tyLocalPrice(L)*.8; tyRvLoseMinor(id); }
   const val=L.nw*(how==='army'?.6:1);
   const b={ id:TY.bizId++, k:'dev', site:id, cap:1e8, own:1, pub:false, cf:0, born:TY.t };
   const unit=Math.max(1e6, tyBizVal(b)); b.cap=Math.max(1e7, val*1e8/unit);
@@ -7035,6 +7063,62 @@ function tyThreatBlock(th){
   return tyClamp(.1 + def*.28 - (th.pow-1)*.1, .05, .92);
 }
 
+/* =========================================================================
+   對手的分部與佔領(第三十六輪)
+   -------------------------------------------------------------------------
+   使用者:「對手太弱了,都不會向外擴張、不會來打我、不會佔領其他國家、很少看到其他人的建設」。
+   - r.blds = [{ site, t }]:對手在大本營以外的分部。地圖上是一棟他顏色的樓;那座城的勢力會算他一份;
+     他的駐軍優先駐在分部。最多 5 間(地圖不能太亂)。開局在他大本營那一區有一間(用雜湊,不吃亂數、不存檔)
+   - 佔領小國:他有勢力(≥ 12)的地區裡、還沒被拿走的地方富豪 → 買下(TY.loc[id].rv = 他),
+     整國算他的,也是一間分部。你照樣可以收購(貴三成,錢付給他)或用部隊佔領回來
+   ========================================================================= */
+const TY_RV_BLD_MAX = 5;
+function tyRvBlds(r){
+  if(r.blds) return r.blds;
+  /* 還沒蓋過:開局給一間在他大本營那一區的分部。只用雜湊、不存檔 ——
+     畫面層會呼叫這支,不可以在這裡改狀態(季間過場的重播測試會抓到) */
+  const h=[...r.id].reduce((a,c)=>a+c.charCodeAt(0),0), reg=tySite(r.home).reg;
+  const ss=TY_SITES.filter(x=>x.reg===reg && !x.minor && x.id!==r.home);
+  return ss.length ? [{ site:ss[h%ss.length].id, t:0 }] : [];
+}
+const tyRvBldsW = r => (r.blds = r.blds || tyRvBlds(r).map(b=>({ ...b })));     // 要改的時候才存下來
+function tyRvBuild(r, reg){
+  const B=tyRvBldsW(r);
+  if(B.length>=TY_RV_BLD_MAX) return null;
+  const ss=TY_SITES.filter(x=>x.reg===reg && !x.minor && x.id!==r.home && !B.some(b=>b.site===x.id));
+  if(!ss.length) return null;
+  const s=ss[Math.floor(tyRnd()*ss.length)%ss.length];
+  B.push({ site:s.id, t:TY.t });
+  const mineHere=tySiteStuff(s.id).val>0;
+  if(mineHere){ TY.reg[reg].comp=(TY.reg[reg].comp||0)+.8; }
+  tyLog('rival', mineHere ? `${r.nm}把分部開在你的${s.nm} —— 那裡的生意要跟他搶了。` : `${r.nm}在${s.nm}開了一間分部。`, r.id);
+  TY_RV_EV.push({ k:'expand', rid:r.id, reg, site:s.id, mine:mineHere });
+  TY_PWC=null;
+  return s.id;
+}
+function tyRvOccupy(r){
+  const regs=new Set(Object.entries(r.turf||{}).filter(([,v])=>v>=12).map(([g])=>g));
+  const cand=TY_SITES.filter(x=>x.minor && regs.has(x.reg)).filter(x=>{ const st=(TY.loc||{})[x.id]; return !st || (!st.gone && !st.rv && !(st.ctl>0)); });   // 不要為了篩選把每一國都建檔
+  if(!cand.length) return null;
+  const s=cand[Math.floor(tyRnd()*cand.length)%cand.length], L=tyLocal(s.id);
+  const price=L.nw;
+  if(r.nw < price*3) return null;
+  r.nw-=price*.3;                                  // 付出去的錢一部分變成他的資產(不是全部蒸發)
+  L.st.rv=r.id; L.st.rvT=TY.t;
+  r.turf[s.reg]=tyClamp(tyTurf(r,s.reg)+4,0,100);
+  const B=tyRvBldsW(r); if(B.length<TY_RV_BLD_MAX && !B.some(b=>b.site===s.id)) B.push({ site:s.id, t:TY.t, minor:true });
+  tyLog('rival', `${r.nm}買下${s.sub}的地方富豪 ${L.nm} —— 整個${s.sub}變成他的勢力範圍。`, r.id);
+  TY_RV_EV.push({ k:'expand', rid:r.id, reg:s.reg, site:s.id });
+  TY_PWC=null;
+  return s.id;
+}
+/* 你收購 / 佔領了一個被對手拿走的小國:他的分部拆掉、他在那區勢力 −6、關係 −10 */
+function tyRvLoseMinor(id){
+  const L=tyLocal(id); if(!L || !L.st.rv) return;
+  const r=tyRival(L.st.rv);
+  L.st.rv=null;
+  if(r){ r.blds=tyRvBldsW(r).filter(b=>b.site!==id); r.turf[L.s.reg]=tyClamp(tyTurf(r,L.s.reg)-6,0,100); r.rel=tyClamp((r.rel||0)-10,-100,100); }
+}
 /* 對手派兵(tyRivalTurn 呼叫)。目標是你在那個地區最值錢的城市。 */
 function tyRivalMarch(r, reg){
   const mine=tyMySites().filter(s=>s.reg===reg)
@@ -7170,6 +7254,114 @@ function tyToeSell(rid){
   tySave();
   return `<b>出清${escH(r.nm)}的持股。</b>拿回 ${tyM(got)},${pl>=0?'賺':'賠'} <b>${tyM(Math.abs(pl))}</b>。`;
 }
+/* =========================================================================
+   對手對你建倉 + 毒丸 / 買回(第三十六輪)
+   -------------------------------------------------------------------------
+   反過來:對手在市場上買你旗下**上市公司**的股票(沒上市的公司沒有股票可以買 —— 上市有代價)。
+   - TY.raid = { rid, bid, sh, pub }:同時只會有一個人在買你。每季 +3%
+   - 5% 以下你看不到(除非你偵察過他);越過 5% 他得舉牌 → 通知你
+   - 到 15%:他發動敵意收購。成功率 0.25 + 持股 − 那一區律師團每支 10%(最多 −30%)
+       成功:那家公司歸他(他照市價付你錢,但你少一台印鈔機、他多一塊地盤)
+       失敗:他收手,關係 −10
+   - 防禦:
+       🧪 毒丸(1 點 · 身家 1%):八季有效。他一發動收購就觸發 —— 他手上的股票被稀釋成三分之一、賠掉一半,收購當場失敗。
+          已經有人在買的時候吞下去,他的持股立刻變三分之一
+       💰 買回(綠色勒索 greenmail,1 點):用市價 1.25 倍把他手上的股票買回來,事情結束,關係 +5
+   ⚠ 亂數只在「真的有人在買你、而且到了發動那一季」才擲 —— 沒有人買你的一局,亂數序列跟以前一樣。
+   ========================================================================= */
+const tyPillOn = () => (TY.pill||0) > TY.t;
+const tyPillCost = () => Math.max(1e8, tyNW()*.01);
+function tyRaidTarget(){
+  return TY.biz.filter(b=>b.pub && !TY_BIZ[b.k].shell).sort((a,b)=>tyBizVal(b)-tyBizVal(a))[0] || null;
+}
+const tyRaidSeen = () => !!TY.raid && (TY.raid.pub || tyIntel(TY.raid.rid));
+function tyRaidStart(r){
+  if(TY.raid) return false;
+  const b=tyRaidTarget(); if(!b) return false;
+  TY.raid={ rid:r.id, bid:b.id, sh:.02, pub:false, t:TY.t };
+  return true;
+}
+function tyRaidTurn(){
+  const R=TY.raid; if(!R) return;
+  const r=tyRival(R.rid), b=TY.biz.find(x=>x.id===R.bid);
+  if(!r || r.alive===false || !b || !b.pub){ TY.raid=null; return; }
+  R.sh=+(R.sh+.03).toFixed(4);
+  const S=tySite(b.site||TY.home);
+  if(!R.pub && R.sh>=.05){
+    R.pub=true;
+    tyNews('bad', `📣 ${r.nm}對你舉牌`, `他持有你的${TY_BIZ[b.k].nm}(${S.nm})${(R.sh*100).toFixed(0)}% 的股票,到 15% 就會發動敵意收購。可以吞毒丸、買回,或把律師團派到${TY_REGIONS[S.reg].nm}。`);
+    tyLog('rival', `⚠ ${r.nm}對你的${TY_BIZ[b.k].nm}(${S.nm})舉牌:持股 ${(R.sh*100).toFixed(0)}%。`, r.id);
+  }
+  if(R.sh < .15) return;
+  TY.raid=null;
+  const val=tyBizVal(b)*b.own;
+  if(tyPillOn()){
+    const loss=R.sh*tyBizVal(b)*.5;
+    r.nw=Math.max(5e7, r.nw-loss); r.rel=tyClamp((r.rel||0)-8,-100,100);
+    tyNews('good', `🧪 毒丸生效`, `${r.nm}發動收購的那一刻毒丸觸發:他的持股被稀釋成三分之一,賠掉 ${tyM(loss)},收購失敗。`);
+    tyLog('rival', `🧪 ${r.nm}想收購你的${TY_BIZ[b.k].nm},毒丸觸發 —— 他賠掉 ${tyM(loss)}。`, r.id);
+    return;
+  }
+  const law=tyUnitN(tyUnitsIn(S.reg),'law');
+  const p=tyClamp(.25 + R.sh - Math.min(.3, law*.1), .05, .9);
+  if(tyRnd() < p){
+    TY.biz=TY.biz.filter(x=>x!==b);
+    TY.cash+=val; TY.fame=tyClamp(TY.fame-5,0,100);
+    r.nw+=tyBizVal(b)*.5; r.turf=r.turf||{}; r.turf[S.reg]=tyClamp(tyTurf(r,S.reg)+8,0,100);
+    const B=tyRvBldsW(r); if(B.length<TY_RV_BLD_MAX && S.id!==r.home && !B.some(x=>x.site===S.id) && !S.minor) B.push({ site:S.id, t:TY.t });
+    tyNews('bad', `💼 ${r.nm}收購了你的${TY_BIZ[b.k].nm}`, `敵意收購成功(成功率 ${(p*100).toFixed(0)}%)。他照市價付你 ${tyM(val)},但那台印鈔機以後是他的,${TY_REGIONS[S.reg].nm}勢力 +8。`);
+    tyLog('rival', `⚠ ${r.nm}敵意收購你在${S.nm}的${TY_BIZ[b.k].nm}成功,付你 ${tyM(val)}。`, r.id);
+  }else{
+    r.rel=tyClamp((r.rel||0)-10,-100,100);
+    tyNews('good', `🛡 擋下${r.nm}的收購`, `他對你的${TY_BIZ[b.k].nm}出價失敗(成功率 ${(p*100).toFixed(0)}%)。`);
+    tyLog('rival', `${r.nm}對你的${TY_BIZ[b.k].nm}敵意收購失敗。`, r.id);
+  }
+}
+function tyPill(){
+  const blocked=tyBlock('pill', null); if(blocked) return blocked;
+  const c=tyPillCost(); TY.cash-=c; TY.pill=TY.t+8;
+  let extra='';
+  if(TY.raid && TY.raid.sh>=.05){ TY.raid.sh=+(TY.raid.sh/3).toFixed(4); extra=` 正在買你的${escH((tyRival(TY.raid.rid)||{}).nm||'')}持股立刻被稀釋成 ${(TY.raid.sh*100).toFixed(0)}%。`; }
+  tyLog('biz', `🧪 通過毒丸條款(到第 ${TY.pill} 季),花 ${tyM(c)}。`);
+  tySave();
+  return `<b>🧪 毒丸條款生效到 ${tyWhen(TY.pill)}。</b>花 ${tyM(c)}。這段期間誰對你發動敵意收購,他的持股就被稀釋、收購失敗。${extra}`;
+}
+function tyBuyback(){
+  const blocked=tyBlock('buyback', null); if(blocked) return blocked;
+  const R=TY.raid, r=tyRival(R.rid), b=TY.biz.find(x=>x.id===R.bid);
+  const c=tyBuybackCost();
+  TY.cash-=c; if(r){ r.nw+=c; r.rel=tyClamp((r.rel||0)+5,-100,100); }
+  TY.raid=null;
+  tyLog('biz', `💰 用 ${tyM(c)} 買回${r?r.nm:''}手上的股票。`);
+  tySave();
+  return `<b>💰 買回。</b>付 ${tyM(c)}(市價的 1.25 倍)給${escH(r?r.nm:'')},他手上你的${b?TY_BIZ[b.k].nm:''}股票全部收回,事情結束。`;
+}
+function tyBuybackCost(){
+  const R=TY.raid; if(!R) return 0;
+  const b=TY.biz.find(x=>x.id===R.bid);
+  return b ? R.sh*tyBizVal(b)*1.25 : 0;
+}
+/* 畫面:被建倉的警示卡 + 毒丸狀態(部隊面板最上面、對手面板) */
+function tyRaidHTML(){
+  const R=TY.raid, seen=tyRaidSeen();
+  let card='';
+  if(R && seen){
+    const r=tyRival(R.rid), b=TY.biz.find(x=>x.id===R.bid);
+    if(r && b){ const S=tySite(b.site||TY.home), law=tyUnitN(tyUnitsIn(S.reg),'law');
+      card=`<div class="ty-threat raid">
+        <div class="th-h"><b>📣 ${escH(r.nm)}在買你的${TY_BIZ[b.k].nm}(${escH(S.nm)})</b><em>持股 ${(R.sh*100).toFixed(0)}% / 15% 發動${R.pub?'':' · 還沒舉牌(你偵察到的)'}</em></div>
+        <div class="toe-bar"><u style="width:${Math.min(100,R.sh/.15*100).toFixed(0)}%"></u></div>
+        <div class="th-b">每季 +3%。到 15% 他發動敵意收購:成功率約 ${(tyClamp(.25+.15-Math.min(.3,law*.1),.05,.9)*100).toFixed(0)}%
+          (${TY_REGIONS[S.reg].nm}的律師團 ${law} 支,每支 −10%)${tyPillOn()?' —— <b class="up">毒丸有效,他會失敗</b>':''}</div>
+        <div class="toe-b">${tyPillOn()?'':tyActBtn('pill', null, `🧪 吞毒丸(${tyM(tyPillCost())})`)}
+          ${tyActBtn('buyback', null, `💰 買回(${tyM(tyBuybackCost())})`)}</div>
+      </div>`; }
+  }
+  const pill = tyPillOn() ? `<div class="expo-note">🧪 毒丸條款有效到 <b>${tyWhen(TY.pill)}</b>:誰對你敵意收購都會失敗。</div>`
+    : (tyRaidTarget() ? `<div class="expo-note">你有上市公司 —— 對手可能在市場上悄悄買你的股票(5% 以下你看不到,偵察他才看得到)。
+        ${card?'':tyActBtn('pill', null, `🧪 預先吞毒丸(${tyM(tyPillCost())} · 八季)`)}</div>` : '');
+  return card + pill;
+}
 /* 每季:舉牌之後他一直提防你 */
 function tyToeTurn(){
   for(const r of tyRivalsA()){ const t=tyToes()[r.id]; if(t && t.pub) r.rel=tyClamp((r.rel||0)-3,-100,100); }
@@ -7185,6 +7377,7 @@ function tyToeHTML(r){
   const t=tyToe(r), v=tyToeVal(r), pl=v-t.cost, px=tyToePrice(r);
   const bar=`<div class="toe-bar"><u style="width:${(t.sh/TY_TOE_MAX*100).toFixed(0)}%"></u><i style="left:${(TY_TOE_LINE/TY_TOE_MAX*100).toFixed(0)}%"></i></div>`;
   return `<div class="rv-toe">
+    ${TY.raid && TY.raid.rid===r.id && tyRaidSeen() ? `<div class="toe-d"><b class="down">⚠ 他正在買你的股票(${(TY.raid.sh*100).toFixed(0)}%)</b> —— 到部隊面板的「股權防禦」處理。</div>` : ''}
     <div class="toe-h"><b>📈 建倉</b><span>持股 <b>${(t.sh*100).toFixed(0)}%</b> / 最多 ${TY_TOE_MAX*100}%${t.pub?' · <em class="down">已舉牌</em>':t.sh?' · <em class="up">還沒被發現</em>':''}</span></div>
     ${bar}
     <div class="toe-d">收購前先在市場上買他的股票。<b>5% 以下沒人知道</b>;越過 5% 要公告(舉牌),他會提防你。
@@ -8181,6 +8374,7 @@ function tyNext(){
   tyOccupyTurn();                       // 佔領地方富豪、保護費、封鎖對手大本營(第三十輪)
   tyGenTurn();                          // 將領:薪水、降溫、挖角(第三十一輪)
   tyToeTurn();                          // 建倉:舉牌之後他一直提防你(第三十五輪)
+  tyRaidTurn();                         // 對手對你建倉(第三十六輪)
 
   /* ---- 7. 追繳保證金 → 破產 ---- */
   tyMargin();
@@ -8952,6 +9146,11 @@ function tyNeeds0(act, arg){
                cashFor(tyPartnerCost()) ];
     }
 
+    case 'pill':
+      return [ tyNb('毒丸還沒生效', !tyPillOn(), `毒丸已經有效到 ${tyWhen(TY.pill||0)}`), cashFor(tyPillCost()) ];
+    case 'buyback':
+      return [ tyNb('有人在買你的股票(而且你知道)', tyRaidSeen(), '目前沒有你看得到的對手在買你的股票'),
+               cashFor(tyBuybackCost()) ];
     case 'toe': {
       const r=arg; if(!r) return [];
       const t=tyToe(r);
@@ -10312,7 +10511,7 @@ function tyGenHTML(){
     <div class="ty-ucards">${cards}</div>`;
 }
 /* 指揮中心(第三十四輪):全部部隊在幹嘛一眼看完,勾選 → 一次派遣 / 編軍團 / 拆散 / 解散 */
-let TY_USEL = new Set(), TY_UTGT = '', TY_UORD = { ord:'attack', mode:'mass' };
+let TY_USEL = new Set(), TY_UTGT = '', TY_UORD = { ord:'attack', mode:'seq' };   // 預設:到了就打(使用者要的)
 function tyUnitStatus(u){
   const now=TY.t+(TY.prog||0);
   const ordTxt = x => x.ord==='hold' ? '🛡 只駐紮'
@@ -10369,8 +10568,8 @@ function tyCmdHTML(){
       <div class="cm-r"><select data-utgt aria-label="派去哪裡"><option value="">目的地…</option>${tyDestAll(TY_UTGT)}</select>
         <button type="button" class="ty-b alt" data-ty="uaim"${n?'':' disabled'} title="在地圖上點目標城市">🎯 地圖上選</button></div>
       <div class="cm-r"><span class="cm-l">到了</span>${seg('ord','attack','⚔ 進攻')}${seg('ord','hold','🛡 駐紮')}</div>
-      ${TY_UORD.ord==='attack'?`<div class="cm-r"><span class="cm-l">多支</span>${seg('mode','mass','全部到齊再打')}${seg('mode','seq','依到達順序打')}</div>
-      <div class="cm-hint">${TY_UORD.mode==='mass'?'到齊再打:勝率用全部兵力算,比較高,但要等最慢那支。':'依到達順序:先到的先打,快但兵力少、勝率低;前一場還在打的就排隊接著上。'}</div>`:''}
+      ${TY_UORD.ord==='attack'?`<div class="cm-r"><span class="cm-l">多支</span>${seg('mode','seq','到了就打')}${seg('mode','mass','全部到齊再打')}</div>
+      <div class="cm-hint">${TY_UORD.mode==='mass'?'到齊再打:勝率用全部兵力算,比較高,但要等最慢那支。':'到了就打:每一支到了就直接進攻(目的地沒有駐軍就打同一區的);前一場還在打的排隊接著上。'}</div>`:''}
       <div class="cm-r">${tyActBtn('march', null, `出發(${n} 支 · 1 點)`, canGo?'':' disabled')}
         <button type="button" class="ty-b alt" data-ty="armyform"${n>=2?'':' disabled'}>🎖 編成軍團</button>
         <button type="button" class="ty-b alt" data-ty="armysplit"${inArmy?'':' disabled'}>拆散軍團</button>
@@ -10427,7 +10626,9 @@ function tyTroopTab(){
     </div>`;
   }).join('');
 
+  const raid=tyRaidHTML();
   return `${T.length?`<div class="p-sec">來襲<span>${T.length} 支正在路上</span></div>${threats}`:''}
+    ${raid?`<div class="p-sec">股權防禦<span>對手買你的股票</span></div>${raid}`:''}
     <div class="p-sec">指揮中心<span>${U.length} / ${TY_UNIT_MAX} 支 · 維持費 ${tyM(tyUnitUpkeep())}/季</span></div>
     ${mine}
     ${tyGenHTML()}
@@ -10965,6 +11166,10 @@ function tyGlobeData(){
     return { ...s, _rival:r, _v:r.nw, _hk:hk(r.nw),
              _alt:0.002, _rad:0.16+Math.sqrt(r.nw/rvMax)*0.22,
              _col:`rgba(${TY_RVCOL[r.id]||'160,160,170'},.85)` }; });
+  /* 對手的分部(第三十六輪):比大本營矮的一棟,他的顏色 */
+  for(const r of tyRivalsA()) for(const b of tyRvBlds(r)){ const s=tySite(b.site); if(!s) continue;
+    rv.push({ ...s, _rival:r, _branch:true, _v:r.nw*.08, _hk:hk(r.nw*.08), _alt:0.002, _rad:0.12,
+              _col:`rgba(${TY_RVCOL[r.id]||'160,160,170'},.7)` }); }
 
   /* 3D 層啟用時,我的據點與對手大本營是真的 3D 小城(world3d.js),
      原本的扁圓柱地磚就不畫了 —— 兩個疊在一起會互相穿透。
@@ -10976,7 +11181,7 @@ function tyGlobeData(){
   const troopsNow=tyTroopMarks();
   const sig=JSON.stringify([TY.t, TY_LAYER, TY_SEL, TY.holdco, (window.W3D&&W3D.ok)?1:0,
     pts.map(d=>[d.id,d._cat,Math.round(d._v/1e6),d._blds.map(b=>b.c+(b.k||'')+b.f+(b.st||'')+b.h).join(),d._feat.port,d._feat.factory,d._feat.airport]),
-    rv.map(d=>[d._rival.id,Math.round(d._v/1e7),d._hk,Math.sign(Math.trunc((d._rival.rel||0)/20))]),
+    rv.map(d=>[d._rival.id,d._branch?d.id:'',Math.round(d._v/1e7),d._hk,Math.sign(Math.trunc((d._rival.rel||0)/20))]),
     troopsNow.map(t=>t._k+':'+(t._mv||'')+':'+(t._units?t._units.map(u=>u.k).join():'')),
     Object.keys(TY.partners||{}), (window.W3D&&W3D.extraArcs||[]).length]);
   if(w3 && sig===TYG_SIG){ W3D.rings(); W3D.repaint(); return; }
@@ -11064,6 +11269,7 @@ function tyRivalForces(){
       const n=Math.min(3, Math.floor(v/25));
       if(n<1 || !TY_REGIONS[reg]) continue;
       let site=home.reg===reg ? home : null;
+      if(!site){ const b=tyRvBlds(r).find(x=>tySite(x.site).reg===reg && !tySite(x.site).minor); if(b) site=tySite(b.site); }
       if(!site){
         const ss=TY_SITES.filter(x=>x.reg===reg && x.reg!=='off' && !x.minor);     // 小國首都不算(駐點跟以前一樣)
         if(!ss.length) continue;
@@ -11201,11 +11407,16 @@ function tyIsoPower0(code, f){
      但一定要有人真的在這個國家(第二十五輪:「日韓根本沒有建設,為什麼算富豪的」):
      你有資產或駐軍、或某個對手的大本營 / 駐軍在這國 —— 都沒有就是沒人的地方,不上色。 */
   const present = myHere>0 || tyUnits().some(u=>!u.to && tySite(u.site).iso===code)
-    || tyRivalsA().some(r=>tySite(r.home).iso===code) || forces.some(x=>tySite(x.site).iso===code);
+    || tyRivalsA().some(r=>tySite(r.home).iso===code || tyRvBlds(r).some(b=>tySite(b.site).iso===code))
+    || forces.some(x=>tySite(x.site).iso===code);
   const board=[{ me:true, nm:'你', col:'41,151,255', v:tyMyTurf(reg) },
     ...tyRivalsA().map(r=>({ r, nm:r.nm, ic:r.ic, col:TY_RVCOL[r.id]||'200,200,210', v:tyTurf(r,reg) }))]
     .filter(x=>x.me || x.v>0).sort((a,b)=>b.v-a.v);
   const maj=tyIsoMajority(code);
+  /* 小國首都被對手買下:那一國是他的(除非你在那國過半) */
+  const capR = !maj && (TY_SITES.filter(x=>x.minor && x.iso===code).map(x=>TY.loc&&TY.loc[x.id]&&TY.loc[x.id].rv).find(Boolean));
+  const holder = capR && board.find(x=>x.r && x.r.id===capR);
+  if(holder){ holder.v=Math.max(holder.v, (board[0]&&board[0]!==holder ? board[0].v+1 : 0), 35); board.sort((a,b)=>b.v-a.v); }
   if(maj){
     // 過半的城市是你的 → 這個國家是你的:你排第一,顏色至少有中等深度
     const me=board.find(x=>x.me);
@@ -11229,6 +11440,7 @@ function tyCityPower0(id){
   for(const r of tyRivalsA()){
     let v=0;
     if(r.home===id) v+=r.nw*.6;
+    if(tyRvBlds(r).some(b=>b.site===id)) v+=r.nw*.08;          // 分部
     const f=tyRivalForces().find(x=>x.r.id===r.id && x.site===id);
     if(f) v+=r.nw*.3*f.v/100;
     if(v>0) board.push({ r, nm:r.nm, ic:r.ic, col:TY_RVCOL[r.id]||'200,200,210', v });
@@ -12865,7 +13077,7 @@ function tycoonPage(){
      達成條件就解鎖新牌、跳一張翻牌動畫。解鎖紀錄存在 TY.cards,不擲骰。
    ========================================================================= */
 const TY_AP_COST = { found:2, upgrade:1, expand:1, ipo:1, reverse:1, buy:1, short:1,
-  recruit:1, recruitTo:1, deploy:1, march:1, toe:1, strike:2, partner:1, movehome:1, lobby:1, media:1,
+  recruit:1, recruitTo:1, deploy:1, march:1, toe:1, pill:1, buyback:1, strike:2, partner:1, movehome:1, lobby:1, media:1,
   charity:1, trust:1, holdco:1, recon:1, launch:1, mars:2, moonland:2, spacebuild:2, spacegrab:2, localbuy:2, genhire:1, assault:2 };
 const tyApCost = act => String(act).startsWith('deal:') ? 1 : (TY_AP_COST[act] || 0);
 const tyApMax  = () => tyTester() ? 99 : Math.min(9, 6 + Math.floor((TY && TY.infl || 0) / 25))
@@ -13604,6 +13816,8 @@ const TY_ACT = {
   'deal:lobby':  e=>tyDeal('lobby', e.dataset.r),
   'deal:hostile':e=>tyDeal('hostile', e.dataset.r),
   toe:      e=>tyToeBuy(e.dataset.r),
+  pill:     ()=>tyPill(),
+  buyback:  ()=>tyBuyback(),
   toesell:  e=>tyToeSell(e.dataset.r),
   'deal:merge':  e=>tyDeal('merge', e.dataset.r),
 };

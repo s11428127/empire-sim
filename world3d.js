@@ -1034,7 +1034,7 @@ function buildSite(d){
   if(d._rival){
     const col = `rgb(${rvRGB(d._rival.id)})`;
     const h = d._hk != null ? d._hk : (d._rvk || 0);
-    key = `rv:${d._rival.id}:${h.toFixed(2)}`;
+    key = `rv:${d._rival.id}:${d._branch ? 'b' : ''}${h.toFixed(2)}`;
     make = B => voxCity(B, [{ sp: PX.rivalTower(h), tint: col }], col);
   }else{
     const blds = (d._blds || []);
@@ -1046,7 +1046,7 @@ function buildSite(d){
   }
   const root = voxRoot(d, key, make);
   /* 這個據點的樣子跟上一次不一樣（新蓋的、長高的）→ 播一次「從地上長出來」 */
-  const id = d._rival ? 'rv:' + d._rival.id : d.id;
+  const id = d._rival ? 'rv:' + d._rival.id + (d._branch ? ':' + d.id : '') : d.id;
   if(root.userData.vox && SEEN[id] !== key){
     if(SEEN[id] !== undefined || W3D._warm){
       root.userData.grow = performance.now();
@@ -2373,13 +2373,13 @@ function unitPop(d, x, y){
   const units = d._units.slice();
   const here = units[0].to || units[0].site, inc = units.filter(u => u.to).length;
   const where = `${tySite(here).nm} · ${units.length - inc} 支駐紮${inc ? ` · ${inc} 支在路上` : ''}`;
-  const O = (typeof TY_UORD !== 'undefined') ? TY_UORD : { ord:'attack', mode:'mass' };
+  const O = (typeof TY_UORD !== 'undefined') ? TY_UORD : { ord:'attack', mode:'seq' };
   const seg = (k, v, lab) => `<button type="button" class="sg${O[k] === v ? ' on' : ''}" data-k="${k}" data-v="${v}">${lab}</button>`;
   UPOP.innerHTML = `<div class="up-h"><b>${units.length} 支部隊</b><em>${escH(where)}</em><button type="button" class="x">✕</button></div>`
     + units.map(u => { const a = typeof tyArmyOf === 'function' && tyArmyOf(u);
         return `<label><input type="checkbox" checked data-u="${u.id}"> ${TY_UNITS[u.k].ic} ${escH(TY_UNITS[u.k].nm)}${a ? ` <i class="ar">🎖${escH(a.nm)}</i>` : ''}</label>`; }).join('')
     + `<div class="up-o">到了 ${seg('ord', 'attack', '⚔ 進攻')}${seg('ord', 'hold', '🛡 駐紮')}</div>`
-    + (O.ord === 'attack' && units.length > 1 ? `<div class="up-o">多支 ${seg('mode', 'mass', '到齊再打')}${seg('mode', 'seq', '依序打')}</div>` : '')
+    + (O.ord === 'attack' && units.length > 1 ? `<div class="up-o">多支 ${seg('mode', 'seq', '到了就打')}${seg('mode', 'mass', '到齊再打')}</div>` : '')
     + `<div class="up-b"><button type="button" class="go">🎯 拉線派遣</button><button type="button" class="pn">指揮中心</button></div>`
     + `<div class="up-n">也可以直接從部隊標籤拖一條線到城市</div>`;
   UPOP.querySelectorAll('.sg').forEach(b => b.onclick = () => {
