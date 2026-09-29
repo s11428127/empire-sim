@@ -4563,6 +4563,15 @@
   .cm-nm b{font-size:12.5px}
   .cm-nm em{font-style:normal;font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .cm-at{color:var(--g-t2)} .cm-mv{color:#7fd4ff} .cm-war{color:#ff8a80} .cm-wait{color:#ffd84a}
+  .rv-toe{border:1px solid rgba(255,216,74,.4);border-radius:8px;padding:9px 11px;margin:6px 0;background:rgba(255,216,74,.05)}
+  .rv-toe .toe-h{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;font-size:13px}
+  .rv-toe .toe-h span{font-size:11.5px;color:var(--g-t2);margin-left:auto}
+  .rv-toe .toe-h em{font-style:normal}
+  .rv-toe .toe-bar{position:relative;height:8px;border-radius:4px;background:#0f2233;margin:7px 0;overflow:visible}
+  .rv-toe .toe-bar u{position:absolute;left:0;top:0;bottom:0;background:#ffd84a;border-radius:4px}
+  .rv-toe .toe-bar i{position:absolute;top:-3px;bottom:-3px;width:2px;background:#ff8a80}
+  .rv-toe .toe-d{font-size:11.5px;line-height:1.65;color:var(--g-t2);margin:3px 0}
+  .rv-toe .toe-b{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
   .ty-ucards{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:8px}
   .ty-ucard{border:1px solid var(--g-line);border-radius:8px;padding:10px 11px;background:rgba(15,34,51,.6);min-width:0}
   .ty-ucard .uc-h{display:flex;align-items:baseline;gap:6px;flex-wrap:wrap}
@@ -5864,6 +5873,7 @@ let TY_FALLQ=[];
 function tyRivalDown(r, by, how){
   if(!r || r.alive===false) return;
   r.alive=false; r.deadT=TY.t; r.deadBy=by; r.deadHow=how; r.deadNw=r.nw;
+  if(TY.toe && TY.toe[r.id]) tyToeSettle(r, by==='me' ? 1 : .8);
   const killer = by==='me' ? '你' : (TY.rivals.find(x=>x.id===by)||{}).nm || '市場';
   tyNews(by==='me'?'good':'bad', `💀 ${r.nm}出局`, `${how}。${killer==='你'?'你':killer}接收了他的地盤,富豪榜上少一個人。`);
   TY_FALLQ.push(r.id);
@@ -7100,8 +7110,8 @@ function tyAcqBiz(r, take){
 /* 這一筆要出多少錢。base 是「行情」,出到行情的兩倍差不多就穩了。 */
 function tyDealPrice(k, r){
   const d=TY_DEALS[k];
-  if(k==='hostile') return Math.max(tyRivalStake(r)*1.15, 5e8);
-  if(k==='merge')   return Math.max(r.nw*.9, 10e8);
+  if(k==='hostile') return Math.max(tyRivalStake(r)*1.15*(1-tyToeCut(r)), 5e8);     // 建倉越多越便宜
+  if(k==='merge')   return Math.max(r.nw*.9*(1-tyToe(r).sh), 10e8);                   // 已經握有的那幾 % 不用再買
   if(k==='buy')     return tyRivalBizVal(r)*1.2;
   if(!d.money)      return 0;
   return d.base();
@@ -7109,6 +7119,82 @@ function tyDealPrice(k, r){
 /* 他名下「買得到」的那一塊(不是全部身家 —— 沒有人賣掉全部)。 */
 const tyRivalStake  = r => r.nw*.35;
 const tyRivalBizVal = r => r.nw*.14;
+
+/* =========================================================================
+   建倉 toehold(第三十五輪)
+   -------------------------------------------------------------------------
+   使用者同意做「經濟版的兵臨城下」:惡意併購前先在市場上悄悄買進對手控股公司的股票。
+   現實:在美國、台灣,持股超過 5% 要公開申報(俗稱「舉牌」)—— 之前可以安靜地買,之後全市場都知道你要來了。
+   - 每次買 2%(1 點指揮點),價格 = 他身家 × 2% × (1 + 已持有 × 4)—— 買越多股價被你推越高;舉牌後再 +20%
+   - 持股依他的身家「按市價」算進你的淨值:他變大你賺、他變小你賠;剛買進時因為溢價,帳面會先小賠
+   - 最多 20%。越過 5%:他收到通知、關係 −12,之後每季再 −3(他把你當威脅)
+   - 發動收購時:敵意收購的行情 × (1 − 持股 × 2.5)(最多便宜五成)、成功率 + 持股(最多 +20%);
+     全面併吞只要買剩下的 (1 − 持股)
+   - 收購成功:持股併進那家公司(價值保留);失敗:股票還在你手上
+   - 可以隨時出清(按市價 97 折賣回市場);對手被別人吃掉 / 破產:按他出局時的身家八折結算
+   ========================================================================= */
+const TY_TOE_STEP = .02, TY_TOE_MAX = .20, TY_TOE_LINE = .05;
+const tyToes = () => (TY.toe = TY.toe || {});
+const tyToe = r => (r && tyToes()[r.id]) || { sh:0, cost:0, pub:false };
+const tyToeCut = r => Math.min(.5, tyToe(r).sh*2.5);
+const tyToeVal = r => tyToe(r).sh * Math.max(0, r.nw);
+const tyToeTotal = () => TY && TY.toe ? tyRivalsA().reduce((a,r)=>a+tyToeVal(r),0) : 0;
+function tyToePrice(r){
+  const t=tyToe(r);
+  return Math.max(1e7, r.nw*TY_TOE_STEP*(1+t.sh*4)*(t.pub?1.2:1));
+}
+function tyToeBuy(rid){
+  const r=tyRival(rid); if(!r) return '';
+  const blocked=tyBlock('toe', r); if(blocked) return blocked;
+  const t=tyToes()[r.id]=tyToes()[r.id]||{ sh:0, cost:0, pub:false };
+  const px=tyToePrice(r);
+  TY.cash-=px; t.sh=Math.min(TY_TOE_MAX, +(t.sh+TY_TOE_STEP).toFixed(4)); t.cost+=px;
+  let note='';
+  if(!t.pub && t.sh>TY_TOE_LINE-1e-9){
+    t.pub=true; t.pubT=TY.t;
+    r.rel=tyClamp((r.rel||0)-12,-100,100);
+    tyNews('bad', `📣 你對${r.nm}舉牌`, `持股越過 5%,依法公告。全市場都知道你要來了 —— 之後再買會貴兩成,${r.nm}跟你的關係 −12。`);
+    note=' <b>越過 5%,舉牌公告了</b>:他知道你要來,關係 −12,之後再買貴兩成。';
+  }
+  tyLog('rival', `${t.pub?'':'悄悄'}買進${r.nm}的股票 2%(持股 ${(t.sh*100).toFixed(0)}%)。`, r.id);
+  tySave();
+  return `<b>📈 買進${escH(r.nm)} 2% 的股票。</b>花 ${tyM(px)},持股 <b>${(t.sh*100).toFixed(0)}%</b>`
+       + `(市值 ${tyM(tyToeVal(r))})。敵意收購行情 −${(tyToeCut(r)*100).toFixed(0)}%、成功率 +${(Math.min(.2,t.sh)*100).toFixed(0)}%。${note}`;
+}
+function tyToeSell(rid){
+  const r=tyRival(rid); if(!r) return '';
+  const t=tyToes()[r.id]; if(!t || !t.sh) return `你沒有${r.nm}的股票。`;
+  const got=tyToeVal(r)*.97, pl=got-t.cost;
+  TY.cash+=got; delete tyToes()[r.id];
+  tyLog('rival', `出清${r.nm}的持股,拿回 ${tyM(got)}(${pl>=0?'賺':'賠'} ${tyM(Math.abs(pl))})。`, r.id);
+  tySave();
+  return `<b>出清${escH(r.nm)}的持股。</b>拿回 ${tyM(got)},${pl>=0?'賺':'賠'} <b>${tyM(Math.abs(pl))}</b>。`;
+}
+/* 每季:舉牌之後他一直提防你 */
+function tyToeTurn(){
+  for(const r of tyRivalsA()){ const t=tyToes()[r.id]; if(t && t.pub) r.rel=tyClamp((r.rel||0)-3,-100,100); }
+}
+/* 對手出局(不是被你併掉的):持股按他出局時的身家八折結算 */
+function tyToeSettle(r, rate){
+  const t=tyToes()[r.id]; if(!t || !t.sh) return 0;
+  const got=t.sh*Math.max(0,r.nw)*rate; TY.cash+=got; delete tyToes()[r.id];
+  if(got>0) tyLog('rival', `${r.nm}出局,你持有的 ${(t.sh*100).toFixed(0)}% 股票結算拿回 ${tyM(got)}。`, r.id);
+  return got;
+}
+function tyToeHTML(r){
+  const t=tyToe(r), v=tyToeVal(r), pl=v-t.cost, px=tyToePrice(r);
+  const bar=`<div class="toe-bar"><u style="width:${(t.sh/TY_TOE_MAX*100).toFixed(0)}%"></u><i style="left:${(TY_TOE_LINE/TY_TOE_MAX*100).toFixed(0)}%"></i></div>`;
+  return `<div class="rv-toe">
+    <div class="toe-h"><b>📈 建倉</b><span>持股 <b>${(t.sh*100).toFixed(0)}%</b> / 最多 ${TY_TOE_MAX*100}%${t.pub?' · <em class="down">已舉牌</em>':t.sh?' · <em class="up">還沒被發現</em>':''}</span></div>
+    ${bar}
+    <div class="toe-d">收購前先在市場上買他的股票。<b>5% 以下沒人知道</b>;越過 5% 要公告(舉牌),他會提防你。
+      持股讓<b>敵意收購便宜 ${(tyToeCut(r)*100).toFixed(0)}%、成功率 +${(Math.min(.2,t.sh)*100).toFixed(0)}%</b>${t.sh?`,全面併吞只要買剩下的 ${((1-t.sh)*100).toFixed(0)}%`:''}。</div>
+    ${t.sh?`<div class="toe-d">成本 ${tyM(t.cost)} · 市值 ${tyM(v)} · <b class="${pl>=0?'up':'down'}">${pl>=0?'+':'−'}${tyM(Math.abs(pl))}</b>(跟著他的身家漲跌,算進你的淨值)</div>`:''}
+    <div class="toe-b">${tyActBtn('toe', r, `買進 2%(${tyM(px)})`, ` data-r="${r.id}"`)}
+      ${t.sh?`<button type="button" class="ty-b alt" data-ty="toesell" data-r="${r.id}">出清(${tyM(v*.97)})</button>`:''}</div>
+    ${tyNeedHTML(tyNeeds('toe', r),'tight')}
+  </div>`;
+}
 
 /* 他答應的機率。三件事決定:關係、你出的價相對行情、以及相對實力。
    ⚠ 一定要 clamp 在 5%~95%:沒有必成的交易,也沒有不可能的交易。 */
@@ -7127,6 +7213,7 @@ function tyDealOdds(k, r, amt){
     p -= .18;                                          // 敵意收購本來就難
     // 你的併購小組已經駐在他大本營的地區:每一支 +10%,最多 +30%
     p += Math.min(.3, .1*tyUnitN(tyUnitsIn(tySite(r.home).reg),'raid'));
+    p += Math.min(.2, tyToe(r).sh);                      // 建倉:手上握有的股票
   }
   if(k==='merge') p -= .10;                            // 整個人被買走,沒有人會輕易點頭
   if(k==='pact' && (r.pact||0)>TY.t) p += .2;          // 已經有過約的比較好續
@@ -7242,7 +7329,8 @@ function tyDeal(k, rid){
       break;
     }
     case 'merge': {
-      const take=r.nw*.85, site=r.home;
+      const take=r.nw*.85 + tyToeVal(r), site=r.home;       // 建倉的持股一起併進來
+      delete tyToes()[r.id];
       tyAcqBiz(r, take);
       for(const w of ['moon','mars']) if(TY.space) for(const q of tyPlots(w)) if(q.o===r.id) q.o='me';
       TY.threats=(TY.threats||[]).filter(x=>x.rid!==r.id);
@@ -7254,10 +7342,12 @@ function tyDeal(k, rid){
       break;
     }
     case 'hostile': {
-      const take=r.nw*.45;
-      /* 吃下來的東西變成一家在他大本營的公司 —— 那才是「勢力」真正易主。 */
+      const take=r.nw*.45, toe=tyToeVal(r);
+      /* 吃下來的東西變成一家在他大本營的公司 —— 那才是「勢力」真正易主。
+         建倉的持股也併進這家公司(價值保留,不再單獨算) */
       const site=r.home;
-      tyAcqBiz(r, take);
+      delete tyToes()[r.id];
+      tyAcqBiz(r, take+toe);
       r.nw -= take;
       for(const g in (r.turf||{})) r.turf[g]=tyClamp(tyTurf(r,g)*.55,0,100);
       TY.heat=tyClamp(TY.heat+14,0,120); TY.fame=tyClamp(TY.fame+8,0,100);
@@ -7875,7 +7965,7 @@ function tyBizVal(b){
 }
 
 const tyBizTotal = () => TY.biz.reduce((s,b)=>s+tyBizVal(b)*b.own, 0);
-const tyNW = () => TY.cash + tyAssetVal() + tyBizTotal() - TY.debt + tySpaceVal();     // 太空建築算進身家(影響排名)
+const tyNW = () => TY.cash + tyAssetVal() + tyBizTotal() - TY.debt + tySpaceVal() + tyToeTotal();   // 建倉的持股按市價     // 太空建築算進身家(影響排名)
 
 /* 可以抵押借到多少:每一類資產的成數不同,事業只算七成的估值,
    信用分數決定你能不能借到上限。放空的部位不但不能抵押,還要佔用額度。 */
@@ -8090,6 +8180,7 @@ function tyNext(){
   tyUnitsTurn();
   tyOccupyTurn();                       // 佔領地方富豪、保護費、封鎖對手大本營(第三十輪)
   tyGenTurn();                          // 將領:薪水、降溫、挖角(第三十一輪)
+  tyToeTurn();                          // 建倉:舉牌之後他一直提防你(第三十五輪)
 
   /* ---- 7. 追繳保證金 → 破產 ---- */
   tyMargin();
@@ -8861,6 +8952,13 @@ function tyNeeds0(act, arg){
                cashFor(tyPartnerCost()) ];
     }
 
+    case 'toe': {
+      const r=arg; if(!r) return [];
+      const t=tyToe(r);
+      return [ tyNb(`${r.nm}還在場上`, r.alive!==false, `${r.nm}已經不在榜上了`),
+               tyNb(`持股還沒到 ${TY_TOE_MAX*100}%`, t.sh < TY_TOE_MAX-1e-9, `你已經握有 ${TY_TOE_MAX*100}% —— 再買就是直接收購了,去按「敵意收購」或「全面併吞」`),
+               cashFor(tyToePrice(r)) ];
+    }
     /* ---- 談條件 ---- */
     case 'deal:pact': case 'deal:jv': case 'deal:buy': case 'deal:anchor':
     case 'deal:lobby': case 'deal:hostile': case 'deal:merge': {
@@ -9100,7 +9198,7 @@ function tyAmtPreview(act, arg, key){
              + `自有資本還要 ${tyM(tyBizCost(kind,site)*.8)}`;
       }
       if(key==='buy')     return base + ` · 談成後多一家投入資本 ${tyM(amt*.85)} 的事業`;
-      if(key==='hostile') return base + ` · 談成後吃下他 ${tyM(r.nw*.45)}、關注 +14`;
+      if(key==='hostile') return base + ` · 談成後吃下他 ${tyM(r.nw*.45)}${tyToe(r).sh?`(加上你手上的 ${(tyToe(r).sh*100).toFixed(0)}% 持股)`:''}、關注 +14`;
       if(key==='merge')   return base + ` · 談成後他出局、你多一家值 ${tyM(r.nw*.85)} 的公司、關注 +20`;
       if(key==='lobby')   return base + ` · 人脈 +${tyBuyPts(amt, TY_DEALS.lobby.base(), 10, 22).toFixed(0)}`;
       return base;
@@ -10424,7 +10522,7 @@ function tyDealHTML(k, r){
   const amt=money ? tyAmtOf(act, r, key) : 0;
   const p=tyDealOdds(k, r, amt);
   const open=TY_DEAL===k;
-  return `<div class="rv-deal${open?' open':''}${k==='hostile'||k==='merge'?' warn':''}">
+  return `${k==='hostile'?tyToeHTML(r):''}<div class="rv-deal${open?' open':''}${k==='hostile'||k==='merge'?' warn':''}">
     <button type="button" class="rv-dh" data-ty="dealx" data-k="${k}"
       aria-expanded="${open?'true':'false'}">
       <i>${d.ic}</i><b>${escH(d.nm)}</b>
@@ -12767,7 +12865,7 @@ function tycoonPage(){
      達成條件就解鎖新牌、跳一張翻牌動畫。解鎖紀錄存在 TY.cards,不擲骰。
    ========================================================================= */
 const TY_AP_COST = { found:2, upgrade:1, expand:1, ipo:1, reverse:1, buy:1, short:1,
-  recruit:1, recruitTo:1, deploy:1, march:1, strike:2, partner:1, movehome:1, lobby:1, media:1,
+  recruit:1, recruitTo:1, deploy:1, march:1, toe:1, strike:2, partner:1, movehome:1, lobby:1, media:1,
   charity:1, trust:1, holdco:1, recon:1, launch:1, mars:2, moonland:2, spacebuild:2, spacegrab:2, localbuy:2, genhire:1, assault:2 };
 const tyApCost = act => String(act).startsWith('deal:') ? 1 : (TY_AP_COST[act] || 0);
 const tyApMax  = () => tyTester() ? 99 : Math.min(9, 6 + Math.floor((TY && TY.infl || 0) / 25))
@@ -13505,6 +13603,8 @@ const TY_ACT = {
   'deal:anchor': e=>tyDeal('anchor', e.dataset.r),
   'deal:lobby':  e=>tyDeal('lobby', e.dataset.r),
   'deal:hostile':e=>tyDeal('hostile', e.dataset.r),
+  toe:      e=>tyToeBuy(e.dataset.r),
+  toesell:  e=>tyToeSell(e.dataset.r),
   'deal:merge':  e=>tyDeal('merge', e.dataset.r),
 };
 
