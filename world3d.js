@@ -228,7 +228,7 @@ function paintTop(force){
   const cols = FEATS.map(f => { try{ return tyCountryColor(f); }catch(e){ return ''; } });
   const ccols = cityCols();
   const zs = zones();
-  const sig = (typeof TY_LAYER !== 'undefined' ? TY_LAYER : '') + '|' + cols.join('|') + '|' + ccols.map(x => x[0] + x[1]).join('|') + '|' + zs.map(z => z.id + z.km + z.col + z.a).join('|');
+  const sig = (typeof TY_LAYER !== 'undefined' ? TY_LAYER : '') + '|' + cols.join('|') + '|' + ccols.map(x => x[0] + x[1]).join('|') + '|' + zs.map(z => z.id + z.km + z.col + z.pa).join('|') + (PROV ? '|P' : '');
   if(!force && sig === SIG) return;
   SIG = sig;
   const W = BASE.width, H = BASE.height, k = W / 4096;
@@ -247,11 +247,12 @@ function paintTop(force){
   });
   // 國界：白色細線，跟參考畫面一樣
   c.lineWidth = 1; c.strokeStyle = 'rgba(255,255,255,.7)'; c.stroke(allP2D(FEATS, W, H));
-  // 勢力圈:城市外面一圈(一般縮放下看得到的「這一帶是誰的」)
-  for(const z of zs){
-    const p = new Path2D(); ringPath(p, zoneRing(z), W, H);
-    c.fillStyle = `rgba(${z.col},${z.a})`; c.fill(p);
-    c.lineWidth = Math.max(2, (z.me ? 4 : 3) * k); if(!z.me) c.setLineDash([6*k, 4*k]); c.strokeStyle = `rgba(${z.col},1)`; c.stroke(p); c.setLineDash([]);
+  /* 勢力範圍:城市勢力半徑內的省 / 州整塊塗上第一名的顏色(使用者:「不要用圓圈,把範圍內的地區顏色畫明顯一點」)。
+     描邊用同色、比較深 —— 一塊一塊的省界看得出來,整片連起來就是那個人的地盤。 */
+  for(const [rings, z] of provZones(zs)){
+    const p = new Path2D(); for(const r of rings) ringPath(p, r, W, H);
+    c.fillStyle = `rgba(${z.col},${z.pa})`; c.fill(p, 'evenodd');
+    c.lineWidth = Math.max(1.5, 2 * k); c.strokeStyle = `rgba(${z.col},.95)`; c.stroke(p);
   }
   // 勢力圖層:城市的真實範圍塗上「這座城是誰的」(國家之下的第二層)
   for(const [id, col] of ccols){
@@ -261,17 +262,29 @@ function paintTop(force){
   }
   TEX.needsUpdate = true;
 }
-/* 勢力圈(index.html 的 tyCityZones):圓 → 經緯度的一圈點,拿去給 ringPath / patchRing 畫 */
+/* 勢力範圍(index.html 的 tyCityZones:每座城的第一名、顏色、半徑)→ 半徑內的省 / 州。
+   provinces.json 是開發時從 Natural Earth 省界擷取的(tools/make-provinces.py):每座城 460 公里內的省與距離。
+   同一個省落在好幾座城的範圍裡:歸「距離 ÷ 半徑」最小的那一座(離得近、勢力又大的贏)。 */
 function zones(){ try{ return typeof tyCityZones === 'function' ? tyCityZones() : []; }catch(e){ return []; } }
-function zoneRing(z){
-  const R = 6371, d = z.km / R, a = z.lat * Math.PI / 180, b = z.lng * Math.PI / 180, out = [];
-  for(let i = 0; i <= 48; i++){
-    const t = i / 48 * Math.PI * 2;
-    const la = Math.asin(Math.sin(a) * Math.cos(d) + Math.cos(a) * Math.sin(d) * Math.cos(t));
-    const lo = b + Math.atan2(Math.sin(t) * Math.sin(d) * Math.cos(a), Math.cos(d) - Math.sin(a) * Math.sin(la));
-    out.push([lo * 180 / Math.PI, la * 180 / Math.PI]);
+let PROV = null, provLoading = false;
+function provData(){
+  if(PROV || provLoading) return PROV;
+  provLoading = true;
+  fetch('provinces.json').then(r => r.ok ? r.json() : null).then(j => { PROV = j || { P: [], S: {} }; W3D.repaint(); })
+    .catch(() => { PROV = { P: [], S: {} }; });
+  return null;
+}
+function provZones(zs){
+  const D = zs.length ? provData() : null; if(!D) return [];
+  const best = new Map();
+  for(const z of zs) for(const [pi, d] of (D.S[z.id] || [])){
+    if(d > z.km) continue;
+    const sc = d / Math.max(1, z.km), cur = best.get(pi);
+    if(!cur || sc < cur.sc) best.set(pi, { sc, z });
   }
-  return out;
+  const out = [];
+  for(const [pi, b] of best) out.push([D.P[pi], b.z]);
+  return out.sort((a, b) => (a[1].me ? 1 : 0) - (b[1].me ? 1 : 0));   // 你的畫在最上面
 }
 /* 勢力圖層的城市顏色:[[id, 'rgba(...)'], ...]。cities.json 還沒到就先觸發下載,到了再重畫。 */
 function cityCols(){
@@ -444,10 +457,10 @@ function paintPatch(P){
       c.lineWidth = 3.5; c.strokeStyle = col.replace(/,\s*([\d.]+)\)$/, ',.95)'); c.stroke();
     }
   }
-  for(const z of zones()){
-    c.beginPath(); patchRing(c, zoneRing(z), P, W, H);
-    c.fillStyle = `rgba(${z.col},${z.a})`; c.fill();
-    c.lineWidth = z.me ? 4 : 3; if(!z.me) c.setLineDash([8, 5]); c.strokeStyle = `rgba(${z.col},1)`; c.stroke(); c.setLineDash([]);
+  for(const [rings, z] of provZones(zones())){
+    c.beginPath(); for(const r of rings) patchRing(c, r, P, W, H);
+    c.fillStyle = `rgba(${z.col},${z.pa})`; c.fill('evenodd');
+    c.lineWidth = 2; c.strokeStyle = `rgba(${z.col},.95)`; c.stroke();
   }
   // 勢力圖層:城市的真實範圍
   for(const [id, col] of cityCols()){
@@ -858,7 +871,8 @@ function bldSprite(b){
 const rvRGB = id => (typeof TY_RVCOL !== 'undefined' && TY_RVCOL[id]) || '160,160,170';
 
 function buildLandmark(d){
-  const L = LANDMARK[d.id]; if(!L) return null;
+  const L = LANDMARK[d.id];
+  if(!L) return null;
   const k = L[0], sp = (PX.LMS[k] || PX.LMS.skyline);
   return voxRoot(d, 'lm:' + k, B => voxCity(B, [{ sp, dep: Math.max(4, Math.min(sp.w, 10)) }], '#9aa5b8'), { lm: true });
 }
@@ -1252,7 +1266,7 @@ W3D.attach = function(globe){
       G.onCustomLayerClick(d => {
         if(!d) return;
         if(W3D.aiming()) return;
-        if(d._rvf){ TY_RIVAL = d._r.id; TY_DEAL = null; TY_MODAL = 'rival'; renderPage(); }
+        if(d._rvf){ try{ tyPickSite(d._rvf.site); }catch(e){ TY_RIVAL = d._r.id; TY_DEAL = null; TY_MODAL = 'rival'; renderPage(); } }   // 點對手駐軍 → 那座城的面板(可以進攻、也有他的名字可以點)
         else if(d._units){ let c = null; try{ c = G.getScreenCoords(d.lat, d.lng, .002); }catch(e){}
                       unitPop(d, c ? c.x : 100, c ? c.y : 100); }
         else if(d._threat){ TY_MODAL = 'troop'; renderPage(); }
@@ -1333,6 +1347,42 @@ W3D._seaSlot = (id, lat, lng, D) => seaDirs(id, lat, lng, D);
 W3D._objs = () => [...OBJS];     // 給截圖驗證用
 W3D._slot = (id, lat, lng, D) => slotDirs(id, lat, lng, D);   // 給測試用
 
+/* 各國首都的小城 —— 使用者:「其他不重要的首都放個超級簡單的小城市建築,不用特別設計」。
+   ⚠ 一座一個物件的話是 140 次繪製呼叫:量測手機寬度 fps 15 → 6。所以全部合併成**一個**網格
+   (一次繪製),尺寸固定(它們只在拉近時出現 —— 拉遠跟其他 3D 物件一起收起來)。
+   有人進駐的首都會從這裡拿掉,改由那個人的建築站在那裡。 */
+let MINOR = null, MINOR_KEY = '';
+function minorTowns(list){
+  const key = list.map(s => s.id).join(',');
+  if(key === MINOR_KEY && MINOR && MINOR.parent) return;
+  MINOR_KEY = key;
+  if(MINOR){ if(MINOR.parent) MINOR.parent.remove(MINOR); MINOR.geometry.dispose(); MINOR = null; }
+  const host = patchHost(); if(!host || !list.length || !hasPX()) return;
+  const one = VB();
+  vbox(one, -4, -3, 0, 4, 4, 5, [206,200,188]); vbox(one, -4, -3, 5, 4, 4, .6, [150,90,70]);
+  vbox(one, 1, -3.5, 0, 3, 3, 8, [172,182,196]); vbox(one, 1.5, -3, 8, 2, 2, 1.2, [120,130,146]);
+  vbox(one, -3, 2, 0, 6, 3, 3, [214,176,132]); vbox(one, -3, 2, 3, 6, 3, .6, [150,90,70]);
+  const U = .075;                                   // 一格 = 幾個地球單位(大約是拉近時地標的大小)
+  const np = G.getCoords(90, 0, 0), nl = Math.hypot(np.x, np.y, np.z), N = [np.x / nl, np.y / nl, np.z / nl];
+  const cr = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+  const nz = v => { const l = Math.hypot(v[0], v[1], v[2]) || 1; return [v[0] / l, v[1] / l, v[2] / l]; };
+  const B = VB();
+  for(const st of list){
+    const c = G.getCoords(st.lat, st.lng, .0008 + elevAlt(st.lat, st.lng));
+    const up = nz([c.x, c.y, c.z]), e = nz(cr(N, up)), n = cr(up, e);
+    for(let i = 0; i < one.p.length; i += 3){
+      const x = one.p[i] * U, y = one.p[i + 1] * U, z = one.p[i + 2] * U;
+      B.p.push(c.x + e[0] * x + n[0] * y + up[0] * z, c.y + e[1] * x + n[1] * y + up[1] * z, c.z + e[2] * x + n[2] * y + up[2] * z);
+      const a = one.n[i], b = one.n[i + 1], d = one.n[i + 2];
+      B.n.push(e[0] * a + n[0] * b + up[0] * d, e[1] * a + n[1] * b + up[1] * d, e[2] * a + n[2] * b + up[2] * d);
+      B.c.push(one.c[i], one.c[i + 1], one.c[i + 2]);
+    }
+  }
+  MINOR = new T.Mesh(vgeo(B), vmat());
+  MINOR.visible = !FAR;
+  host.add(MINOR);
+}
+W3D._minorMesh = () => MINOR;                 // 給測試 / 量測用
 W3D.sites = function(mine, rivals, troops){
   if(!W3D.ok) return;
   LAST_SITES = [mine, rivals, troops];
@@ -1361,9 +1411,10 @@ W3D.sites = function(mine, rivals, troops){
   TROOPS = tr;
   /* 地標:每一座城市都有。正中央空著就站中央,不然也去拿一個陸地上的空位。 */
   /* 地標只畫在「沒有人的城市」:你或對手已經在那裡蓋了東西,地標就收進城市全景(連點兩下看得到),不要再多擠一棟 */
-  // 小國首都(minor)不畫地標:一百多棟會讓手機卡、畫面亂 —— 它們只在拉近時有名字
+  // 小國首都(minor):合併成一個網格的簡單小城(minorTowns),名字只在拉近時出現
+  minorTowns((typeof TY_SITES !== 'undefined' ? TY_SITES : []).filter(st => st.minor && !center.has(st.id)));
   const lms = (typeof TY_SITES !== 'undefined' ? TY_SITES : []).filter(st => !center.has(st.id) && !st.minor).map(st => ({
-    id: st.id, lat: st.lat, lng: st.lng, iso: st.iso, _lm: true, _k: 'lm:' + st.id, _base: .0008,
+    id: st.id, lat: st.lat, lng: st.lng, iso: st.iso, _lm: true, _minor: !!st.minor, _k: 'lm:' + st.id, _base: .0008,
     _slot: center.has(st.id) ? take(st.id, st.lat, st.lng) : null }));
   G.customLayerData([...mine, ...rivals, ...tr, ...lms]);
   tagsOn();
@@ -1412,7 +1463,7 @@ function tagsOn(){
       el.innerHTML = `${tagFlag(TY.home)}<span class="tg-more"><u class="tg-who me">你</u>${ics}${n > 1 ? ` <b>×${n}</b>` : ''}${inc ? ` <i class="inc">+${inc}</i>` : ''}</span>${tag2(d._units)}`;
       el.title = d._units.map(u => TY_UNITS[u.k].nm + (u.to ? ` → ${tySite(u.to).nm}` : '')).join('、');
     }
-    if(d._rvf) el.onclick = () => { TY_MODAL = 'rival'; TY_RIVAL = d._r.id; renderPage(); };
+    if(d._rvf) el.onclick = () => { try{ tyPickSite(d._rvf.site); }catch(e){ TY_MODAL = 'rival'; TY_RIVAL = d._r.id; renderPage(); } };
     else if(d._threat) el.onclick = () => { TY_MODAL = 'troop'; renderPage(); };
     else armTagDrag(el, d);
     el._d = d;
@@ -2403,6 +2454,7 @@ function farMode(){
   const host = document.getElementById('tyGlobeHost');
   if(host) host.dataset.far = far ? '1' : '';
   for(const o of OBJS) o.visible = !far;
+  if(MINOR) MINOR.visible = !far;
 }
 W3D.far = () => !!FAR;
 
