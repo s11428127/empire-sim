@@ -2451,6 +2451,95 @@ test('帝國第二十輪:月球 / 火星建地(登月、火星計畫前置、補
   await page.__ctx.close();
 });
 
+test('帝國第二十八輪:對手變強(一季兩動、分部、佔領小國)、到了打同區駐軍、對手建倉你 + 毒丸 / 買回', async (browser) => {
+  const page = await freshPage(browser, { seed: SEED, hash: '#/tycoon' });
+  const r = await page.evaluate(() => {
+    const out = {};
+    // 即時制一季兩動:前半季一次、後半季一次
+    tyStart('heir', 91); TY.rt = true; TY_NEWCARD.length = 0; TY.t = 4; tyNext(); TY.prog = 0;
+    out.two = tyRivalsA().every(x => x.actPend === 2);
+    TY.prog = .49; tyLiveTick(); out.half = tyRivalsA().every(x => x.actPend === 1);
+    TY.prog = .99; tyLiveTick(); out.done2 = tyRivalsA().every(x => !x.actPend);
+    // 分部:純查詢不改狀態;蓋了才存;最多 5 間;那座城算他一份勢力
+    tyStart('heir', 92); TY_NEWCARD.length = 0;
+    const rv = tyRivalsA()[0];
+    const d0 = tyRvBlds(rv); out.pure = !rv.blds && d0.length <= 1;
+    const regs = Object.keys(TY_REGIONS).filter(g => g !== 'off');
+    let built = [];
+    for (const g of regs) { const id = tyRvBuild(rv, g); if (id) built.push(id); }
+    out.cap = rv.blds.length === 5;
+    TY_PWC = null; const cp = tyCityPower(built[built.length - 1]);
+    out.cityPw = !!cp && cp.board.some(x => x.r && x.r.id === rv.id);
+    // 佔領小國:他有勢力的地區裡的地方富豪 → 那一國算他的;你照樣買得回來(貴三成)
+    tyStart('heir', 93); TY_NEWCARD.length = 0; TY.cash = 900e8;
+    const rr = tyRivalsA()[0]; rr.nw = 5000e8;
+    const reg = tySite(rr.home).reg; rr.turf[reg] = 40;
+    for (const g of Object.keys(TY_REGIONS)) if (g !== 'off') rr.turf[g] = Math.max(tyTurf(rr, g), 15);
+    const sid = tyRvOccupy(rr); out.occ = !!sid && TY.loc[sid].rv === rr.id && !TY.loc[sid].gone;
+    TY_PWC = null; const iso = tySite(sid).iso, P = tyIsoPower(iso);
+    out.isoPw = !!(P && P.top && P.top.r && P.top.r.id === rr.id);
+    const L = tyLocal(sid); out.price = Math.abs(tyLocalPrice(L) - L.nw * 1.2 * 1.3) < 1;
+    const nwR = rr.nw; tyLocalBuy(sid);
+    out.back = TY.loc[sid].gone && !TY.loc[sid].rv && rr.nw > nwR && !tyRvBlds(rr).some(b => b.site === sid);
+    // 到了就打:目的地沒有駐軍,打同一個地區裡的
+    tyStart('heir', 94); TY.rt = true; TY_NEWCARD.length = 0; TY.cash = 900e8;
+    const f = tyRivalForces()[0];
+    const other = TY_SITES.find(x => x.reg === f.reg && x.id !== f.site && !x.minor);
+    out.hasOther = !!other;
+    if (other) {
+      tyRecruit('raid'); tyRecruit('raid'); TY.prog = 0;
+      tyDeployMany(tyUnits().map(u => u.id), other.id, { ord: 'attack', mode: 'seq' });
+      TY.prog = .6; tyLiveTick();
+      out.near = tyBattles().length === 1 && tyBattles()[0].site === f.site;
+    }
+    out.defMode = TY_UORD.mode === 'seq';
+    // 對手對你建倉:沒上市不會被買;上市了 → 5% 以下看不到、越過就舉牌、15% 發動
+    tyStart('heir', 95); TY_NEWCARD.length = 0; TY.cash = 900e8;
+    const a = tyRivalsA()[0];
+    out.noPub = !tyRaidStart(a);
+    const b = TY.biz.find(x => !TY_BIZ[x.k].shell); b.pub = true; b.own = .8;
+    out.start = tyRaidStart(a) && !tyRaidSeen();
+    tyRaidTurn(); out.pub = TY.raid.pub && tyRaidSeen() && TY.news.some(n => /舉牌/.test(n.t || n.title || JSON.stringify(n)));
+    TY_MODAL = 'troop'; renderPage();
+    out.card = !!document.querySelector('.ty-threat.raid [data-ty="pill"]') && !!document.querySelector('.ty-threat.raid [data-ty="buyback"]');
+    TY_MODAL = null; renderPage();
+    // 買回:付 1.25 倍,事情結束
+    const c0 = TY.cash, cost = tyBuybackCost(); tyBuyback();
+    out.buyback = !TY.raid && Math.abs(c0 - TY.cash - cost) < 1 && cost > 0;
+    // 毒丸:吞下去之後他發動收購會失敗、賠錢;公司還在
+    tyRaidStart(a); TY.raid.sh = .06; TY.raid.pub = true;
+    tyPill(); out.dilute = Math.abs(TY.raid.sh - .02) < 1e-9 && tyPillOn();
+    TY.raid.sh = .13; const nwA = a.nw, nb = TY.biz.length;
+    tyRaidTurn(); out.pill = !TY.raid && a.nw < nwA && TY.biz.length === nb;
+    // 沒有毒丸:強制成功 → 公司歸他,照市價付你錢
+    TY.pill = 0; tyRaidStart(a); TY.raid.sh = .13; TY.raid.pub = true;
+    const val = tyBizVal(b) * b.own, c1 = TY.cash, orig = window.tyRnd; window.tyRnd = () => 0;
+    try { tyRaidTurn(); } finally { window.tyRnd = orig; }
+    out.lost = !TY.biz.includes(b) && Math.abs(TY.cash - c1 - val) < 1;
+    return out;
+  });
+  ok(r.two && r.half && r.done2, `即時制對手一季動兩次(前半、後半)${[r.two, r.half, r.done2]}`);
+  ok(r.pure, '查分部不改狀態(畫面層會呼叫)');
+  ok(r.cap, '分部最多 5 間');
+  ok(r.cityPw, '有分部的城市算他一份勢力');
+  ok(r.occ, '對手會買下地方富豪');
+  ok(r.isoPw, '被對手買下的小國算他的');
+  ok(r.price, '從對手手上買回小國貴三成');
+  ok(r.back, '買回之後他的分部拆掉、錢付給他');
+  ok(r.hasOther && r.near, '到了就打:目的地沒有駐軍,打同一區的那一支');
+  ok(r.defMode, '預設「到了就打」');
+  ok(r.noPub, '沒有上市公司,對手沒有股票可以買');
+  ok(r.start, '對手開始買你上市公司的股票,5% 以下你看不到');
+  ok(r.pub, '越過 5% 舉牌 → 通知你');
+  ok(r.card, '部隊面板出現股權防禦(毒丸、買回)');
+  ok(r.buyback, '買回:付 1.25 倍,事情結束');
+  ok(r.dilute, '吞毒丸:他的持股立刻變三分之一');
+  ok(r.pill, '毒丸有效:他發動收購失敗、賠錢,你的公司還在');
+  ok(r.lost, '沒有毒丸、收購成功:公司歸他,照市價付你錢');
+  ok(page.__errors.length === 0, `有 JS 錯誤:\n      ${page.__errors.join('\n      ')}`);
+  await page.__ctx.close();
+});
+
 test('帝國第二十七輪:建倉(悄悄買對手股票、舉牌、讓敵意收購 / 併吞更便宜更容易)', async (browser) => {
   const page = await freshPage(browser, { seed: SEED, hash: '#/tycoon' });
   const r = await page.evaluate(() => {
