@@ -2451,6 +2451,78 @@ test('帝國第二十輪:月球 / 火星建地(登月、火星計畫前置、補
   await page.__ctx.close();
 });
 
+test('帝國第二十七輪:建倉(悄悄買對手股票、舉牌、讓敵意收購 / 併吞更便宜更容易)', async (browser) => {
+  const page = await freshPage(browser, { seed: SEED, hash: '#/tycoon' });
+  const r = await page.evaluate(() => {
+    const out = {};
+    tyStart('heir', 81); TY_NEWCARD.length = 0; TY.cash = 3000e8; TY.ap = 9;
+    const rv = tyRivalsA()[0]; rv.rel = 0;
+    const want0 = tyDealPrice('hostile', rv), m0 = tyDealPrice('merge', rv);
+    const amt = want0;
+    const p0 = tyDealOdds('hostile', rv, amt);
+    // 買 2%:花錢、持股、淨值多了市值(溢價讓帳面先小賠)
+    const c0 = TY.cash, nw0 = tyNW(), px = tyToePrice(rv);
+    out.px = Math.abs(px - rv.nw * .02) < 1;
+    tyToeBuy(rv.id);
+    out.buy = Math.abs(c0 - TY.cash - px) < 1 && Math.abs(tyToe(rv).sh - .02) < 1e-9;
+    out.nw = Math.abs((tyNW() - nw0) - (tyToeVal(rv) - px)) < 1e3;
+    // 越買越貴
+    out.dearer = tyToePrice(rv) > px;
+    // 5% 以下沒人知道;越過 5% 舉牌、關係 −12,之後再貴兩成
+    tyToeBuy(rv.id); out.quiet = !tyToe(rv).pub && rv.rel === 0;
+    const pPre = tyToePrice(rv);
+    tyToeBuy(rv.id); out.pub = tyToe(rv).pub && rv.rel === -12 && Math.abs(tyToe(rv).sh - .06) < 1e-9;
+    out.pubPx = tyToePrice(rv) > pPre * 1.2;
+    // 每季他再提防一點
+    const rel1 = rv.rel; tyToeTurn(); out.turn = rv.rel === rel1 - 3;
+    // 對收購的影響:行情變便宜、成功率變高
+    rv.rel = 0;
+    out.cheap = tyDealPrice('hostile', rv) < want0 * .9 && tyDealPrice('merge', rv) < m0;
+    out.odds = tyDealOdds('hostile', rv, amt) > p0;
+    // 上限 20%
+    for (let i = 0; i < 12; i++) tyToeBuy(rv.id);
+    out.cap = Math.abs(tyToe(rv).sh - .2) < 1e-9 && /20%/.test(tyToeBuy(rv.id) || '');
+    // 出清:按市價 97 折
+    const c1 = TY.cash, v = tyToeVal(rv); tyToeSell(rv.id);
+    out.sell = Math.abs(TY.cash - c1 - v * .97) < 1 && tyToe(rv).sh === 0;
+    // 敵意收購成功:持股併進公司;被別人吃掉:八折結算
+    tyStart('heir', 82); TY_NEWCARD.length = 0; TY.cash = 3000e8;
+    const a = tyRivalsA()[0]; for (let i = 0; i < 3; i++) tyToeBuy(a.id);
+    const b0 = TY.biz.length, toe = tyToeVal(a), take = a.nw * .45;
+    // 強制成功:把種子亂數固定成 0
+    const orig = window.tyRnd; window.tyRnd = () => 0;
+    try { tyDeal('hostile', a.id); } finally { window.tyRnd = orig; }
+    const nb = TY.biz[TY.biz.length - 1];
+    out.hostile = TY.biz.length === b0 + 1 && !tyToes()[a.id] && Math.abs(tyBizVal(nb) - (take + toe)) / (take + toe) < .05;
+    const bb = tyRivalsA()[1]; for (let i = 0; i < 2; i++) tyToeBuy(bb.id);
+    const c2 = TY.cash, sv = tyToeVal(bb); tyRivalDown(bb, tyRivalsA()[0] ? tyRivalsA()[0].id : 'mkt', '測試');
+    out.settle = Math.abs(TY.cash - c2 - sv * .8) < 1 && !tyToes()[bb.id];
+    TY_FALLQ.length = 0;
+    // 對手面板:建倉區塊與按鈕
+    const c = tyRivalsA()[0]; TY_MODAL = 'rival'; TY_RIVAL = c.id; renderPage();
+    out.ui = !!document.querySelector('.rv-toe [data-ty="toe"]');
+    TY_MODAL = null; renderPage();
+    return out;
+  });
+  ok(r.px, '第一筆 2% 的價格 = 他身家 × 2%');
+  ok(r.buy, '買進:付錢、持股 +2%');
+  ok(r.nw, '持股按市價算進淨值');
+  ok(r.dearer, '越買越貴(你在推高股價)');
+  ok(r.quiet, '5% 以下他不知道(關係不變)');
+  ok(r.pub, '越過 5% 舉牌:關係 −12');
+  ok(r.pubPx, '舉牌之後再買貴兩成');
+  ok(r.turn, '舉牌之後每季關係再 −3');
+  ok(r.cheap, '建倉讓敵意收購、全面併吞更便宜');
+  ok(r.odds, '建倉讓敵意收購成功率變高');
+  ok(r.cap, '持股最多 20%');
+  ok(r.sell, '出清按市價 97 折');
+  ok(r.hostile, '敵意收購成功:持股併進那家公司(價值保留)');
+  ok(r.settle, '對手被別人吃掉:持股八折結算');
+  ok(r.ui, '對手面板有建倉區塊');
+  ok(page.__errors.length === 0, `有 JS 錯誤:\n      ${page.__errors.join('\n      ')}`);
+  await page.__ctx.close();
+});
+
 test('帝國第二十六輪:指揮中心(勾選、一次派遣)、軍團、到齊再打 vs 依到達順序', async (browser) => {
   const page = await freshPage(browser, { seed: SEED, hash: '#/tycoon' });
   const r = await page.evaluate(() => {
