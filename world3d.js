@@ -2043,10 +2043,10 @@ function boom(lat, lng, big){
      步兵連 / 補給車隊:短短的槍火與幾發小爆炸
    沒有對手的城市 → 進駐:插旗的閃光 + 星星。
    只是畫面(Math.random,不碰種子亂數),打完什麼數字都不會變 —— 規則上的攻防在下一季結算。 */
-function attackAt(B, k){
+function attackAt(B, k, opt){
   if(!B) return;
-  // 鏡頭先轉到目標城市(長途飛行時它常常在畫面邊緣,打起來看不到)
-  try{ if(!CHASE && !CV.on && !PV.on){ G.controls().autoRotate = false; G.pointOfView({ lat: B.lat - 1.5, lng: B.lng, altitude: clamp(W3D.alt || .6, .35, .7) }, 500); tyWake(); } }catch(e){}
+  // 鏡頭先轉到目標城市(長途飛行時它常常在畫面邊緣,打起來看不到)—— 即時制(opt.noCam)不搶鏡頭
+  try{ if(!(opt && opt.noCam) && !CHASE && !CV.on && !PV.on){ G.controls().autoRotate = false; G.pointOfView({ lat: B.lat - 1.5, lng: B.lng, altitude: clamp(W3D.alt || .6, .35, .7) }, 500); tyWake(); } }catch(e){}
   let foe = false;
   try{
     foe = tyRivalsA().some(r => r.home === B.id) || tyRivalForces().some(f => f.site === B.id) || tyThreats().some(t => t.site === B.id);
@@ -2073,7 +2073,7 @@ function attackAt(B, k){
   }
 }
 W3D._attack = (id, k) => attackAt(tySite(id), k);     // 給截圖驗證用
-W3D.attackAt = (id, k) => attackAt(tySite(id), k);
+W3D.attackAt = (id, k, opt) => attackAt(tySite(id), k, opt);
 
 /* 小一號的像素特效:蓋房子的塵土、出牌落地的星星與金幣(出牌回饋用) */
 function fxAt(lat, lng, kind, opt){
@@ -3362,9 +3362,13 @@ W3D.launch = function(L){
   const r = { m, base, n: n.clone(), n0: n, south, S, kind: L.kind, t0: performance.now(), tgt: new V3(), V3,
               cp: null, cu: n.clone(), cl: new V3(), dir: new V3() };
   ROCKETS.add(r);
-  FOLLOW = null;
-  if(!reduced()){ CHASE = r; try{ G.controls().autoRotate = false; }catch(e){} }
-  else try{ G.pointOfView({ lat: S.lat, lng: S.lng, altitude: 1.3 }, 900); }catch(e){}
+  /* 即時制(L.noChase):鏡頭不自動跟,畫面層出一顆「看火箭」按鈕(W3D.chaseRocket)——
+     使用者:「火星發射的動畫鏡頭就不用跟著,可以有一個小按鈕點一下切到火箭的鏡頭」 */
+  if(!L.noChase){
+    FOLLOW = null;
+    if(!reduced()){ CHASE = r; try{ G.controls().autoRotate = false; }catch(e){} }
+    else try{ G.pointOfView({ lat: S.lat, lng: S.lng, altitude: 1.3 }, 900); }catch(e){}
+  }
   tyWake();
   sfx('launch', 'boom');
   setTimeout(() => sfx('jet'), 300);
@@ -3395,7 +3399,7 @@ function rocketStep(now){
       if(r.dir.lengthSq() < 1e-8) r.dir.copy(mD);
       r.n.lerp(m.position.clone().normalize(), .08).normalize();       // 鏡頭的「上」跟著火箭所在的位置轉
       // 飛向火星的時候地球在鏡頭後面:地上的名牌 / 部隊標籤投影會跑到太空裡,先收起來
-      { const hs = document.getElementById('tyGlobeHost'); if(hs && hs.dataset.space !== '1') hs.dataset.space = '1'; }
+      if(CHASE === r){ const hs = document.getElementById('tyGlobeHost'); if(hs && hs.dataset.space !== '1') hs.dataset.space = '1'; }
       r.cp = (r.cp || new r.V3()).copy(m.position).addScaledVector(r.dir, -16).addScaledVector(r.n, 5);
       r.cl.copy(m.position).addScaledVector(r.dir, 20).lerp(r.tgt, clamp((f - .5) * 2, 0, 1)); r.cu.copy(r.n);   // 後半段轉頭看火星
       if(f >= 1){ chaseEnd(r); ROCKETS.delete(r); SPACE.root.remove(m); m.geometry.dispose(); sfx('upgrade', 'land');
@@ -3410,13 +3414,20 @@ function rocketStep(now){
       const hc = h * .3 + 1;
       r.cp = (r.cp || new r.V3()).copy(r.base).addScaledVector(r.n, hc).addScaledVector(r.south, 11 + h * 1.5);
       r.cl.copy(r.base).addScaledVector(r.n, h * .55 + 1.5); r.cu.copy(r.n);     // 看向火箭與地面中間偏上
-      { const hs = document.getElementById('tyGlobeHost'); if(hs && hs.dataset.space !== '1') hs.dataset.space = '1'; }   // 追焦時地上的名牌先收起來
+      if(CHASE === r){ const hs = document.getElementById('tyGlobeHost'); if(hs && hs.dataset.space !== '1') hs.dataset.space = '1'; }   // 追焦時地上的名牌先收起來
       if(r.kind !== 'mars' && t > 3.6){ chaseEnd(r); ROCKETS.delete(r); SPACE.root.remove(m); m.geometry.dispose(); }
     }
   }
   if(ROCKETS.size) requestAnimationFrame(rocketStep);
 }
 W3D._rockets = () => ROCKETS.size;
+/* 「看火箭」:切到正在飛的那一枚(火星的優先)的追焦鏡頭 */
+W3D.chaseRocket = function(){
+  const list = [...ROCKETS]; const r = list.find(x => x.kind === 'mars') || list[0];
+  if(!r) return false;
+  FOLLOW = null; CHASE = r; try{ G.controls().autoRotate = false; }catch(e){}
+  tyWake(); return true;
+};
 W3D._space = t => spaceStep(t);          // 給截圖用:手動推到某個時間
 W3D._spaceObj = () => SPACE;
 /* 「看月球 / 看火星」的鏡頭:站在它外側、往旁邊偏一點,讓地球跟它同框 */

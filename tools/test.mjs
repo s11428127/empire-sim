@@ -2451,6 +2451,83 @@ test('帝國第二十輪:月球 / 火星建地(登月、火星計畫前置、補
   await page.__ctx.close();
 });
 
+test('帝國第二十四輪:即時制(時鐘、指揮點回復、施工、血量戰鬥)、三種勝利、失敗、紀錄', async (browser) => {
+  const page = await freshPage(browser, { seed: SEED, hash: '#/tycoon' });
+  const r = await page.evaluate(() => {
+    const out = {};
+    localStorage.removeItem('ty-best-v1');
+    // 開局按鈕:即時制
+    tyClear(); renderPage();
+    document.querySelector('[data-ty="start"][data-k="heir"]').click();
+    out.rt = TY.rt === true && TY.prog === 0; TY_MODAL = null; TY_NEWCARD.length = 0; renderPage();
+    out.clock = !!document.getElementById('tyClock') && !!document.querySelector('.tg-goal');
+    // 指揮點:換季不再一次補滿
+    TY.ap = 1; tyNext(); out.noRefill = TY.ap === 1;
+    // 施工:即時制開的公司下一季才有現金流
+    TY.cash = 60e8; TY.ap = 9; out.found = tyFound('dev', TY.home); const b = TY.biz[TY.biz.length - 1];
+    out.ready = b.ready === TY.t + 2; tyNext(); out.cf0 = b.cf === 0; tyNext(); out.cf1 = b.cf !== 0;
+    // 火星每一段縮短
+    out.marsQ = TY_MARS.map(tyMarsQ).join(',');
+    // 血量戰鬥:開打 → 半季後結算
+    const f = tyRivalForces()[0];
+    for (let i = 0; i < 3; i++) tyRecruit('raid');
+    for (const u of tyUnits()) tyDeploy(u.id, f.site);
+    tyNext(); tyNext(); TY.ap = 9;
+    const msg = tyAssault(f.r.id, f.site);
+    out.battle = /開打/.test(msg) && tyBattles().length === 1; out.msg = msg + ' done=' + TY.done;
+    out.dup = /已經在打/.test(tyAssault(f.r.id, f.site) || '');
+    const bt = tyBattles()[0] || { at:0, dur:.5, win:true, id:0 };
+    TY.prog = (TY.prog || 0) + .15; const hp = tyBattleHP(bt); out.hp = hp.u > .4 && hp.u < .6 && hp.me < 100 && hp.foe < 100;
+    TY.prog += .2; const res = tyBattlesTick(); out.resolved = res.length === 1 && tyBattles().length === 0 && /打(贏|輸)了/.test(res[0]);
+    // 勝利:經濟霸權要連續兩季
+    tyStart('heir', 51); TY.rt = true; TY_NEWCARD.length = 0;
+    TY.cash = 5000e8; tyNext(); out.econ1 = !TY.done && TY.econHold === 1; tyNext();
+    out.econ = TY.done === 'win' && TY.win === 'econ' && TY.winQ === TY.t + 1;
+    out.rec = !!JSON.parse(localStorage.getItem('ty-best-v1') || '{}')['heir:econ'];
+    renderPage(); out.endTxt = /勝利/.test(document.querySelector('#tyRoot').textContent);
+    // 征服:所有對手出局
+    tyStart('heir', 52); TY.rt = true; TY_NEWCARD.length = 0;
+    for (const x of tyRivalsA()) tyRivalDown(x, 'me', '測試'); TY_FALLQ.length = 0;
+    tyNext(); out.war = TY.done === 'win' && TY.win === 'war'; out.warDbg = [TY.done, TY.win, tyRivalsA().map(x=>x.id+x.nm+x.born), TY.t].join();
+    // 火星殖民
+    tyStart('heir', 53); TY.rt = true; TY_NEWCARD.length = 0;
+    tySpace().mars.st = 4; for (let i = 0; i < 4; i++){ const q = tyPlots('mars')[i]; q.o = 'me'; q.b = 'mine'; q.c = 50e8; }
+    tyNext(); out.mars = TY.done === 'win' && TY.win === 'mars';
+    // 失敗:對手經濟霸權(第 12 季起、3 倍、連續 3 季)
+    tyStart('heir', 54); TY.rt = true; TY_NEWCARD.length = 0; TY.t = 12;
+    const big = tyRivalsA()[0]; let lost = false;
+    for (let i = 0; i < 4 && !TY.done; i++){ big.nw = 1e14; tyNext(); }
+    out.lost = TY.done === 'lost';
+    // 非即時(測試與舊存檔):不判定勝負
+    tyStart('heir', 55); TY.cash = 5000e8; tyNext(); tyNext(); out.noRt = !TY.done;
+    // 目標面板
+    tyStart('heir', 56); TY.rt = true; TY_NEWCARD.length = 0; TY_MODAL = 'goal'; renderPage();
+    out.goal = document.querySelectorAll('.gl-row').length === 3;
+    TY_MODAL = null; renderPage();
+    return out;
+  });
+  ok(r.rt, '從開局畫面開始的一局是即時制');
+  ok(r.clock, '頂列要有時鐘(暫停 / 速度)與勝利目標');
+  ok(r.noRefill, '即時制:換季不再一次補滿指揮點(隨時間回復)');
+  ok(r.ready && r.cf0 && r.cf1, `即時制:新公司施工一季,之後才有現金流 ${[r.ready, r.cf0, r.cf1, r.found]}`);
+  eq(r.marsQ, '1,2,2,2', '即時制:火星計畫每一段縮短');
+  ok(r.battle, `進攻:即時制是開打一場有血量的戰鬥 ${r.msg}`);
+  ok(r.dup, '同一個地方不能同時打兩場');
+  ok(r.hp, '戰鬥進行中雙方血量下降');
+  ok(r.resolved, '半季後自動結算');
+  ok(r.econ1, '經濟霸權要連續兩季,第一季還不算');
+  ok(r.econ, '經濟霸權:連續兩季 → 勝利,記下用了幾季');
+  ok(r.rec, '勝利要存最快紀錄');
+  ok(r.endTxt, '結算畫面寫「勝利」');
+  ok(r.war, `所有對手出局 → 征服勝利 ${r.warDbg}`);
+  ok(r.mars, '火星計畫完成 + 4 塊火星建地 → 火星殖民勝利');
+  ok(r.lost, '對手經濟霸權連續三季 → 你輸了');
+  ok(r.noRt, '非即時制不判定勝負(測試與舊存檔)');
+  ok(r.goal, '勝利目標面板列出三條路');
+  ok(page.__errors.length === 0, `有 JS 錯誤:\n      ${page.__errors.join('\n      ')}`);
+  await page.__ctx.close();
+});
+
 test('帝國第二十三輪:勢力範圍改塗省 / 州、將領、進攻對手駐軍', async (browser) => {
   const page = await freshPage(browser, { seed: SEED, hash: '#/tycoon' });
   const prov = JSON.parse(fs.readFileSync(new URL('../provinces.json', import.meta.url), 'utf8'));
