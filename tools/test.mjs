@@ -2462,6 +2462,36 @@ test('帝國第二十輪:月球 / 火星建地(登月、火星計畫前置、補
   await page.__ctx.close();
 });
 
+test('帝國第四十輪:設定 —— 字體大小、漲跌顏色、音效、教練都在一頁', async (browser) => {
+  const page = await freshPage(browser, { seed: SEED, hash: '#/tycoon' });
+  const r = await page.evaluate(() => {
+    const out = {};
+    TY = null; renderPage();
+    out.introFs = document.querySelectorAll('.st-intro [data-ty="fs"]').length === 4;
+    tyStart('heir', 221); TY.rt = true; TY_SPEED = 0; TY_MODAL = null; TY_NEWCARD.length = 0; renderPage();
+    out.side = !!document.querySelector('.tg-side [data-ty="modal:settings"]');
+    TY_MODAL = 'settings'; renderPage();
+    out.rows = document.querySelectorAll('.tg-mb .st-row').length === 4;
+    document.querySelector('[data-ty="fs"][data-v="1.3"]').click();
+    out.fs = tyFs() === '1.3' && getComputedStyle(document.documentElement).getPropertyValue('--ui-z').trim() === '1.3';
+    document.querySelector('[data-ty="updownset"][data-v="green"]').click();
+    out.green = tyUpGreen() && document.documentElement.hasAttribute('data-upgreen');
+    document.querySelector('[data-ty="updownset"][data-v="red"]').click();
+    out.red = !tyUpGreen() && !document.documentElement.hasAttribute('data-upgreen');
+    document.querySelector('[data-ty="fs"][data-v="1"]').click();
+    out.back = tyFs() === '1';
+    return out;
+  });
+  ok(r.introFs, '開局畫面就能選字體大小');
+  ok(r.side, '右側工具列有「⚙ 設定」');
+  ok(r.rows, '設定頁:字體、漲跌顏色、音效、新手輔導');
+  ok(r.fs, '字體大小:存起來、立刻套用');
+  ok(r.green && r.red, '漲跌顏色可以切換');
+  ok(r.back, '字體可以調回標準');
+  ok(page.__errors.length === 0, `有 JS 錯誤:\n      ${page.__errors.join('\n      ')}`);
+  await page.__ctx.close();
+});
+
 test('帝國第三十九輪:開局不會已經霸權、坦克站在地形上、新手輔導(教練)', async (browser) => {
   const page = await freshPage(browser, { seed: SEED, hash: '#/tycoon' });
   const r = await page.evaluate(() => {

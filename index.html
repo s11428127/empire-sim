@@ -2558,6 +2558,16 @@
   .co-intro span{flex:1;min-width:220px;line-height:1.6}
   .co-tg{font:inherit;font-size:14px;cursor:pointer;padding:6px 12px;border:2px solid var(--g-line);background:var(--g-p2);color:var(--g-t)}
   .co-tg.on{border-color:#ffd84a}
+  /* ---- 第四十九輪:設定、字體大小 ---- */
+  :root{--ui-z:1;--ui-zc:var(--ui-z)}
+  @media (max-width:420px){ :root{--ui-zc:min(var(--ui-z),1.1)} }      /* 窄手機:放太大等於把螢幕變更窄,版面會撐破 */
+  @media (max-width:360px){ :root{--ui-zc:min(var(--ui-z),1)} }
+  .tycon .tg-mb, .tycon .vz-cmpc, .tycon .co-host, .tycon .tg-toasts, .tycon.intro, .vz-tip{zoom:var(--ui-zc)}
+  .st-list{display:flex;flex-direction:column;gap:10px}
+  .st-row{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;justify-content:space-between;padding:12px;background:var(--g-p2);border:1px solid var(--g-line)}
+  .st-t b{display:block;font-size:14px} .st-t span{font-size:11.5px;color:var(--g-t3)}
+  .st-c{display:flex;gap:6px;flex-wrap:wrap}
+  .st-intro{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:0 0 10px;font-size:12.5px;color:var(--g-t2)}
   .qs{display:flex;flex-direction:column;gap:8px;margin:0 0 14px}
   .qs-s{display:grid;grid-template-columns:30px 1fr;gap:2px 10px;padding:10px;background:var(--g-p2);border:1px solid var(--g-line)}
   .qs-s i{grid-row:span 2;font-style:normal;width:26px;height:26px;display:flex;align-items:center;justify-content:center;
@@ -13384,6 +13394,27 @@ function tySetUpGreen(on){
   try{ localStorage.setItem('ty-updown', on?'green':'red'); }catch(e){}
   document.documentElement.toggleAttribute('data-upgreen', !!on);
 }
+/* 字體大小(第四十九輪):面板、教練、通知、比較面板一起放大(CSS zoom);地球、頂列不動,免得版面擠爆。
+   存在這台裝置上(不進存檔)。 */
+const TY_FS = [['.9','小'],['1','標準'],['1.15','大'],['1.3','特大']];
+function tyFs(){ try{ const v=localStorage.getItem('ty-fs'); return TY_FS.some(x=>x[0]===v) ? v : '1'; }catch(e){ return '1'; } }
+function tySetFs(v){ try{ localStorage.setItem('ty-fs', v); }catch(e){} document.documentElement.style.setProperty('--ui-z', v); }
+tySetFs(tyFs());
+const tyFsChips = () => TY_FS.map(([v,t])=>`<button type="button" class="ty-chip${tyFs()===v?' on':''}" data-ty="fs" data-v="${v}" style="font-size:${Math.round(12*+v)}px">${t}</button>`).join('');
+function tySettingsTab(){
+  const row=(t,sub,body)=>`<div class="st-row"><div class="st-t"><b>${t}</b><span>${sub}</span></div><div class="st-c">${body}</div></div>`;
+  return `<div class="st-list">
+    ${row('🔠 字體大小','面板、教練、通知、比較圖一起放大', tyFsChips())}
+    ${row('📈 漲跌顏色','賺錢 / 虧錢用哪個顏色',
+      `<button type="button" class="ty-chip${tyUpGreen()?'':' on'}" data-ty="updownset" data-v="red"><b class="up">紅漲</b> <b class="down">綠跌</b>(台股)</button>
+       <button type="button" class="ty-chip${tyUpGreen()?' on':''}" data-ty="updownset" data-v="green">綠漲紅跌(美股)</button>`)}
+    ${row('🔊 音效','出牌、打擊、季末的聲音',
+      `<button type="button" class="ty-chip${window.SFX&&SFX.on?' on':''}" data-ty="sfx">${window.SFX&&SFX.on?'開':'關'}</button>`)}
+    ${row('🧑‍🏫 新手輔導','地圖左下角的教練,告訴你現在最適合做什麼',
+      `<button type="button" class="ty-chip${tyCoachOn()?' on':''}" data-ty="coachtog">${tyCoachOn()?'開':'關'}</button>`)}
+  </div>
+  <div class="expo-note">這些設定只存在這台裝置上,不影響遊戲進度。</div>`;
+}
 try{ if(localStorage.getItem('ty-updown')==='green') document.documentElement.setAttribute('data-upgreen',''); }catch(e){}
 function tySideBtns(){
   const b=(id,ic,lab,cls,sub)=>`<button type="button" class="tg-sb ${cls||''}" data-ty="${id}"
@@ -13397,8 +13428,7 @@ function tySideBtns(){
       ${b('modal:log','📋','大事記')}
       ${b('modal:learn','🎓','怎麼玩')}
       ${b('sfx', window.SFX&&SFX.on?'🔊':'🔇', window.SFX&&SFX.on?'音效':'靜音')}
-      ${b('updown', tyUpGreen()?'🟩':'🟥', tyUpGreen()?'綠漲':'紅漲')}
-      ${b('coachtog', '🧑‍🏫', tyCoachOn()?'教練 開':'教練 關', tyCoachOn()?'on':'')}
+      ${b('modal:settings','⚙','設定', TY_MODAL==='settings'?'on':'')}
       ${TY_PLANET?b('space:earth','🌍','地球'):''}
       ${b('space:moon','🌙','月球', TY_PLANET==='moon'?'on':'')}
       ${b('space:mars','🔴','火星', TY_PLANET==='mars'?'on':'')}
@@ -13419,7 +13449,7 @@ function tyTicker(){
 
 const TY_MODAL_NM = { asset:'資產', biz:'事業', play:'手法', rank:'富豪榜',
                       rival:'對手', learn:'怎麼玩', log:'大事記', more:'總覽', site:'據點',
-                      troop:'資本部隊', vault:'金庫', data:'我的全部資料', power:'勢力分析', pick:'出牌', todo:'📌 這一季的待辦', goal:'🏆 勝利目標' };
+                      troop:'資本部隊', vault:'金庫', data:'我的全部資料', power:'勢力分析', pick:'出牌', todo:'📌 這一季的待辦', goal:'🏆 勝利目標', settings:'⚙ 設定' };
 
 /* 總覽:原本底部那一排分頁(資產、事業、金庫…)現在都收在這裡 —— 手牌是「做事」,總覽是「看清單」 */
 const TY_OVERVIEW = [
@@ -13915,6 +13945,7 @@ function tyModalHTML(){
              : k==='log'   ? tyLogTab()
              : k==='todo'  ? tyTodoTab()
              : k==='goal'  ? tyGoalTab()
+             : k==='settings' ? tySettingsTab()
              : k==='more'  ? tyMoreSheet()
              : k==='site'  ? (TY_SEL ? tySitePanel(TY_SEL) : (TY_ISO?tyIsoPanel(TY_ISO):tyWorldPanel()))
              : '';
@@ -13957,6 +13988,7 @@ function tyIntro(){
     <div class="expo-note" style="margin:0 0 12px">⏱ <b>即時制</b>:時間自己走(可以暫停、1× / 2× / 3×)。
       🏆 <b>三條路先達成一條就贏</b>:💰 經濟霸權(身家是最有錢對手的 2 倍)、⚔ 征服(對手全部出局)、🚀 火星殖民。
       好的打法大約 15~20 季(1× 十幾分鐘)。紀錄比的是用了幾季。</div>
+    <div class="st-intro">🔠 字體大小 ${tyFsChips()}</div>
     <div class="co-intro"><button type="button" class="co-tg${tyCoachOn()?' on':''}" data-ty="coachtog" aria-pressed="${tyCoachOn()}">🧑‍🏫 新手輔導:<b>${tyCoachOn()?'開':'關'}</b></button>
       <span>開著的話,地圖左下角會有一位教練:照你選的劇本告訴你<b>下一步最適合做什麼</b>,
         對手派兵、被盯上、借太多這種突發狀況也會提醒你怎麼應付。它是電腦判斷的,不一定是最好的走法。</span></div>
@@ -14749,7 +14781,7 @@ function tyPickHTML(){
           tyActBtn('sell', null, '賣', ` data-k="${p.k}" data-site="${id}"`), '');
       }).join('') + t.biz.map(b=>{ const d=TY_BIZ[b.k], v=tyBizVal(b)*b.own, c=(b.cap||0)*b.own;
         return row(PX.img('pk:biz:'+b.k, d.shell?PX.SPR.shell:PX.bizTower(b.k,.35), { fit:[56,64] }), `${d.ic} ${escH(d.nm)} ${d.shell?'':pl(v,c)}`,
-          d.shell?'空殼公司':`<span title="估值 ${tyM(v)} · 投入 ${tyM(c)} · 賣掉要付 6% 交易成本">賣掉之後少了每季 <b class="${(b.cf||0)>=0?'up':'down'}">${tySgn((b.cf||0)*b.own)}</b> 的收入</span>`,
+          d.shell?'空殼公司':`<span title="估值 ${tyM(v)} · 投入 ${tyM(c)} · 賣掉要付 6% 交易成本">賣掉之後少了每季 <b class="${(b.cf||tyBizCfEst(b))>=0?'up':'down'}">${tySgn((b.cf||tyBizCfEst(b))*b.own)}</b> 的收入${!b.cf&&b.ready>TY.t?'(蓋好之後)':''}</span>`,
           tyActBtn('sellbiz', b.id, d.shell?'註銷':'賣掉', ` data-id="${b.id}"`, 'warn'), '');
       }).join('') || '<div class="empty">你在這裡沒有東西可以賣。</div>';
       break; }
@@ -15052,6 +15084,8 @@ function bindTycoon(root){
        丟到一整排看不懂的按鈕前面是錯的。先讓他看懂,再讓他按。 */
     if(a==='start'){ tyStart(b.dataset.k); TY.rt=true; TY.prog=0; TY.real=0; TY_SPEED=1; TY_MODAL='learn'; TY_MSG=''; renderPage(); return; }   // 新的一局:即時制(第三十二輪)
     if(a==='coachtog'){ tyCoachSet(!tyCoachOn()); TY_COACH_MIN=false; tySfx('click','tap'); renderPage(); return; }   // 新手輔導開關(開局畫面也按得到)
+    if(a==='fs'){ tySetFs(b.dataset.v); renderPage(); return; }                       // 字體大小(開局畫面也按得到)
+    if(a==='updownset'){ tySetUpGreen(b.dataset.v==='green'); renderPage(); return; }
     if(!TY) return;                 // 還沒開局,除了選劇本沒有別的能按
     if(a==='coachmin'){ TY_COACH_MIN=!TY_COACH_MIN; tyCoachLive(true); return; }
     if(a==='coachmore'){ TY_COACH_MORE=!TY_COACH_MORE; tyCoachLive(true); return; }
