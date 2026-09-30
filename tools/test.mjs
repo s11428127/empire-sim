@@ -2132,9 +2132,12 @@ test('帝國第十三輪:星鏈(網路費、現金流加成、退役)、火星�
     out.rev = tySpaceTurn(); out.revExpect = s0.c * .12 * tyClamp(TY.reg[s0.reg].idx, .6, 1.6);
     // 現金流加成:同一個存檔(同一個亂數狀態)有星鏈 vs 沒星鏈,科技公司的現金流
     const snap = JSON.stringify(TY);
-    tyNext(); const bA = TY.biz.find(b => b.k === 'bank' && b.site === home).cf;
+    // 第四十二輪:銀行的浮存金收益是投資收益,不吃星鏈加成 —— 先扣掉再比
+    const flo = () => { const b = TY.biz.find(b => b.k === 'bank' && b.site === home);
+      return b.cap * TY_BIZ.bank.float * (TY.scn === 'float' ? 2 : 1) * (TY.macro.rate / 100 + .03) / 4; };
+    tyNext(); const bA = TY.biz.find(b => b.k === 'bank' && b.site === home).cf - flo();
     TY = JSON.parse(snap); TY.space.sats = [];
-    tyNext(); const bB = TY.biz.find(b => b.k === 'bank' && b.site === home).cf;
+    tyNext(); const bB = TY.biz.find(b => b.k === 'bank' && b.site === home).cf - flo();
     out.boost = bB > 0 && Math.abs(bA / bB - 1.1) < 1e-9; out.bA = bA; out.bB = bB;
     // 退役:10 季後不再收錢
     TY = JSON.parse(snap);
@@ -2455,6 +2458,52 @@ test('帝國第二十輪:月球 / 火星建地(登月、火星計畫前置、補
   ok(r.grabbed, `強行收購:建地換手、對手記恨 −25(${r.grab})`);
   ok(r.pick, '建地面板畫得出來');
   ok(r.race, '對手會登月、搶建地');
+  ok(page.__errors.length === 0, `有 JS 錯誤:\n      ${page.__errors.join('\n      ')}`);
+  await page.__ctx.close();
+});
+
+test('帝國第三十四輪:名人劇本 —— 浮存金零利率、對手起點、起手公司、槓桿收購、開局卡片', async (browser) => {
+  const page = await freshPage(browser, { seed: SEED, hash: '#/tycoon' });
+  const r = await page.evaluate(() => {
+    const out = {};
+    // 對手起點:同一個種子,白手起家(×0.3)的對手是繼承者(×1.4)的 0.3/1.4
+    tyStart('heir', 151); const hv = TY.rivals.map(x => x.nw);
+    tyStart('self', 151); const sv = TY.rivals.map(x => x.nw);
+    out.scale = hv.every((v, i) => Math.abs(sv[i] / v - .3 / 1.4) < 1e-9);
+    // 起手公司:白手起家一間 3 億的小建設行、狙擊手一支基金、掠奪者一家能源公司
+    out.selfBiz = TY.biz.length === 1 && TY.biz[0].k === 'dev' && TY.biz[0].cap === 3e8 && TY.biz[0].cap0 === 3e8;
+    tyStart('macro', 152); out.macroBiz = TY.biz.some(b => b.k === 'fund');
+    tyStart('raider', 153); out.raiderBiz = TY.biz.some(b => b.k === 'energy');
+    // 槓桿收購:掠奪者的敵意收購 / 併吞價款是別人的 65%,淨值門檻是三成
+    const rv = tyRivalsA()[0]; rv.nw = 60e8;
+    const hR = tyDealPrice('hostile', rv), mR = tyDealPrice('merge', rv);
+    const need = tyNeeds('deal:hostile', rv).find(n => n.want != null && /淨值/.test(n.lab));
+    TY.scn = 'heir'; const hH = tyDealPrice('hostile', rv), mH = tyDealPrice('merge', rv);
+    out.lbo = Math.abs(hR / hH - .65) < 1e-9 && Math.abs(mR / mH - .65) < 1e-9;
+    out.lboNeed = need && /18/.test(String(need.want));
+    // 浮存金:複利者借款在浮存金額度內零利率,其他劇本沒有
+    tyStart('float', 154); TY.rt = true; TY_NEWCARD.length = 0;
+    const fr = tyFloatFree(); const bank = TY.biz.find(b => b.k === 'bank');
+    out.freeAmt = Math.abs(fr - bank.cap * .55 * 2) < 1;
+    TY.debt = fr * .9; const c0 = TY.cash, i0 = TY.interest; tyNext();
+    out.noIntr = Math.abs(TY.interest - i0) < 1;
+    tyStart('heir', 155); out.otherNone = tyFloatFree() === 0;
+    // 開局畫面:六個劇本都有「做法相近」、難度、勝率
+    TY = null; renderPage();
+    const cards = [...document.querySelectorAll('.tg-scn:not(.tester)')];
+    out.cards = cards.length === 6 && cards.every(c => c.querySelector('.s-who i') && /★/.test(c.textContent) && /%/.test(c.querySelector('.s-rt').textContent));
+    out.names = /巴菲特/.test(document.body.textContent) && /索羅斯/.test(document.body.textContent) && /王永慶/.test(document.body.textContent);
+    return out;
+  });
+  ok(r.scale, '對手起點依劇本縮放(同一個種子,比例 = 兩個劇本的倍數比)');
+  ok(r.selfBiz, '白手起家起手一間 3 億的小建設行');
+  ok(r.macroBiz && r.raiderBiz, '狙擊手起手一支基金、掠奪者起手一家能源公司');
+  ok(r.lbo, '掠奪者的敵意收購 / 併吞只付 65%');
+  ok(r.lboNeed, '掠奪者敵意收購的淨值門檻是對方的三成');
+  ok(r.freeAmt && r.noIntr, '複利者:浮存金額度內借款零利率');
+  ok(r.otherNone, '其他劇本沒有零利率額度');
+  ok(r.cards, '開局卡片:做法相近的富豪、難度星等、勝率');
+  ok(r.names, '卡片上看得到巴菲特、索羅斯、王永慶');
   ok(page.__errors.length === 0, `有 JS 錯誤:\n      ${page.__errors.join('\n      ')}`);
   await page.__ctx.close();
 });
