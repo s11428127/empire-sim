@@ -2502,6 +2502,23 @@
   .vz-meter.hot u{background:var(--down)}
   .vz-cmpb{font:inherit;font-size:12px;cursor:pointer;padding:4px 9px;border:1px solid var(--g-ac);
     background:rgba(41,151,255,.12);color:var(--g-t);white-space:nowrap}
+  details.adv{margin:14px 0 6px;border:1px dashed var(--g-line);background:rgba(255,255,255,.02)}
+  details.adv>summary{cursor:pointer;padding:10px 12px;font-weight:600;list-style:none}
+  details.adv>summary::-webkit-details-marker{display:none}
+  details.adv>summary span{display:block;font-weight:400;font-size:11.5px;color:var(--g-t3);margin-top:3px}
+  details.adv[open]>summary{border-bottom:1px dashed var(--g-line)}
+  details.adv>*:not(summary){margin-left:10px;margin-right:10px}
+  .e-big{display:flex;align-items:baseline;justify-content:center;gap:10px;flex-wrap:wrap;margin:10px 0 2px}
+  .e-big span{font-size:16px;color:var(--g-t3)} .e-big i{font-style:normal;color:var(--g-t3)}
+  .e-big b{font-size:28px} .e-big em{font-style:normal;font-size:16px;color:#ffd84a}
+  .e-chart{max-width:420px;margin:0 auto}
+  .qs{display:flex;flex-direction:column;gap:8px;margin:0 0 14px}
+  .qs-s{display:grid;grid-template-columns:30px 1fr;gap:2px 10px;padding:10px;background:var(--g-p2);border:1px solid var(--g-line)}
+  .qs-s i{grid-row:span 2;font-style:normal;width:26px;height:26px;display:flex;align-items:center;justify-content:center;
+    background:var(--g-ac);color:#fff;font-weight:700}
+  .qs-s b{font-size:14px}
+  .qs-s span{font-size:12.5px;color:var(--g-t2);line-height:1.6}
+  .qs-s em{font-style:normal;color:#ffd84a}
   .vz-cmps{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 12px}
   .vz-cmpb:hover{background:rgba(41,151,255,.25)}
   .vz-cmp{position:absolute;inset:0;z-index:420;background:rgba(0,0,0,.55);display:flex;align-items:flex-end;justify-content:center}
@@ -5671,11 +5688,13 @@ const tyG = () => (tyRnd()+tyRnd()+tyRnd()-1.5)*2;
 const tyClamp = (v,a,b) => Math.max(a,Math.min(b,v));
 
 /* ---------- 金額:遊戲裡的錢單位是台幣,但量級跨到「兆」 ---------- */
+/* 第四十五輪:金額只留兩、三位有效數字(放置型大亨遊戲的做法:「3164 萬」→「3200 萬」、
+   「25.0 億」→「25 億」)。新手看的是大小,不是個位數;精確的帳在「我的全部資料」。 */
 function tyM(v){
   const s = v<0 ? '-' : '', a=Math.abs(v);
-  if(a>=1e12) return s+(a/1e12).toFixed(2)+' 兆';
-  if(a>=1e8)  return s+(a/1e8).toFixed(a>=100e8?0:1)+' 億';
-  if(a>=1e4)  return s+(a/1e4).toFixed(0)+' 萬';
+  if(a>=1e12) return s+(+(a/1e12).toFixed(a>=10e12?0:1))+' 兆';
+  if(a>=1e8)  return s+(+(a/1e8).toFixed(a>=10e8?0:1))+' 億';
+  if(a>=1e4){ const w=a/1e4; return s+(w>=1000?Math.round(w/100)*100:w>=100?Math.round(w/10)*10:Math.round(w))+' 萬'; }
   return s+Math.round(a);
 }
 /* ⚠ 負號一定要印出來。原本是 (v>=0?'+':'') 再取絕對值 —— 於是 −1,326 萬
@@ -9297,7 +9316,7 @@ const TY_MONEY = {
     lab:'要借多少', min:()=>1e6,
     max:()=>Math.max(0, tyBorrowMax()-TY.debt),
     def:()=>Math.max(0, tyBorrowMax()-TY.debt)*.5,
-    hint:()=>`抵押上限 ${tyM(tyBorrowMax())} · 已借 ${tyM(TY.debt)} · 年利率 ${tyRate().toFixed(2)}%`,
+    hint:()=>`還能借 ${tyM(Math.max(0,tyBorrowMax()-TY.debt))} · 年利率 ${tyRate().toFixed(1)}%`,
   },
   repay: {
     lab:'要還多少', min:()=>1e6,
@@ -10179,7 +10198,7 @@ function tyBio(){
   const rank=tyRank();
   const bizN=TY.biz.filter(b=>!TY_BIZ[b.k].shell).length;
   const lines=[];
-  lines.push(`你以「${st.nm}」開局,十年之間把 ${tyM(start)} 變成 ${tyM(nw)}`
+  lines.push(`你以「${st.nm}」開局,${TY.t+1>=TY_QN?'十年':` ${TY.t+1} 季`}之間把 ${tyM(start)} 變成 ${tyM(nw)}`
              + `(${mult>=1?mult.toFixed(1)+' 倍':'剩下 '+(mult*100).toFixed(0)+'%'})。`);
   if(TY.ipo)   lines.push(`你把 ${TY.ipo} 家公司送上市 —— 這是你身家跳得最快的那幾季,`
                           + `因為市場給的是倍數,不是利潤。`);
@@ -10191,13 +10210,13 @@ function tyBio(){
   if(TY.fame>65) lines.push(`你的名氣是 ${TY.fame.toFixed(0)}。名氣本身已經變成一條現金流。`);
   const un=tyUnreal();
   if(un.gain>1e7)
-    lines.push(`你有 ${tyM(un.gain)} 的獲利**從來沒有被實現過** —— 所以也從來沒有被課過稅。`
+    lines.push(`你有 ${tyM(un.gain)} 的獲利<b>從來沒有被實現過</b> —— 所以也從來沒有被課過稅。`
       + `如果這十年你是「賣掉再買回來」,光是資本利得稅就會被拿走 ${tyM(un.tax)}。`
       + (TY.sbl>1e7?`而你靠質押借款拿了 ${tyM(TY.sbl)} 的免稅現金去用。`
                    :`把它拿去質押,你可以在完全不繳稅的情況下動用 ${tyM(tySblMax())}。`)
       + `這就是 buy-borrow-die。`);
   lines.push(`利息總共付掉 ${tyM(TY.interest)}、稅付掉 ${tyM(TY.taxPaid)}。`
-             + `最大回落 ${TY.worst.toFixed(0)}%。`);
+             + (TY.worst<-1?`最慘的時候,身家從高點掉了 ${Math.abs(TY.worst).toFixed(0)}%。`:''));
   lines.push(rank===1 ? '富豪榜第一名。這十年是你的。'
                       : `富豪榜第 ${rank} 名,榜首還在你前面 ${tyM(tyRivalsA().reduce((m,r)=>Math.max(m,r.nw),0)-tyShownNW())}。`);
   if(bizN===0) lines.push('你整局都在買賣資產,沒有蓋出任何一台自己的機器 —— 這是報酬率的玩法,不是帝國的玩法。');
@@ -10585,6 +10604,34 @@ function tyPlayTab(){
      使用者說這一頁「太多東西,不知道要幹嘛」:原本十幾張卡混在一起,
      財務結構和政商手法根本是兩件事。這裡只留「你住哪、跟誰合作、買影響力」。 */
   return `<div class="expo-note">借款、質押、信託、控股層、錢放在哪裡,都在底部的 <b>🏦 金庫</b>。</div>
+  <div class="p-sec">影響力<span>用錢買名氣、人脈,或讓關注降下來</span></div>
+  <div class="ty-opens">
+    ${tyPlayCard('lobby','政治獻金與遊說', `人脈 +9 起跳 · 關注度也會跟著上去`,
+       '基建標案的評選、危機時的紓困名單、法規的過渡期長短 —— 這些東西不看財報。',
+       {label:'送出獻金'})}
+    ${tyPlayCard('media','買一波媒體曝光', `名氣 +7 起跳${TY.scn==='self'?'(白手起家加倍)':''}`,
+       '專訪、封面、一本掛你名字的書。名氣夠高就能開品牌授權公司,幾乎不用資本。',
+       {label:'買曝光'})}
+    ${tyPlayCard('charity','成立慈善基金會', `關注 −16 起跳 · 名氣 +5 起跳`,
+       '一個正在蓋醫院的人,比較不像一個要被查的人。這是最貴、但也最乾淨的降溫方式。',
+       {label:'捐出去'})}
+  </div>
+  <div class="expo-note" title="效果是 0.6 次方遞減,單次有上限">⚠ 花越多效果越打折:花 2 倍的錢,效果大約只有 1.5 倍。</div>  <div class="p-sec">在地夥伴<span>政策風險高的地方,不是有錢就進得去</span></div>
+  <div class="ty-juris">${
+    Object.entries(TY_PARTNERS).map(([reg,d])=>{
+      const have=TY.partners[reg];
+      return `<div class="ty-j${have?' on':''}">
+        <div class="j-h"><b>${escH(d.nm)}</b><span>${TY_REGIONS[reg].nm}</span></div>
+        <div class="j-d">${escH(d.tag)}。抽走當地事業現金流的
+          ${((have?have.cut:d.cut)*100).toFixed(0)}%,但那個地區的政策風險對你只剩一半,
+          而且你買得到原本買不到的東西。</div>
+        <div class="j-a">${have?'<span class="j-on">已經是夥伴</span>'
+          :tyActBtn('partner', reg, `合資 ${tyM(tyPartnerCost())}`, ` data-reg="${reg}"`, 'alt')}</div>
+        ${have?'':tyNeedHTML(tyNeeds('partner', reg),'tight')}
+      </div>`;
+    }).join('')}</div>
+
+  <details class="adv"><summary>🎓 進階:搬家省稅<span>換稅務居住地 —— 賺到第一桶金之後再來看</span></summary>
   <div class="p-sec">稅務居住地<span>證券的資本利得由「你住在哪裡」決定,不動產由「它在哪裡」決定</span></div>
   <div class="expo-note">遷過去要 ${tyM(tyMoveCost())}(律師、身分、資產重組),而且人脈會掉 10 點 ——
     你離開了原本認識你的那一群人。</div>
@@ -10606,36 +10653,7 @@ function tyPlayTab(){
     房地合一稅依持有年限 45% / 35% / 20% / 15%)。這裡各取一個代表值,
     用途是讓「賣掉 vs 借錢」這個取捨有真實的量級。</div>
 
-  <div class="p-sec">在地夥伴<span>政策風險高的地方,不是有錢就進得去</span></div>
-  <div class="ty-juris">${
-    Object.entries(TY_PARTNERS).map(([reg,d])=>{
-      const have=TY.partners[reg];
-      return `<div class="ty-j${have?' on':''}">
-        <div class="j-h"><b>${escH(d.nm)}</b><span>${TY_REGIONS[reg].nm}</span></div>
-        <div class="j-d">${escH(d.tag)}。抽走當地事業現金流的
-          ${((have?have.cut:d.cut)*100).toFixed(0)}%,但那個地區的政策風險對你只剩一半,
-          而且你買得到原本買不到的東西。</div>
-        <div class="j-a">${have?'<span class="j-on">已經是夥伴</span>'
-          :tyActBtn('partner', reg, `合資 ${tyM(tyPartnerCost())}`, ` data-reg="${reg}"`, 'alt')}</div>
-        ${have?'':tyNeedHTML(tyNeeds('partner', reg),'tight')}
-      </div>`;
-    }).join('')}</div>
-
-  <div class="p-sec">影響力<span>影響力:用錢買點數,金額自己選 —— 但效果是遞減的</span></div>
-  <div class="ty-opens">
-    ${tyPlayCard('lobby','政治獻金與遊說', `人脈 +9 起跳 · 關注度也會跟著上去`,
-       '基建標案的評選、危機時的紓困名單、法規的過渡期長短 —— 這些東西不看財報。',
-       {label:'送出獻金'})}
-    ${tyPlayCard('media','買一波媒體曝光', `名氣 +7 起跳${TY.scn==='self'?'(白手起家加倍)':''}`,
-       '專訪、封面、一本掛你名字的書。名氣夠高就能開品牌授權公司,幾乎不用資本。',
-       {label:'買曝光'})}
-    ${tyPlayCard('charity','成立慈善基金會', `關注 −16 起跳 · 名氣 +5 起跳`,
-       '一個正在蓋醫院的人,比較不像一個要被查的人。這是最貴、但也最乾淨的降溫方式。',
-       {label:'捐出去'})}
-  </div>
-  <div class="expo-note">⚠ 這三個手法的效果是 <b>0.6 次方遞減</b>而且單次有上限:
-    花兩倍的錢大約只買到 1.5 倍的效果,花十倍買到 4 倍。這是故意的 ——
-    線性的話,身家一大就能在一季之內把名氣與人脈買滿,後面四十季就沒有任何取捨了。</div>`;
+  </details>`;
 }
 
 /* =========================================================================
@@ -10722,19 +10740,17 @@ function tyVaultTab(){
   const intr=(TY.debt-sbl)*tyRate()/100/4 + sbl*tySblRate()/100/4;
   return `
   ${tyGauge('抵押借款的槓桿', TY.debt, tyBorrowMax(),
-     `負債 <b>${tyM(TY.debt)}</b> / 抵押上限 ${tyM(tyBorrowMax())} · 每季利息 <b class="down">${tyM(intr)}</b>(年利率 ${tyRate().toFixed(2)}%)。
-      資產一跌,上限跟著縮 —— 同樣的負債,比例會自己往右跑。`)}
-  ${(TY.sbl||0)>0 || tySecVal()>0 ? tyGauge('證券質押的維持率', TY.sbl||0, tySblMax(),
+     `<span title="負債 ${tyM(TY.debt)} / 抵押上限 ${tyM(tyBorrowMax())} · 年利率 ${tyRate().toFixed(2)}%">每季要付利息 <b class="down">${tyM(intr)}</b>。
+      條越往右越危險:資產一跌,上限跟著縮,同樣的負債會自己往右跑。</span>`)}
+  ${(TY.sbl||0)>0 ? tyGauge('證券質押的維持率', TY.sbl||0, tySblMax(),
      `質押 ${tyM(TY.sbl||0)} / 額度 ${tyM(tySblMax())}。超過 115% 券商會直接賣你的證券 —— 一賣就實現獲利、當場課稅。`) : ''}
   <div class="ty-facts">
     <div><em>現金</em><b>${tyM(TY.cash)}</b></div>
     <div><em>現金放在</em><b>${escH(tySite(TY.cashSite).nm)}</b></div>
-    <div><em>集團稅率</em><b>${(tyTaxRate()*100).toFixed(1)}%</b></div>
-    <div><em>信託</em><b>${TY.struct.trust?'✓ 已設立':'沒有'}</b></div>
   </div>
   <div class="ty-opens">
     ${tyPlayCard('borrow','抵押借款',
-       `上限 ${tyM(tyBorrowMax())} · 目前 ${tyM(TY.debt)} · 年利率 ${tyRate().toFixed(2)}%`,
+       `還能借 ${tyM(Math.max(0,tyBorrowMax()-TY.debt))}`,
        '把手上的資產拿去抵押。槓桿讓好決定變成兩倍好,也讓壞決定變成兩倍壞 —— 而且利息不管你賺不賺錢都要付。',
        {label:'借款'})}
     ${tyPlayCard('repay','提前還款',
@@ -10743,7 +10759,8 @@ function tyVaultTab(){
        {label:'還款'})}
   </div>
 
-  <div class="p-sec">不賣,改成借<span>Buy · Borrow · Die —— 這是這一頁最重要的一段</span></div>
+  <details class="adv"><summary>🎓 進階:有錢人的省稅與避險手法<span>質押借款、控股層、錢放在哪裡、信託 —— 賺到第一桶金之後再來看</span></summary>
+  <div class="p-sec">不賣,改成借<span>Buy · Borrow · Die</span></div>
   ${(()=>{ const un=tyUnreal(), sec=tySecVal(), max=tySblMax(), used=TY.sbl||0;
     const cgs=tyCg(TY.home,1);
     return `<div class="ty-bbd">
@@ -10817,7 +10834,7 @@ function tyVaultTab(){
     ${tyPlayCard('trust','資產隔離信託', `需要 2 家空殼 · 費用 ${tyM(tyTrustCost())}(淨值 3%)`,
        '把個人資產放進債權人拿不走的地方。破產時它是你唯一的降落傘;平常它讓富豪榜上的你看起來窮三成。',
        {done: TY.struct.trust ? '已設立' : ''})}
-  </div>`;
+  </div></details>`;
 }
 
 /* =========================================================================
@@ -11004,7 +11021,7 @@ function tyTroopTab(){
     const opts = k==='missile'
       ? tyRivalsA().map(r=>({ id:r.home, lab:`${r.ic||''} ${r.nm}(${tySite(r.home).nm})` }))
       : TY_SITES.filter(st=>tyStrikeTarget('air', st.id)).map(st=>{ const r=tyStrikeTarget('air', st.id);
-          return { id:st.id, lab:`${st.nm}(${TY_REGIONS[st.reg].nm} · ${r.nm} ${tyTurf(r,st.reg).toFixed(0)})` }; });
+          return { id:st.id, lab:`${st.nm}(${r.nm})` }; });
     const ready=tyStrikeReady(k);
     return `<div class="ty-ucard strike${ready?'':' cool'}">
       <div class="uc-h"><i>${d.ic}</i><b>${d.nm}</b>
@@ -11025,11 +11042,12 @@ function tyTroopTab(){
     ${raid?`<div class="p-sec">股權防禦<span>對手買你的股票</span></div>${raid}`:''}
     <div class="p-sec">指揮中心<span>${U.length} / ${TY_UNIT_MAX} 支 · 維持費 ${tyM(tyUnitUpkeep())}/季</span></div>
     ${mine}
-    ${tyGenHTML()}
+    <div class="p-sec">招募<span>最多 ${TY_UNIT_MAX} 支 · 價格跟著你的身家走</span></div>
+    <div class="ty-ucards">${cards}</div>
     <div class="p-sec">打擊<span>有冷卻時間 · 打出去對手會記恨</span></div>
     <div class="ty-ucards">${strikes}</div>
-    <div class="p-sec">招募<span>最多 ${TY_UNIT_MAX} 支 · 價格跟著你的身家走</span></div>
-    <div class="ty-ucards">${cards}</div>`;
+    <details class="adv"${tyGens().length?' open':''}><summary>🎓 進階:將領<span>掛在一支部隊上讓它更強 —— 有部隊之後再來看</span></summary>
+    ${tyGenHTML()}</details>`;
 }
 
 /* 派遣 / 打擊之後,把剛剛發生的事交給畫面層演出來(飛機、船、飛彈、戰機) */
@@ -11354,6 +11372,10 @@ function tyEndHTML(){
       <div class="e-t">${title}</div>
       ${how==='win'?`<div class="e-w" style="color:#ffd60a">用了 <b>${TY.winQ} 季</b> · 實際 ${tyClockTxt(TY.real)}${TY.newBest?' · 🏅 新紀錄!':rec?` · 你的最快是 ${rec.q} 季(${tyClockTxt(rec.ms)})`:''}</div>`:''}
       ${TY.endTxt?`<div class="e-w">${TY.endTxt}</div>`:''}
+      ${(()=>{ /* 第四十五輪:先看一張圖,再看文字 */
+        const st=(TY.nw&&TY.nw[0])||1, nw=tyNW(), m=nw/Math.max(1,st);
+        return `<div class="e-big"><span>${tyM(st)}</span><i>→</i><b class="${nw>=st?'up':'down'}">${tyM(nw)}</b><em>${m>=1?'×'+m.toFixed(1):'剩 '+(m*100).toFixed(0)+'%'}</em></div>
+          <div class="e-chart">${tyNwLines()}</div>`; })()}
       ${TY.final?`<div class="e-w">♾ 十年結算時:第 <b>${TY.final.rank}</b> 名、身家 ${tyM(TY.final.nw)} · 之後多玩了 ${TY.t-TY.final.t} 季</div>`:''}
       ${TY.space && TY.space.mars.st>=4 ? '<div class="e-w">🚀 <b>火星首富</b> —— 你把人送上火星,而且讓殖民地自己活下去。</div>' : ''}
       ${tySpaceKing() ? `<div class="e-w">🌌 <b>太空霸主</b> —— 月球與火星上你佔了 ${tyPlotsOf('me')} 塊建地,比任何人都多。</div>` : ''}
@@ -13151,7 +13173,14 @@ function tyLearnTab(){
     </div>`;
   }).join('');
 
+  /* 第四十五輪:新手第一眼看到的是「三步驟」,不是名詞表(參考手機遊戲的新手引導:只講下一步要按什麼) */
   return `<div class="ty-learn">
+      <div class="p-sec">新手三步驟<span>先照這樣玩,其他的之後再看</span></div>
+      <div class="qs">
+        <div class="qs-s"><i>1</i><b>把「🏗 建設」拖到城市</b><span>蓋一家公司。<em>蓋下去身家馬上變多</em> —— 公司本身就值錢。</span></div>
+        <div class="qs-s"><i>2</i><b>讓時間跑,每季收錢</b><span>公司每季賺錢進你的現金;錢夠了再蓋、或用「⬆ 升級」讓它賺更多。</span></div>
+        <div class="qs-s"><i>3</i><b>身家到榜首的兩倍就贏</b><span>右上角 🏆 看進度。小心:<em>景氣變差時公司會變不值錢</em>,借太多錢會破產。</span></div>
+      </div>
       <div class="p-sec">三十秒看懂<span>錢在這裡只有三條路可以走</span></div>
       <div class="ty-paths">${paths}</div>
 
@@ -13205,8 +13234,10 @@ function tyResBar(){
       ${cell('💵', tyM(TY.cash), '現金', TY.cash<0?'bad':'', '可以立刻動用的錢')}
       ${cell('🏦', tyM(TY.debt), '負債', TY.debt>tyBorrowMax()*.9?'bad':'',
              `年利率 ${tyRate().toFixed(2)}% · 上限 ${tyM(tyBorrowMax())}`)}
-      ${cell('%', M.rate.toFixed(1), '利率', '',
-             `央行利率 ${M.rate.toFixed(1)}% · 通膨 ${M.inf.toFixed(1)}%`)}
+      ${(()=>{ /* 第四十五輪:「利率 2.5」新手看不懂 → 景氣天氣(利率收進提示) */
+        const W={ expand:['☀','擴張'], boom:['🔥','過熱'], tight:['🌥','升息'], recess:['🌧','衰退'], crisis:['⛈','危機'], recover:['🌤','復甦'] }[M.reg]||['☀','景氣'];
+        return cell(W[0], W[1], '景氣', M.reg==='crisis'||M.reg==='recess'?'bad':'',
+          `${TY_REGIME[M.reg].nm}:${TY_REGIME[M.reg].dsc} · 央行利率 ${M.rate.toFixed(1)}% · 通膨 ${M.inf.toFixed(1)}%`); })()}
       ${meter('★', TY.credit, '信用', 0, '銀行願意借你多少的底')}
       ${meter('✦', TY.fame, '名氣', 0, '上市、募資、找合夥人都看它')}
       ${meter('🤝', TY.infl, '人脈', 0, '被查到的時候擋得住多少')}

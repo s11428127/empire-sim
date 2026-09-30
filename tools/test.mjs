@@ -2462,6 +2462,46 @@ test('帝國第二十輪:月球 / 火星建地(登月、火星計畫前置、補
   await page.__ctx.close();
 });
 
+test('帝國第三十六輪:給新手 —— 金額四捨五入、景氣天氣、進階收起來、結算先看圖', async (browser) => {
+  const page = await freshPage(browser, { seed: SEED, hash: '#/tycoon' });
+  const r = await page.evaluate(() => {
+    const out = {};
+    out.fmt = [tyM(31640000), tyM(25e8), tyM(3.24e8), tyM(-7644e4), tyM(1234e8), tyM(180e4)];
+    TY_SPEED = 0; tyStart('heir', 171); TY.rt = true; TY_NEWCARD.length = 0;
+    TY.macro.reg = 'recess'; renderPage();
+    const cells = [...document.querySelectorAll('.tg-res .r')];
+    out.weather = cells.length === 7 && /衰退/.test(cells[2].textContent) && /景氣/.test(cells[2].textContent) && /利率/.test(cells[2].title);
+    TY_MODAL = 'vault'; renderPage();
+    const adv = document.querySelector('.tg-mb details.adv');
+    out.vaultAdv = !!adv && !adv.open && !!adv.querySelector('[data-ty="holdco"]') && !!document.querySelector('.tg-mb [data-ty="borrow"]');
+    out.noSbl = !/證券質押的維持率/.test([...document.querySelector('.tg-mb').children].filter(e => !e.matches('details')).map(e => e.textContent).join(''));
+    TY_MODAL = 'play'; renderPage();
+    const pa = document.querySelector('.tg-mb details.adv');
+    out.playAdv = !!pa && !pa.open && !!pa.querySelector('[data-ty="movehome"]')
+      && document.querySelector('.tg-mb').innerHTML.indexOf('data-ty="media"') < document.querySelector('.tg-mb').innerHTML.indexOf('details');
+    TY_MODAL = 'troop'; renderPage();
+    const tt = document.querySelector('.tg-mb').innerHTML;
+    out.troop = tt.indexOf('data-ty="recruit"') < tt.indexOf('details class="adv"') && !document.querySelector('.tg-mb details.adv').open;
+    TY_MODAL = 'learn'; renderPage();
+    out.qs = document.querySelectorAll('.qs .qs-s').length === 3;
+    for (let i = 0; i < 3; i++) tyNext();
+    TY_MODAL = null; TY.done = 'win'; TY.win = 'econ'; TY.winQ = TY.t + 1; renderPage();
+    const end = document.querySelector('.ty-end');
+    out.end = !!end.querySelector('.e-big') && !!end.querySelector('.vz-line') && !/\*\*/.test(end.textContent) && !/十年之間/.test(end.textContent);
+    return out;
+  });
+  eq(r.fmt, ['3200 萬', '25 億', '3.2 億', '-7600 萬', '1234 億', '180 萬'], '金額只留兩、三位有效數字');
+  ok(r.weather, '資源列第三格是景氣天氣,利率收進提示');
+  ok(r.vaultAdv, '金庫:質押 / 控股 / 信託收在「進階」裡(預設收起),借款留在外面');
+  ok(r.noSbl, '金庫:還沒質押時,外面不顯示質押量表');
+  ok(r.playAdv, '手法:影響力在前,搬家省稅收在「進階」');
+  ok(r.troop, '部隊:招募在將領前面,將領收在「進階」');
+  ok(r.qs, '怎麼玩:最上面是新手三步驟');
+  ok(r.end, '結算:先大字與走勢圖;沒有沒轉換的星號;提早贏不寫「十年之間」');
+  ok(page.__errors.length === 0, `有 JS 錯誤:\n      ${page.__errors.join('\n      ')}`);
+  await page.__ctx.close();
+});
+
 test('帝國第三十五輪:看得懂的數字 —— 只列還差的條件、回本時間軸、箭頭、比較面板', async (browser) => {
   const page = await freshPage(browser, { seed: SEED, hash: '#/tycoon' });
   const r = await page.evaluate(() => {
