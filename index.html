@@ -2512,6 +2512,21 @@
   .e-big span{font-size:16px;color:var(--g-t3)} .e-big i{font-style:normal;color:var(--g-t3)}
   .e-big b{font-size:28px} .e-big em{font-style:normal;font-size:16px;color:#ffd84a}
   .e-chart{max-width:420px;margin:0 auto}
+  .vz-tip{position:absolute;z-index:9999;max-width:min(320px,90vw);padding:8px 10px;background:#0b1620;color:#e6edf3;
+    border:2px solid #2997ff;font-size:12.5px;line-height:1.55;white-space:pre-line;pointer-events:none;box-shadow:0 3px 0 #000}
+  .vz-pips{letter-spacing:1px;color:#ffd84a} .vz-pips i{font-style:normal;color:#4a5b6c}
+  details.pc-fold{margin:0 0 10px;border:1px solid var(--g-line);background:rgba(255,255,255,.02)}
+  details.pc-fold>summary{cursor:pointer;list-style:none;padding:8px 10px;font-size:12.5px;display:flex;flex-wrap:wrap;gap:4px 10px;align-items:center}
+  details.pc-fold>summary::-webkit-details-marker{display:none}
+  details.pc-fold>summary .g{color:#6fd0ff} details.pc-fold>summary .b{color:#ffb340}
+  details.pc-fold>summary i{font-style:normal;color:var(--g-t3);margin-left:auto;font-size:11px}
+  details.pc-fold .pc-box{margin:0 8px 8px}
+  .vz-rng{display:flex;align-items:center;gap:6px;margin:4px 0 2px;font-size:10.5px;color:var(--g-t3)}
+  .vz-rng em{font-style:normal;white-space:nowrap}
+  .vz-rng .t{position:relative;flex:1;min-width:80px;max-width:220px;height:10px;background:#2a3a4a}
+  .vz-rng .t u{position:absolute;top:2px;bottom:2px;background:#5b7a96}
+  .vz-rng .t s{position:absolute;top:-3px;bottom:-3px;width:2px;margin-left:-1px;background:#e6edf3}
+  .vz-rng .t i{position:absolute;top:50%;width:9px;height:9px;margin:-4.5px 0 0 -4.5px;background:#ffd84a;box-shadow:0 0 0 1px #000}
   .qs{display:flex;flex-direction:column;gap:8px;margin:0 0 14px}
   .qs-s{display:grid;grid-template-columns:30px 1fr;gap:2px 10px;padding:10px;background:var(--g-p2);border:1px solid var(--g-line)}
   .qs-s i{grid-row:span 2;font-style:normal;width:26px;height:26px;display:flex;align-items:center;justify-content:center;
@@ -8337,10 +8352,15 @@ function tyProsConsHTML(id, lite){
   const { pros, cons }=tyProsCons(id);
   if(!pros.length && !cons.length) return lite ? '' : `<div class="pc-box"><em>這座城沒有特別的優勢或缺點 —— 什麼都能做,但沒有加成。</em></div>`;
   const li=a=>a.map(x=>`<li>${x}</li>`).join('');
-  return `<div class="pc-box${lite?' lite':''}">
+  const box=`<div class="pc-box${lite?' lite':''}">
     ${pros.length?`<div class="pc-col good"><h5>👍 優勢</h5><ul>${li(pros)}</ul></div>`:''}
     ${cons.length?`<div class="pc-col bad"><h5>👎 缺點</h5><ul>${li(cons)}</ul></div>`:''}
   </div>`;
+  if(!lite) return box;
+  /* 第四十六輪:出牌選單裡收成一行 —— 每一個選項自己已經標了「這座城:…」,
+     整張優缺點表先擺在最上面,會把真正要選的東西擠出第一個畫面。 */
+  const nm=h=>(h.match(/<b>(.*?)<\/b>/)||[])[1]||'';
+  return `<details class="pc-fold"><summary>🏙 這座城:${pros.length?`<span class="g">👍 ${pros.map(nm).join('、')}</span>`:''}${cons.length?`<span class="b">👎 ${cons.map(nm).join('、')}</span>`:''}<i>看細節 ▾</i></summary>${box}</details>`;
 }
 /* 開一家公司在這裡要多少錢。掠奪者的折扣與城市的成本加成都在這裡,
    ⚠ 只能有這一支 —— 三個地方(動作、門檻、畫面)都要拿到同一個數字。 */
@@ -10327,8 +10347,12 @@ function tyBuySimple(k, site){
   const amt=tyOrderAmt(); if(amt<1e6) return '現金不夠,連一筆像樣的單都下不了。';
   const o=tyAssetOutlook(k), fee=tyFeeOf(k, site);
   const exp=amt*(1-fee)*o.m, hi=amt*(1-fee)*(o.m+o.v), lo=amt*(1-fee)*(o.m-o.v);
+  /* 第四十六輪:三個數字 → 一條範圍條(運氣差 ↔ 運氣好,點 = 大概,直線 = 不賺不賠) */
+  const L=Math.min(lo,0), H=Math.max(hi,0), X=v=>((v-L)/Math.max(1,H-L)*100).toFixed(1);
   return `買 <b>${tyM(amt)}</b> → 下一季大概 <b class="${exp>=0?'up':'down'}">${exp>=0?'+':'−'}${tyM(Math.abs(exp))}</b>`
-       + `(運氣好 +${tyM(Math.max(0,hi))}、運氣差 −${tyM(Math.max(0,-lo))})`;
+       + `<span class="vz-rng" title="運氣好 +${tyM(Math.max(0,hi))} · 運氣差 −${tyM(Math.max(0,-lo))}"><em>運氣差</em><span class="t">`
+       + `<u style="left:${X(lo)}%;width:${(X(hi)-X(lo)).toFixed(1)}%"></u><s style="left:${X(0)}%"></s><i style="left:${X(exp)}%"></i></span><em>運氣好</em></span>`
+       + (lo<0?`<span class="vz-note">${-lo>amt*.1?'有可能賠不少':'有可能小賠'}</span>`:'');
 }
 function tyBuyPreview(k, site){
   const a=tyAsset(k), amt=tyOrderAmt();
@@ -13618,6 +13642,37 @@ function tyCmpHTML(){
 }
 
 addEventListener('keydown', e=>{ if(e.key==='Escape' && TY_CMP){ e.preventDefault(); e.stopImmediatePropagation(); TY_CMP=null; renderPage(); } }, true);
+/* 「0/4 段」這種小計數 → 方格(■■□□),一眼看出還差幾格(第四十六輪) */
+const tyPipTxt = t => t.replace(/(\d+)\s*\/\s*(\d+)/g, (m,a,b)=>{ a=+a; b=+b;
+  return b>0 && b<=8 ? `<span class="vz-pips" title="${a} / ${b}">${'■'.repeat(Math.min(a,b))}<i>${'□'.repeat(Math.max(0,b-a))}</i></span>` : m; });
+/* 長按看細節(第四十六輪)
+   使用者在 iPad 上玩:精確數字放在 title 裡,但手指沒有「停上去」這件事。
+   → 手指按住 0.45 秒就把 title 變成一個泡泡。泡泡用**頁面座標**擺(不是 fixed),
+     捲動不會消失;點任何地方就收起來。長按之後放開不算一次點擊(不然會誤按按鈕)。 */
+(function(){
+  let tm=null, sx=0, sy=0, fired=false, tip=null;
+  const close=()=>{ if(tip){ tip.remove(); tip=null; } };
+  addEventListener('pointerdown', e=>{
+    close();
+    if(e.pointerType==='mouse') return;
+    const t=e.target && e.target.closest ? e.target.closest('.tycon [title]') : null;
+    const txt=t && t.getAttribute('title');
+    if(!txt) return;
+    sx=e.clientX; sy=e.clientY; fired=false; clearTimeout(tm);
+    tm=setTimeout(()=>{
+      fired=true; tip=document.createElement('div'); tip.className='vz-tip'; tip.textContent=txt;
+      document.body.appendChild(tip);
+      const r=tip.getBoundingClientRect();
+      tip.style.left=(Math.max(8, Math.min(innerWidth-r.width-8, sx-r.width/2))+scrollX)+'px';
+      tip.style.top=(Math.max(8, sy-r.height-22)+scrollY)+'px';
+    }, 450);
+  }, true);
+  addEventListener('pointermove', e=>{ if((tm||tip) && Math.hypot(e.clientX-sx, e.clientY-sy)>10){ clearTimeout(tm); tm=null; close(); } }, true);   // 開始拖牌:泡泡收掉
+  addEventListener('pointerup', ()=>{ clearTimeout(tm); tm=null; }, true);
+  addEventListener('pointercancel', ()=>{ clearTimeout(tm); tm=null; }, true);
+  addEventListener('click', e=>{ if(fired){ fired=false; e.preventDefault(); e.stopImmediatePropagation(); } }, true);
+  addEventListener('contextmenu', e=>{ if(fired || tm) e.preventDefault(); }, true);   // 別讓系統的長按選單蓋過泡泡
+})();
 function tyModalHTML(){
   if(!TY_MODAL) return '';
   const k=TY_MODAL;
@@ -14238,7 +14293,7 @@ function tyGoalTab(){
   const row=(k)=>{ const d=TY_WIN[k], p=P[k], rec=best[TY.scn+':'+k];
     return `<div class="gl-row"><div class="gl-h"><i>${d.ic}</i><b>${d.nm}</b><span>${Math.round(p.v*100)}%</span></div>
       <div class="gl-bar"><u style="width:${Math.round(p.v*100)}%"></u></div>
-      <div class="gl-d">${escH(d.dsc)} · <b>${escH(p.txt)}</b></div>
+      <div class="gl-d">${escH(d.dsc)} · <b>${tyPipTxt(escH(p.txt))}</b></div>
       <div class="gl-rec">${rec?`你的最快紀錄(${escH(tyScn().nm)}):<b>${rec.q} 季</b> · ${tyClockTxt(rec.ms)}`:'還沒有紀錄'}</div></div>`; };
   const rv=tyRivalsA().slice().sort((a,b)=>b.nw-a.nw)[0];
   return `<div class="expo-note">三條路,<b>先達成哪一條就贏</b>。紀錄比的是用了幾季(遊戲時間),暫停、選幾倍速都不影響。

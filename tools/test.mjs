@@ -2462,6 +2462,58 @@ test('帝國第二十輪:月球 / 火星建地(登月、火星計畫前置、補
   await page.__ctx.close();
 });
 
+test('帝國第三十七輪:長按看細節、方格進度、出牌選單的城市收成一行、投資範圍條', async (browser) => {
+  const page = await freshPage(browser, { seed: SEED, hash: '#/tycoon' });
+  const r = await page.evaluate(async () => {
+    const out = {};
+    out.pips = tyPipTxt('計畫 1/4 段 · 312 億 / 277 億');
+    TY_SPEED = 0; tyStart('heir', 181); TY.rt = true; TY_NEWCARD.length = 0;
+    // 出牌選單:城市優缺點收成一行(可以點開)
+    TY_PICK = { k: 'invest', site: 'tpe' }; TY_MODAL = 'pick'; renderPage();
+    const fold = document.querySelector('.tg-mb details.pc-fold');
+    out.fold = !!fold && !fold.open && /半導體聚落/.test(fold.querySelector('summary').textContent) && !!fold.querySelector('.pc-box');
+    out.rng = !!document.querySelector('.tg-mb .vz-rng .t i') && !!document.querySelector('.tg-mb .vz-rng .t s');
+    // 長按:手指按住 → 泡泡出現、內容是 title;放開之後那一下不算點擊
+    TY_MODAL = 'biz'; renderPage();
+    const el = document.querySelector('.tg-mb .c-val[title]');
+    const rc = el.getBoundingClientRect(), x = rc.left + 5, y = rc.top + 3;
+    const ev = (t, type) => new PointerEvent(type, { bubbles: true, pointerType: t, clientX: x, clientY: y });
+    el.dispatchEvent(ev('touch', 'pointerdown'));
+    await new Promise(res => setTimeout(res, 600));
+    const tip = document.querySelector('.vz-tip');
+    out.tip = !!tip && tip.textContent === el.getAttribute('title');
+    el.dispatchEvent(ev('touch', 'pointerup'));
+    let clicked = false; const h = () => { clicked = true; }; document.addEventListener('click', h);
+    el.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    out.noClick = !clicked;
+    document.removeEventListener('click', h);
+    // 點一下別的地方就收起來;滑鼠不會觸發長按
+    document.body.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerType: 'touch', clientX: 1, clientY: 1 }));
+    out.closed = !document.querySelector('.vz-tip');
+    el.dispatchEvent(ev('mouse', 'pointerdown'));
+    await new Promise(res => setTimeout(res, 600));
+    out.mouse = !document.querySelector('.vz-tip');
+    el.dispatchEvent(ev('mouse', 'pointerup'));
+    // 按住但手指移動(拖牌)→ 不出泡泡
+    el.dispatchEvent(ev('touch', 'pointerdown'));
+    document.dispatchEvent(new PointerEvent('pointermove', { bubbles: true, pointerType: 'touch', clientX: x + 40, clientY: y }));
+    await new Promise(res => setTimeout(res, 600));
+    out.drag = !document.querySelector('.vz-tip');
+    el.dispatchEvent(ev('touch', 'pointerup'));
+    return out;
+  });
+  ok(/■<i>□□□<\/i>/.test(r.pips) && /312 億 \/ 277 億/.test(r.pips), `小計數變方格,金額不動:${r.pips}`);
+  ok(r.fold, '出牌選單:城市優缺點收成一行,點開看得到細節');
+  ok(r.rng, '投資選項:運氣差 ↔ 運氣好的範圍條,有「大概」的點與不賺不賠的線');
+  ok(r.tip, '手指長按:泡泡出現,內容就是提示文字');
+  ok(r.noClick, '長按放開之後那一下不算點擊');
+  ok(r.closed, '點別的地方,泡泡收起來');
+  ok(r.mouse, '滑鼠不觸發長按(滑鼠本來就看得到提示)');
+  ok(r.drag, '按住後手指移動(拖牌)不出泡泡');
+  ok(page.__errors.length === 0, `有 JS 錯誤:\n      ${page.__errors.join('\n      ')}`);
+  await page.__ctx.close();
+});
+
 test('帝國第三十六輪:給新手 —— 金額四捨五入、景氣天氣、進階收起來、結算先看圖', async (browser) => {
   const page = await freshPage(browser, { seed: SEED, hash: '#/tycoon' });
   const r = await page.evaluate(() => {
