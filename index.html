@@ -2529,6 +2529,35 @@
   .vz-rng .t i{position:absolute;top:50%;width:9px;height:9px;margin:-4.5px 0 0 -4.5px;background:#ffd84a;box-shadow:0 0 0 1px #000}
   .cm-map{width:100%;font-size:14px;padding:10px 12px}
   details.cm-alt{margin:2px 0 4px} details.cm-alt>summary{cursor:pointer;font-size:11.5px;color:var(--g-t3);padding:4px 0}
+  /* ---- 第四十八輪:新手輔導(教練) ---- */
+  .co-host{position:absolute;left:8px;bottom:40px;z-index:228;width:min(340px,calc(100% - 70px));pointer-events:none}
+  .co-host>*{pointer-events:auto}
+  .tycon[data-modal]:not([data-side]) .co-host{display:none}
+  .co-card{background:rgba(11,22,32,.94);border:2px solid #ffd84a;box-shadow:0 3px 0 #000;padding:8px 10px;font-size:12.5px}
+  .co-card.hot{border-color:#ff453a;animation:co-pulse 1.2s ease-in-out infinite}
+  @keyframes co-pulse{50%{box-shadow:0 0 0 3px rgba(255,69,58,.35),0 3px 0 #000}}
+  .co-h{display:flex;align-items:center;gap:8px;margin-bottom:4px}
+  .co-h b{color:#ffd84a;font-size:12px}
+  .co-h span{font-size:10.5px;color:var(--g-t3);flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .co-h span i{font-style:normal;color:#ffd84a;letter-spacing:1px}
+  .co-x{font:inherit;background:none;border:0;color:var(--g-t3);cursor:pointer;padding:0 4px}
+  .co-t{font-size:13.5px;font-weight:600;line-height:1.5}
+  .co-w{color:var(--g-t2);line-height:1.55;margin:2px 0 6px}
+  .co-a{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .co-n{font-style:normal;font-size:11px;color:#ffd84a}
+  .co-more{font:inherit;font-size:11px;background:none;border:0;color:#6fd0ff;cursor:pointer;padding:6px 0 2px}
+  .co-list{display:flex;flex-direction:column;gap:5px;margin-top:4px}
+  .co-li{display:flex;align-items:center;justify-content:space-between;gap:6px;font-size:11.5px;color:var(--g-t2)}
+  .co-li .ty-b{font-size:11px;padding:3px 7px;white-space:nowrap}
+  .co-f{margin-top:6px;font-size:10px;color:var(--g-t3)}
+  .co-off{font:inherit;background:none;border:0;color:var(--g-t3);text-decoration:underline;cursor:pointer;padding:0}
+  .co-mini{font-size:22px;width:44px;height:44px;background:rgba(11,22,32,.94);border:2px solid #ffd84a;cursor:pointer;position:relative}
+  .co-mini.hot{border-color:#ff453a}
+  .co-mini i{position:absolute;top:-6px;right:-6px;font-style:normal;font-size:11px;background:#ff453a;color:#fff;width:16px;height:16px;line-height:16px}
+  .co-intro{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:0 0 12px;padding:10px;border:1px dashed #ffd84a;font-size:12.5px;color:var(--g-t2)}
+  .co-intro span{flex:1;min-width:220px;line-height:1.6}
+  .co-tg{font:inherit;font-size:14px;cursor:pointer;padding:6px 12px;border:2px solid var(--g-line);background:var(--g-p2);color:var(--g-t)}
+  .co-tg.on{border-color:#ffd84a}
   .qs{display:flex;flex-direction:column;gap:8px;margin:0 0 14px}
   .qs-s{display:grid;grid-template-columns:30px 1fr;gap:2px 10px;padding:10px;background:var(--g-p2);border:1px solid var(--g-line)}
   .qs-s i{grid-row:span 2;font-style:normal;width:26px;height:26px;display:flex;align-items:center;justify-content:center;
@@ -5686,6 +5715,9 @@ const midnight = () => { const d=new Date(); d.setHours(0,0,0,0); return d; };
      千萬不要拿它算真實報酬。
    ========================================================================= */
 const TY_KEY='orbit.tycoon.v1';
+/* 劇本能力的幾個旋鈕(第四十八輪重新校準,見 README) */
+const TY_FLOAT_K=4.5, TY_LBO=.4, TY_RAID_P=.45;
+const TY_TOP0=1.25;                   // 開局時榜首至少是你的幾倍(第四十八輪)
 const TY_QN=40;                       // 一局 40 季 = 10 年
 const TY_Y0=2026;                     // 開局年份
 
@@ -5920,33 +5952,33 @@ const TY_SCN = [
     fun:'節奏最快:開局就能大舉借錢蓋樓、上媒體、掛名授權。爛掉的公司用破產保護切掉 —— 但借太滿會爆。',
     dsc:'你不是從零開始 —— 你從「別人願意借你錢」開始。房地產、名字、還有出事時能重來的本事。',
     perk:'借款利率 −0.6%;房地產交易成本減半;破產保護只扣一半名氣。' },
-  { k:'macro', home:'lon', rivals:.5, nm:'狙擊手', sub:'一支小基金,和對央行下注的膽量',
+  { k:'macro', home:'lon', rivals:.5, top0:1.1, nm:'狙擊手', sub:'一支小基金,和對央行下注的膽量',
     cash:9e8, debt:0, credit:58, fame:22, infl:6, biz:'fund',
-    like:['索羅斯','德魯肯米勒(Druckenmiller)','保羅·都鐸·瓊斯'], diff:3, win:'約 66%',
+    like:['索羅斯','德魯肯米勒(Druckenmiller)','保羅·都鐸·瓊斯'], diff:4, win:'約 46%',
     fun:'看景氣燈號下注:衰退、泡沫放空,緊縮時放空外匯等央行棄守。賺得快也賠得快,要留現金。',
     dsc:'你相信價格會回到基本面,而且你知道政府撐不住的那一天長什麼樣子。',
     perk:'放空額度加倍;外匯與放空的交易成本減半;央行棄守時你賺的是別人的兩倍。' },
-  { k:'float', home:'nyc', rivals:.3, nm:'複利者', sub:'一家小保險公司,和四十年的耐心',
+  { k:'float', home:'nyc', rivals:.3, top0:1.1, nm:'複利者', sub:'一家小保險公司,和四十年的耐心',
     cash:6e8, debt:0, credit:70, fame:10, infl:12, biz:'bank',
     like:['巴菲特','蒙格','普雷姆·瓦察(Fairfax,「加拿大巴菲特」)'], diff:1, win:'約 80%',
     fun:'最穩但前期最平淡:用保險的浮存金(零利率)買會賺錢的公司,別人恐慌時加碼,然後等。',
     dsc:'你不追求任何一季的最高分。你只要每一季都不出局,然後讓時間去做剩下的事。',
-    perk:'浮存金加倍,而且浮存金額度內的借款零利率;所有交易成本減半;信用永遠不會掉到 45 以下。' },
+    perk:'浮存金放大 4.5 倍,而且浮存金額度內的借款零利率;所有交易成本減半;信用永遠不會掉到 45 以下。' },
   { k:'founder', home:'sfo', nm:'創辦人', sub:'一份簡報,和一個還沒被證明的東西',
     cash:2e8, debt:0, credit:45, fame:6, infl:4, biz:'tech',
-    like:['馬斯克','貝佐斯','祖克柏'], diff:3, win:'約 60%',
+    like:['馬斯克','貝佐斯','祖克柏'], diff:3, win:'約 62%',
     fun:'用到最多系統:科技公司燒錢、上市、星鏈、月球、火星。前幾季在虧錢,上市那一刻身家翻好幾倍。',
     dsc:'你手上沒有資產,只有一個故事。而這個世界會為好故事付出非常荒謬的倍數。',
     perk:'科技事業估值倍數 +50%;上市門檻減半;上市後名氣加倍成長。' },
-  { k:'raider', home:'nyc', rivals:.3, nm:'掠奪者', sub:'一家石油公司,和你借來的錢',
+  { k:'raider', home:'nyc', rivals:.3, top0:1.1, nm:'掠奪者', sub:'一家石油公司,和你借來的錢',
     cash:12e8, debt:6e8, credit:62, fame:14, infl:20, biz:'energy',
-    like:['伊坎(Icahn)','KKR(Kravis 與 Roberts)','布恩·皮肯斯(Boone Pickens)'], diff:4, win:'約 48%',
+    like:['伊坎(Icahn)','KKR(Kravis 與 Roberts)','布恩·皮肯斯(Boone Pickens)'], diff:5, win:'約 34%',
     fun:'互動最多:建倉、敵意收購、併吞,一路吃掉對手。仇家多、關注度高,收購失敗會掉名氣。',
     dsc:'你不創造公司,你買下它們 —— 用它們自己的資產做抵押,然後把值錢的部分拆出來賣掉。',
-    perk:'敵意收購與併吞只要付 65% 的價款(其餘用對方的資產借)、敵意收購成功率 +25%、淨值有對方三成就能出手;開設事業成本 −25%;可以拆賣事業;借款上限更高。' },
+    perk:'敵意收購與併吞只要付 40% 的價款(其餘用對方的資產借)、敵意收購成功率 +45%、淨值有對方三成就能出手;開設事業成本 −25%;可以拆賣事業;借款上限更高。' },
   { k:'self', home:'tpe', rivals:.3, nm:'白手起家', sub:'三千萬、一間小建設行,和沒有人接你電話的事實',
     cash:.3e8, debt:0, credit:40, fame:2, infl:2, biz:'dev', bizCap:3e8,
-    like:['王永慶(台塑)','郭台銘(鴻海)','李嘉誠(長實)'], diff:4, win:'約 56%',
+    like:['王永慶(台塑)','郭台銘(鴻海)','李嘉誠(長實)'], diff:3, win:'約 56%',
     fun:'前三年最苦:錢少、借不到。先買曝光把名氣做起來,名氣夠了掛名授權,再滾大。逆轉感最強。',
     dsc:'很難的一局。沒有信用、沒有人脈、沒有安全網 —— 前三年你只有一件事可做:活著。',
     perk:'所有事業現金流 +50%(你自己下去做);名氣成長加倍;沒有任何人盯著你(關注度成長減半)。' },
@@ -7128,7 +7160,7 @@ function tyWinProg(){
   const dead=TY.rivals.filter(r=>r.alive===false).length;
   const k=tyKills(), mp=tyPlotsOf('me','moon');
   return {
-    econ: { v:tyClamp(nw/(2*top),0,1), txt:`${tyM(nw)} / ${tyM(2*top)}${TY.econHold?` · 已維持 ${TY.econHold} 季`:''}` },
+    econ: { v:tyClamp(nw/(2*top),0,1), txt:`${tyM(nw)} / ${tyM(2*top)}${TY.econHold?` · 已維持 ${TY.econHold} 季`:''}${TY.t<TY_ECON_T && nw>=2*top?` · 第 ${TY_ECON_T} 季起才開始算`:''}` },
     war:  { v:tyClamp((Math.min(TY_WAR_N,k) + (tyIsTop()?1:0))/(TY_WAR_N+1),0,1), txt:`親手出局 ${k}/${TY_WAR_N} 人 · ${tyIsTop()?'你是榜首':'還不是榜首'}` },
     mars: { v:tyClamp((Math.min(2,mp) + Math.min(4,st) + Math.min(4,pl))/10,0,1), txt:`月球 ${Math.min(2,mp)}/2 棟 · 計畫 ${st}/4 段 · 火星建地 ${pl}/4 塊` },
   };
@@ -7468,7 +7500,7 @@ function tyAcqBiz(r, take){
 function tyDealPrice(k, r){
   const d=TY_DEALS[k];
   /* 掠奪者(第四十二輪):槓桿收購 —— 三成五的價款用被收購公司自己的資產去借,不用你出 */
-  const lbo = TY.scn==='raider' ? .65 : 1;
+  const lbo = TY.scn==='raider' ? TY_LBO : 1;
   if(k==='hostile') return Math.max(tyRivalStake(r)*1.15*(1-tyToeCut(r))*lbo, 5e8);     // 建倉越多越便宜
   if(k==='merge')   return Math.max(r.nw*.9*(1-tyToe(r).sh)*lbo, 10e8);                   // 已經握有的那幾 % 不用再買
   if(k==='buy')     return tyRivalBizVal(r)*1.2;
@@ -7494,7 +7526,8 @@ const tyRivalBizVal = r => r.nw*.14;
    ========================================================================= */
 const TY_TOE_STEP = .02, TY_TOE_MAX = .20, TY_TOE_LINE = .05;
 const tyToes = () => (TY.toe = TY.toe || {});
-const tyToe = r => (r && tyToes()[r.id]) || { sh:0, cost:0, pub:false };
+/* ⚠ 讀的時候不要建立 TY.toe(畫面層 / 教練每秒都在問「併不併吞得起」,不能因此改到存檔) */
+const tyToe = r => (r && TY.toe && TY.toe[r.id]) || { sh:0, cost:0, pub:false };
 const tyToeCut = r => Math.min(.5, tyToe(r).sh*2.5);
 const tyToeVal = r => tyToe(r).sh * Math.max(0, r.nw);
 const tyToeTotal = () => TY && TY.toe ? tyRivalsA().reduce((a,r)=>a+tyToeVal(r),0) : 0;
@@ -7680,7 +7713,7 @@ function tyDealOdds(k, r, amt){
   p += (TY.fame-30)/400;                              // 名氣讓人願意接電話
   if(k==='hostile'){
     p -= .18;                                          // 敵意收購本來就難
-    if(TY.scn==='raider') p += .25;                    // 掠奪者:這是他的本業(投資銀行、律師團、垃圾債券都是現成的)
+    if(TY.scn==='raider') p += TY_RAID_P;                 // 掠奪者:這是他的本業(投資銀行、律師團、垃圾債券都是現成的)
     // 你的併購小組已經駐在他大本營的地區:每一支 +10%,最多 +30%
     p += Math.min(.3, .1*tyUnitN(tyUnitsIn(tySite(r.home).reg),'raid'));
     p += Math.min(.2, tyToe(r).sh);                      // 建倉:手上握有的股票
@@ -8476,6 +8509,10 @@ function tyStart(scnK, seed){
                                 rel:0, heat:0, pact:0, alive:true, hist:[] }));
   if(s.biz) tyFound(s.biz, s.home, true);
   if(s.bizCap){ const b=TY.biz[TY.biz.length-1]; b.cap=b.cap0=s.bizCap; }   // 白手起家:一間小公司,不是一整家
+  /* 第四十八輪:榜首一開局至少是你的 1.25 倍 —— 使用者截圖:複利者(對手 ×0.3)第 1 季
+     「經濟霸權 100%」,一開局身家就是榜首的兩倍。那不是遊戲,是等第 10 季。 */
+  { const me=Math.max(1e8, tyNW()), top=Math.max(...TY.rivals.map(r=>r.nw));
+    const k0=s.top0||TY_TOP0; if(top < me*k0){ const f=me*k0/top; for(const r of TY.rivals) r.nw*=f; } }
   TY.nw=[tyNW()];
   tyLog('start', `${s.nm}:${s.sub}。人在${tySite(s.home).nm},手上 ${tyM(TY.cash)} 現金`
         + (TY.debt? `,以及 ${tyM(TY.debt)} 的負債。` : '。'));
@@ -8497,9 +8534,9 @@ function tyStart(scnK, seed){
    第 6 季就經濟霸權 —— 因為一家品牌授權只要 3 億、現金流看名氣、估值 16 倍,可以無限複製。
    現實裡同一個名字授權越多越不值錢(品牌稀釋)。所以:有效名氣 = 名氣 ÷ (1 + 0.15 ×(家數 − 1))。
    extra = 還沒開、正在評估的那一家要不要算進去(選單預覽用 1) */
-/* 複利者劇本:保險公司手上的浮存金(資本 × 0.55 × 2),這個額度內的借款零利率 */
+/* 複利者劇本:保險公司手上的浮存金(資本 × 0.55 × TY_FLOAT_K),這個額度內的借款零利率 */
 const tyFloatFree = () => TY.scn!=='float' ? 0
-  : TY.biz.reduce((a,b)=>a+(TY_BIZ[b.k].float ? b.cap*TY_BIZ[b.k].float*2*b.own : 0), 0);
+  : TY.biz.reduce((a,b)=>a+(TY_BIZ[b.k].float ? b.cap*TY_BIZ[b.k].float*TY_FLOAT_K*b.own : 0), 0);
 function tyBrandRate(extra){
   const n=TY.biz.filter(b=>b.k==='brand').length + (extra||0);
   const fameEff=TY.fame/(1+.15*Math.max(0,n-1));
@@ -8704,8 +8741,8 @@ function tyNext(){
     // 合資案:對方分走的那一成五(見 TY_DEALS.jv)
     if(b.jv && cf>0) cf *= (1-(b.jvCut||.15));
     /* 浮存金(第四十二輪;TY_BIZ.bank.float 以前定義了卻沒有用到)—— 保費先收、賠款後付,
-       中間那筆錢拿去投資:每季賺「利率 + 年 3%」。複利者(巴菲特式)劇本的浮存金加倍。 */
-    if(d.float) cf += b.cap*d.float*(TY.scn==='float'?2:1)*(M.rate/100 + .03)/4;
+       中間那筆錢拿去投資:每季賺「利率 + 年 3%」。複利者(巴菲特式)劇本放大 TY_FLOAT_K 倍。 */
+    if(d.float) cf += b.cap*d.float*(TY.scn==='float'?TY_FLOAT_K:1)*(M.rate/100 + .03)/4;
     b.cf=cf; inc+=cf*b.own;
     if(d.fame) TY.fame = tyClamp(TY.fame + d.fame*(TY.scn==='self'?2:1)*.6, 0, 100);
     if(d.float) TY.cash += b.cap*d.float*.012;       // 浮存金:保費先進來的那筆錢
@@ -13361,6 +13398,7 @@ function tySideBtns(){
       ${b('modal:learn','🎓','怎麼玩')}
       ${b('sfx', window.SFX&&SFX.on?'🔊':'🔇', window.SFX&&SFX.on?'音效':'靜音')}
       ${b('updown', tyUpGreen()?'🟩':'🟥', tyUpGreen()?'綠漲':'紅漲')}
+      ${b('coachtog', '🧑‍🏫', tyCoachOn()?'教練 開':'教練 關', tyCoachOn()?'on':'')}
       ${TY_PLANET?b('space:earth','🌍','地球'):''}
       ${b('space:moon','🌙','月球', TY_PLANET==='moon'?'on':'')}
       ${b('space:mars','🔴','火星', TY_PLANET==='mars'?'on':'')}
@@ -13685,6 +13723,181 @@ const tyPipTxt = t => t.replace(/(\d+)\s*\/\s*(\d+)/g, (m,a,b)=>{ a=+a; b=+b;
   addEventListener('click', e=>{ if(fired){ fired=false; e.preventDefault(); e.stopImmediatePropagation(); } }, true);
   addEventListener('contextmenu', e=>{ if(fired || tm) e.preventDefault(); }, true);   // 別讓系統的長按選單蓋過泡泡
 })();
+/* =========================================================================
+   新手輔導 —— 教練(第四十八輪)
+   -------------------------------------------------------------------------
+   使用者:「每一種玩法都應該要有建議路線,可以選擇開啟新手輔導,電腦會顯示最適合現在要做甚麼,
+   有點像是有高手在引導你。有突發事件(對手派兵到你這裡)會依據情況來面對;要侵略別人也會有引導。
+   但都只是電腦判斷的,不會是最優的解法。」
+   做法:每一秒依局勢排出一串建議(tyCoachList),卡片上只放第一名:一句要做什麼、一句為什麼、一顆按鈕。
+     1. 突發事件(對手派兵、關注太高、現金變負、有對手快要霸權、景氣變差還借很滿)
+     2. 這個劇本的建議路線(TY_ROUTE,照那幾位富豪的做法;就是量勝率用的那幾套電腦打法)
+     3. 其他機會(閒錢蓋哪裡最划算、可以併吞誰、哪裡打得贏、升級哪一家最快回本)
+   ⚠ 只讀狀態:不擲骰、不改 TY(畫面層的規矩)。
+   ========================================================================= */
+const TY_COACH_KEY='ty-coach';
+const tyCoachOn = () => { try{ return localStorage.getItem(TY_COACH_KEY)!=='0'; }catch(e){ return true; } };
+function tyCoachSet(on){ try{ localStorage.setItem(TY_COACH_KEY, on?'1':'0'); }catch(e){} }
+let TY_COACH_MIN=false, TY_COACH_MORE=false, TY_COACH_AT=0;
+
+/* 現在能蓋、蓋下去身家馬上多最多的那一家(只看你已經在的城市 + 大本營) */
+function tyCoachBuild(kinds){
+  const sites=[...new Set([TY.home, ...tyMySites().map(s=>s.id)])];
+  let best=null;
+  for(const id of sites) for(const k of tyBuildOpts(id)){
+    if(TY_BIZ[k].shell || (kinds && !kinds.includes(k))) continue;
+    if(!tyCanDo('found', { k, site:id })) continue;
+    const g=tyBuildGain(k, id);
+    if(!best || g>best.g) best={ k, site:id, g };
+  }
+  return best;
+}
+/* 升級:回本最快、而且付得起的那一家 */
+function tyCoachUp(){
+  let best=null;
+  for(const b of TY.biz){ if(TY_BIZ[b.k].shell || !tyCanDo('upgrade', b)) continue;
+    const pv=tyUpPreview(b), sc=pv.dval-pv.cost;
+    if(!best || sc>best.sc) best={ b, sc, pv }; }
+  return best;
+}
+const tyCoachBizN = k => TY.biz.filter(b=>b.k===k).length;
+const tyCoachFear = () => ['recess','crisis'].includes(TY.macro.reg);
+const tyCoachBear = () => ['boom','tight','recess','crisis'].includes(TY.macro.reg);
+const tyCoachPos = (k, short) => TY.pos.some(p=>p.k===k && (short ? p.q<0 : p.q>0));
+const tyCoachBuildAct = (kinds, lab) => { const b=tyCoachBuild(kinds);
+  return b ? { ty:'coachpick', k:'build', site:b.site, lab:lab||`🏗 在${tySite(b.site).nm}蓋${TY_BIZ[b.k].nm}`, note:`身家馬上 ${tySgn(b.g)}` }
+           : { ty:'modal:vault', lab:'💰 錢不夠:去金庫看還能借多少' }; };
+
+/* 建議路線:每一步 = 要做什麼(t)、做到了沒(done)、按鈕(act)、為什麼(why)。照順序,第一個沒做到的就是「現在這一步」 */
+const TY_ROUTE = {
+  heir: { nm:'川普', steps:[
+    { t:'買媒體曝光,名氣衝到 35', done:()=>TY.fame>=35 || tyCoachBizN('brand')>0, why:'名氣 35 才能開「品牌授權」—— 幾乎不用本錢、靠名字賺錢',
+      act:()=>({ ty:'media', lab:'📺 買一波媒體曝光' }) },
+    { t:'開一家品牌授權', done:()=>tyCoachBizN('brand')>0, why:'掛你的名字收授權費,名氣越高越賺(同一個名字掛太多家會稀釋)',
+      act:()=>tyCoachBuildAct(['brand']) },
+    { t:'借錢,蓋建設開發或飯店', done:()=>TY.biz.filter(b=>['dev','hotel'].includes(b.k)).length>=3, why:'你的信用好、利率低 —— 用別人的錢蓋樓,蓋下去身家就變多',
+      act:()=>TY.cash<20e8 ? { ty:'modal:vault', lab:'🏦 先去借錢' } : tyCoachBuildAct(['dev','hotel']) },
+    { t:'升級最賺的那幾家', done:()=>TY.biz.some(b=>tyBizLv(b)>=3), why:'升級比開新的便宜,回本也快',
+      act:()=>{ const u=tyCoachUp(); return u ? { ty:'upgrade', id:u.b.id, lab:`⬆ 升級${TY_BIZ[u.b.k].nm}` } : { ty:'modal:biz', lab:'看我的事業' }; } },
+  ]},
+  float: { nm:'巴菲特', steps:[
+    { t:'用浮存金借「零利率」的錢', done:()=>TY.debt>=tyFloatFree()*.7, why:'保險公司先收保費、之後才賠 —— 這筆錢不用付利息,拿去買會賺錢的公司',
+      act:()=>({ ty:'modal:vault', lab:'🏦 去金庫借錢' }) },
+    { t:'蓋穩定的公司:銀行、能源、基建', done:()=>TY.biz.length>=4, why:'不追最快,只要每一季都穩穩地賺',
+      act:()=>tyCoachBuildAct(['bank','energy','infra','dev']) },
+    { t:'升級最穩的公司,等別人恐慌', done:()=>TY.biz.some(b=>tyBizLv(b)>=3), why:'景氣好的時候慢慢加碼;衰退、危機時別人拋售,才是你大買的時候',
+      act:()=>{ const u=tyCoachUp(); return u ? { ty:'upgrade', id:u.b.id, lab:`⬆ 升級${TY_BIZ[u.b.k].nm}` } : { ty:'modal:biz', lab:'看我的事業' }; } },
+  ]},
+  macro: { nm:'索羅斯', steps:[
+    { t:'再開一支避險基金', done:()=>tyCoachBizN('fund')>=2, why:'基金替別人管錢收費,是你穩定的本業',
+      act:()=>tyCoachBuildAct(['fund']) },
+    { t:'景氣看壞時放空科技股、買黃金', done:()=>tyCoachPos('tech',true) || tyCoachPos('semi',true) || !tyCoachBear(), why:'過熱、升息、衰退、危機時股票容易跌 —— 放空就是賭它跌',
+      act:()=>({ ty:'modal:asset', lab:'📉 去資產放空' }) },
+    { t:'升息或危機時放空外匯,等央行撐不住', done:()=>tyCoachPos('fx',true) || !['tight','crisis'].includes(TY.macro.reg), why:'央行守不住匯率的那一天,放空的人賺兩倍(你的專長)',
+      act:()=>({ ty:'modal:asset', lab:'💱 去資產放空外匯' }) },
+    { t:'景氣轉好時回補空單', done:()=>!TY.pos.some(p=>p.q<0) || tyCoachBear(), why:'景氣回升時空單會一路賠,先收回來',
+      act:()=>({ ty:'modal:asset', lab:'去資產回補' }) },
+  ]},
+  founder: { nm:'馬斯克', steps:[
+    { t:'買媒體曝光,名氣衝到 40', done:()=>TY.fame>=40, why:'創辦人賣的是故事 —— 名氣讓上市估值更高',
+      act:()=>({ ty:'media', lab:'📺 買一波媒體曝光' }) },
+    { t:'再蓋一家科技公司', done:()=>tyCoachBizN('tech')>=2, why:'科技公司前幾季在燒錢,但估值倍數最高',
+      act:()=>tyCoachBuildAct(['tech']) },
+    { t:'把科技公司送上市', done:()=>TY.biz.some(b=>b.pub), why:'上市那一刻,市場用好幾倍的價錢買你的故事,身家跳一大段',
+      act:()=>({ ty:'modal:biz', lab:'🔔 去事業頁上市' }) },
+    { t:'發射星鏈', done:()=>!!(TY.space && TY.space.sats && TY.space.sats.some(x=>x.until>TY.t)), why:'罩住的地區,你賺錢的公司多賺一成,還收網路費',
+      act:()=>({ ty:'coachcard', k:'star', lab:'🛰 拖星鏈到城市' }) },
+    { t:'登月,再往火星', done:()=>!!(TY.space && TY.space.moon), why:'月球是去火星的中繼站;火星殖民是另一條勝利路',
+      act:()=>({ ty:'space:moon', lab:'🌙 去月球' }) },
+  ]},
+  raider: { nm:'伊坎', steps:[
+    { t:'在最小的對手身上悄悄建倉', done:()=>Object.values(TY.toe||{}).some(t=>t.sh>0) || TY.biz.some(b=>b.cap0==null), why:'先買他的股票:之後敵意收購更便宜、成功率更高',
+      act:()=>{ const r=tyRivalsA().slice().sort((a,b)=>a.nw-b.nw)[0]; return r ? { ty:'rvinfo', k:r.id, lab:`📈 看 ${r.nm}` } : null; } },
+    { t:'對他發動敵意收購', done:()=>TY.biz.some(b=>b.cap0==null) || tyKills()>0, why:'用借來的錢吃下他一大塊(你只要付四成,其餘用他的資產借)',
+      act:()=>{ const r=tyRivalsA().slice().sort((a,b)=>a.nw-b.nw)[0]; return r ? { ty:'rvinfo', k:r.id, lab:`⚔ 對 ${r.nm} 出手` } : null; } },
+    { t:'身家是他的 1.5 倍時,全面併吞', done:()=>tyKills()>0, why:'整個吃下來:他出局,大本營變你的 —— 讓 3 個對手出局就是征服勝利',
+      act:()=>{ const r=tyRivalsA().filter(r=>tyShownNW()>=r.nw*1.5).sort((a,b)=>b.nw-a.nw)[0] || tyRivalsA().slice().sort((a,b)=>a.nw-b.nw)[0];
+        return r ? { ty:'rvinfo', k:r.id, lab:`👑 看 ${r.nm}` } : null; } },
+  ]},
+  self: { nm:'王永慶', steps:[
+    { t:'升級你的小建設行', done:()=>TY.biz.some(b=>tyBizLv(b)>=2), why:'錢少的時候,把手上唯一會賺錢的東西做大最划算',
+      act:()=>{ const u=tyCoachUp(); return u ? { ty:'upgrade', id:u.b.id, lab:'⬆ 升級小建設行' } : { ty:'modal:biz', lab:'看我的事業' }; } },
+    { t:'買媒體曝光,名氣衝到 35', done:()=>TY.fame>=35 || tyCoachBizN('brand')>0, why:'白手起家的名氣長得快一倍 —— 名氣 35 就能開品牌授權',
+      act:()=>({ ty:'media', lab:'📺 買一波媒體曝光' }) },
+    { t:'開品牌授權', done:()=>tyCoachBizN('brand')>0, why:'幾乎不用本錢,名氣越高越賺',
+      act:()=>tyCoachBuildAct(['brand']) },
+    { t:'借三成,多蓋幾家', done:()=>TY.biz.length>=4, why:'有了穩定的收入,銀行才肯借你 —— 別借太滿',
+      act:()=>TY.cash<10e8 ? { ty:'modal:vault', lab:'🏦 去金庫借錢' } : tyCoachBuildAct() },
+  ]},
+};
+function tyCoachRoute(){
+  const R=TY_ROUTE[TY.scn]; if(!R) return null;
+  const done=R.steps.map(s=>{ try{ return !!s.done(); }catch(e){ return false; } });
+  const i=done.indexOf(false);
+  return { R, done, i, cur: i>=0 ? R.steps[i] : null };
+}
+function tyCoachList(){
+  const L=[], add=(pri,ic,t,why,act)=>L.push({ pri, ic, t, why, act:act||null });
+  const now=TY.t+(TY.prog||0), nw=Math.max(1, tyNW());
+  // ---- 1. 突發事件 ----
+  for(const th of (TY.threats||[])){
+    const r=tyRival(th.rid); if(!r) continue;
+    const S=tySite(th.site), left=Math.max(0,(th.eta||0)-now);
+    const airOk=tyStrikeReady('air') && !tyBlock('strike', { k:'air', site:th.site });
+    add(100, '⚔', `${r.nm}派兵攻打你的${S.nm}${TY.rt?`(${tyQSec(left)} 秒後到)`:''}`,
+      airOk ? '空襲可以在半路把它打散;擋不住的話,那裡的事業會被挖走一塊' : '空襲還不能用 —— 把步兵調過去守,或在那裡招一支',
+      airOk ? { ty:'strike', k:'air', site:th.site, lab:'✈ 空襲這支' } : { ty:'modal:troop', lab:'🪖 去部隊調兵' });
+  }
+  if(TY.heat>=65) add(TY.heat>=85?96:80, '🚨', `關注度 ${TY.heat.toFixed(0)} —— 到 100 會被起訴,整局結束`, '成立慈善基金會可以一次降一大段', { ty:'charity', lab:'🎗 捐一筆降溫' });
+  if(TY.cash<0) add(95, '💸', '現金變負的了', '先借一點周轉,或賣掉不賺錢的東西 —— 撐不住就會破產', { ty:'modal:vault', lab:'🏦 去金庫' });
+  const use=TY.debt/Math.max(1e8, tyBorrowMax());
+  if(use>.8 && tyCoachBear()) add(85, '⚠', `景氣變差(${TY_REGIME[TY.macro.reg].nm}),你借了額度的 ${Math.round(use*100)}%`, '資產一跌,借款上限跟著縮 —— 先還一點,別等被追繳', { ty:'modal:vault', lab:'🏦 去還款' });
+  for(const r of tyRivalsA()) if((r.domHold||0)>=1)
+    add(90, '🔥', `${r.nm}快要拿下經濟霸權了(已經 ${r.domHold} 季)`, '連續 3 季你就輸了 —— 封鎖、進攻、做空他,或併吞他', { ty:'rvinfo', k:r.id, lab:`看 ${r.nm}` });
+  if((TY.econHold||0)>=1) add(88, '🏆', '你已經是榜首的兩倍 —— 再撐一季就贏', '這一季別冒險:別借太多、別亂打', null);
+  // ---- 2. 建議路線 ----
+  const RT=tyCoachRoute();
+  if(RT && RT.cur){ let a=null; try{ a=RT.cur.act(); }catch(e){}
+    add(60, '🧭', `${RT.R.nm}路線 ${RT.i+1}/${RT.R.steps.length}:${RT.cur.t}`, RT.cur.why, a); }
+  // ---- 3. 其他機會 ----
+  const prey=tyRivalsA().filter(r=>tyCanDo('deal:merge', r)).sort((a,b)=>b.nw-a.nw)[0];
+  if(prey) add(65, '👑', `你夠資格全面併吞 ${prey.nm}`, '把他整個買下來:他出局,大本營變你的一家公司', { ty:'rvinfo', k:prey.id, lab:`看 ${prey.nm}` });
+  for(const f of tyRivalForces()){ const o=tyAssaultOdds(f.r.id, f.site);
+    if(o && o.mine.length && o.p>=.6){ add(55, '⚔', `可以進攻 ${f.r.nm} 在${tySite(f.site).nm}的駐軍(勝算 ${Math.round(o.p*100)}%)`, '打下來他在那一區的勢力會縮水,你的事業少一個競爭者', { ty:'site', k:f.site, lab:'去看' }); break; } }
+  if(TY.cash>Math.max(3e8, nw*.25)){ const b=tyCoachBuild();
+    if(b && b.g>0) add(50, '🏗', `閒錢拿去蓋:${tySite(b.site).nm}的${TY_BIZ[b.k].nm}`, `身家馬上 ${tySgn(b.g)} —— 現金放著不會變多`, { ty:'coachpick', k:'build', site:b.site, lab:'🏗 去蓋' }); }
+  const u=tyCoachUp();
+  if(u && u.pv.pay<=12 && TY.cash>u.pv.cost*1.5) add(45, '⬆', `升級${tySite(u.b.site||TY.home).nm}的${TY_BIZ[u.b.k].nm}`, `約 ${Math.round(u.pv.pay)} 季就把升級的錢賺回來`, { ty:'upgrade', id:u.b.id, lab:'⬆ 升級' });
+  if(!tyTester() && TY.rt && tyApNow()>=tyApMax()-.01) add(30, '🎴', '指揮點滿了', '滿了就不會再長 —— 出一張牌才不浪費', null);
+  return L.sort((a,b)=>b.pri-a.pri);
+}
+function tyCoachBtn(a, cls){
+  if(!a) return '';
+  const at=` data-ty="${escH(a.ty)}"${a.k?` data-k="${escH(a.k)}"`:''}${a.site?` data-site="${escH(a.site)}"`:''}${a.id!=null?` data-id="${a.id}"`:''}`;
+  return `<button type="button" class="ty-b ${cls||''}"${at}>${a.lab}</button>${a.note?`<em class="co-n">${a.note}</em>`:''}`;
+}
+function tyCoachHTML(){
+  if(!TY || TY.done || !tyCoachOn()) return '';
+  const L=tyCoachList(), top=L[0], hot=top && top.pri>=85;
+  if(TY_COACH_MIN) return `<button type="button" class="co-mini${hot?' hot':''}" data-ty="coachmin" title="打開教練">🧑‍🏫${hot?'<i>!</i>':''}</button>`;
+  const RT=tyCoachRoute();
+  const pips=RT ? RT.done.map(d=>d?'■':'□').join('') : '';
+  return `<div class="co-card${hot?' hot':''}">
+    <div class="co-h"><b>🧑‍🏫 教練</b>${RT?`<span title="${escH(RT.R.nm)}路線">${escH(RT.R.nm)}路線 <i>${pips}</i></span>`:''}
+      <button type="button" class="co-x" data-ty="coachmin" title="縮小">—</button></div>
+    ${top ? `<div class="co-t">${top.ic} ${top.t}</div><div class="co-w">${top.why}</div>${top.act?`<div class="co-a">${tyCoachBtn(top.act)}</div>`:''}`
+          : '<div class="co-w">目前沒有急事 —— 讓時間跑一下,等錢進來。</div>'}
+    ${L.length>1 ? `<button type="button" class="co-more" data-ty="coachmore">${TY_COACH_MORE?'收起':'其他建議'}(${L.length-1})</button>
+      ${TY_COACH_MORE ? `<div class="co-list">${L.slice(1,5).map(x=>`<div class="co-li"><span>${x.ic} ${x.t}</span>${tyCoachBtn(x.act,'alt')}</div>`).join('')}</div>` : ''}` : ''}
+    <div class="co-f">電腦判斷,不一定是最好的走法 · <button type="button" class="co-off" data-ty="coachtog">關掉教練</button></div>
+  </div>`;
+}
+function tyCoachLive(force){
+  const el=document.getElementById('tyCoach'); if(!el) return;
+  const now=performance.now(); if(!force && now-TY_COACH_AT<800) return; TY_COACH_AT=now;
+  const h=tyCoachHTML(); if(h!==el._sig){ el._sig=h; el.innerHTML=h; }
+}
+
 function tyModalHTML(){
   if(!TY_MODAL) return '';
   const k=TY_MODAL;
@@ -13744,6 +13957,9 @@ function tyIntro(){
     <div class="expo-note" style="margin:0 0 12px">⏱ <b>即時制</b>:時間自己走(可以暫停、1× / 2× / 3×)。
       🏆 <b>三條路先達成一條就贏</b>:💰 經濟霸權(身家是最有錢對手的 2 倍)、⚔ 征服(對手全部出局)、🚀 火星殖民。
       好的打法大約 15~20 季(1× 十幾分鐘)。紀錄比的是用了幾季。</div>
+    <div class="co-intro"><button type="button" class="co-tg${tyCoachOn()?' on':''}" data-ty="coachtog" aria-pressed="${tyCoachOn()}">🧑‍🏫 新手輔導:<b>${tyCoachOn()?'開':'關'}</b></button>
+      <span>開著的話,地圖左下角會有一位教練:照你選的劇本告訴你<b>下一步最適合做什麼</b>,
+        對手派兵、被盯上、借太多這種突發狀況也會提醒你怎麼應付。它是電腦判斷的,不一定是最好的走法。</span></div>
     <div class="tg-sec">選一個起點<em>起點決定你會變成哪一種有錢人</em></div>
     <div class="tg-scns">${cards}</div>
   </div>`;
@@ -13770,6 +13986,7 @@ function tycoonPage(){
       ${tySideBtns()}
       ${TY_PLANET?tyWorldBadge():''}
       <div class="tg-toasts" id="tyToasts">${tyToastsHTML()}</div>
+      <div class="co-host" id="tyCoach">${tyCoachHTML()}</div>
       <div class="tg-battles" id="tyBattles"></div>
       <svg class="tg-moves" id="tyMoves"></svg><div class="tg-movechips" id="tyMoveChips"></div>
       <div class="tg-lay${TY_LAY_OPEN?' open':''}">
@@ -14141,7 +14358,7 @@ function tyClockTick(){
 
     if(TY.prog>=1){ TY.prog-=1; tyQuarterGo(true); return; }
   }
-  tyClockPaint(); tyBattlesPaint(); tyMovesPaint(); tyCmdLive(); tyAlertsLive(); tyLiveFloats();
+  tyClockPaint(); tyBattlesPaint(); tyMovesPaint(); tyCmdLive(); tyAlertsLive(); tyLiveFloats(); tyCoachLive();
 }
 /* 指揮中心開著的時候,每支部隊的狀態(還剩幾秒、等到齊)跟著時間更新 —— 只換那一行字,不重畫整頁 */
 function tyCmdLive(){
@@ -14834,7 +15051,12 @@ function bindTycoon(root){
        使用者回報「有很多名詞我沒看過,也不知道可以幹嘛」—— 那代表預設把人
        丟到一整排看不懂的按鈕前面是錯的。先讓他看懂,再讓他按。 */
     if(a==='start'){ tyStart(b.dataset.k); TY.rt=true; TY.prog=0; TY.real=0; TY_SPEED=1; TY_MODAL='learn'; TY_MSG=''; renderPage(); return; }   // 新的一局:即時制(第三十二輪)
+    if(a==='coachtog'){ tyCoachSet(!tyCoachOn()); TY_COACH_MIN=false; tySfx('click','tap'); renderPage(); return; }   // 新手輔導開關(開局畫面也按得到)
     if(!TY) return;                 // 還沒開局,除了選劇本沒有別的能按
+    if(a==='coachmin'){ TY_COACH_MIN=!TY_COACH_MIN; tyCoachLive(true); return; }
+    if(a==='coachmore'){ TY_COACH_MORE=!TY_COACH_MORE; tyCoachLive(true); return; }
+    if(a==='coachpick'){ TY_PICK={ k:b.dataset.k, site:b.dataset.site }; TY_MODAL='pick'; tySfx('pick','tap'); renderPage(); return; }
+    if(a==='coachcard'){ tyCardGo(b.dataset.k); return; }
     /* 面板:modal:asset / modal:log / … 。同一顆再按一次就關掉。 */
     if(a.startsWith('modal:')){
       const k=a.slice(6);

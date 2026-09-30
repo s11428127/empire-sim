@@ -2134,7 +2134,7 @@ test('帝國第十三輪:星鏈(網路費、現金流加成、退役)、火星�
     const snap = JSON.stringify(TY);
     // 第四十二輪:銀行的浮存金收益是投資收益,不吃星鏈加成 —— 先扣掉再比
     const flo = () => { const b = TY.biz.find(b => b.k === 'bank' && b.site === home);
-      return b.cap * TY_BIZ.bank.float * (TY.scn === 'float' ? 2 : 1) * (TY.macro.rate / 100 + .03) / 4; };
+      return b.cap * TY_BIZ.bank.float * (TY.scn === 'float' ? TY_FLOAT_K : 1) * (TY.macro.rate / 100 + .03) / 4; };
     tyNext(); const bA = TY.biz.find(b => b.k === 'bank' && b.site === home).cf - flo();
     TY = JSON.parse(snap); TY.space.sats = [];
     tyNext(); const bB = TY.biz.find(b => b.k === 'bank' && b.site === home).cf - flo();
@@ -2462,6 +2462,77 @@ test('帝國第二十輪:月球 / 火星建地(登月、火星計畫前置、補
   await page.__ctx.close();
 });
 
+test('帝國第三十九輪:開局不會已經霸權、坦克站在地形上、新手輔導(教練)', async (browser) => {
+  const page = await freshPage(browser, { seed: SEED, hash: '#/tycoon' });
+  const r = await page.evaluate(() => {
+    const out = {};
+    // 開局:榜首至少是你的 top0 倍(每個劇本、好幾顆種子)
+    const bad = [];
+    for (const k of ['heir', 'macro', 'float', 'founder', 'raider', 'self']) for (let sd = 1; sd <= 5; sd++) {
+      tyStart(k, 200 + sd); const top = Math.max(...tyRivalsA().map(x => x.nw)), me = tyNW();
+      const k0 = tyScn().top0 || TY_TOP0;
+      if (top < me * k0 - 1) bad.push(`${k}:${sd} ${(me / 1e8).toFixed(0)}/${(top / 1e8).toFixed(0)}`);
+      if (tyWinProg().econ.v > .5 + 1e-9) bad.push(`${k}:${sd} econ ${tyWinProg().econ.v.toFixed(2)}`);
+    }
+    out.start = bad;
+    // 第 10 季以前就算超過兩倍,勝利目標也寫「還不算」
+    tyStart('heir', 211); TY.rivals.forEach(x => x.nw = 1e8);
+    out.early = /才開始算/.test(tyWinProg().econ.txt);
+    // 教練:預設開、開局畫面有開關、會依劇本給路線
+    TY_SPEED = 0; localStorage.removeItem('ty-coach'); TY = null; renderPage();
+    out.introTog = !!document.querySelector('.co-intro [data-ty="coachtog"]') && tyCoachOn();
+    tyStart('heir', 212); TY.rt = true; TY_MODAL = null; TY_NEWCARD.length = 0; TY_FALLQ.length = 0; renderPage();
+    const card = document.querySelector('#tyCoach .co-card');
+    out.card = !!card && /川普路線/.test(card.textContent) && /不一定是最好/.test(card.textContent);
+    out.route = /名氣/.test(card.querySelector('.co-t').textContent) && !!card.querySelector('.co-a [data-ty="media"]');
+    // 突發:對手派兵 → 教練第一名變成應付來襲(空襲或調兵)
+    TY.t = 6; TY.cash = 900e8; const a = tyRivalsA()[0]; tyRivalMarch(a, tySite(TY.home).reg);
+    const L = tyCoachList();
+    out.threat = L[0].pri >= 100 && /派兵/.test(L[0].t) && ['strike', 'modal:troop'].includes(L[0].act.ty);
+    // 關注太高 → 慈善
+    TY.threats = []; TY.heat = 90;
+    out.heat = tyCoachList()[0].act && tyCoachList()[0].act.ty === 'charity';
+    TY.heat = 0;
+    // 每個劇本都有路線,而且算得出第一步(不丟例外)
+    out.routes = ['heir', 'macro', 'float', 'founder', 'raider', 'self'].filter(k => {
+      tyStart(k, 213); TY.rt = true; const R = tyCoachRoute(); return !(R && R.cur && R.cur.act());
+    });
+    // 教練只讀狀態:算一次建議,存檔不變
+    tyStart('founder', 214); TY.rt = true;
+    const snap = JSON.stringify(TY); tyCoachList(); tyCoachHTML();
+    out.pure = JSON.stringify(TY) === snap;
+    // 按鈕真的會動:「去蓋」打開出牌選單
+    renderPage(); TY_COACH_MIN = false;
+    const L2 = tyCoachList(), pickAct = L2.map(x => x.act).find(x => x && x.ty === 'coachpick');
+    if (pickAct) { TY_COACH_MORE = true; tyCoachLive(true);
+      const bt = [...document.querySelectorAll('#tyCoach [data-ty="coachpick"]')][0]; bt.click();
+      out.pick = TY_MODAL === 'pick' && TY_PICK && TY_PICK.k === 'build'; } else out.pick = 'no-pick';
+    // 縮小 / 關掉
+    TY_MODAL = null; renderPage();
+    document.querySelector('#tyCoach [data-ty="coachmin"]').click();
+    out.min = !!document.querySelector('#tyCoach .co-mini') && !document.querySelector('#tyCoach .co-card');
+    document.querySelector('#tyCoach [data-ty="coachmin"]').click();
+    document.querySelector('#tyCoach [data-ty="coachtog"]').click();
+    out.off = !tyCoachOn() && !document.querySelector('#tyCoach').innerHTML.trim();
+    localStorage.removeItem('ty-coach');
+    return out;
+  });
+  eq(r.start, [], '開局:榜首至少是你的 top0 倍,經濟霸權進度不會超過一半');
+  ok(r.early, '第 10 季以前就算超過兩倍,也寫「第 10 季起才開始算」');
+  ok(r.introTog, '開局畫面有新手輔導開關,預設開');
+  ok(r.card, '教練卡:照劇本的路線,註明是電腦判斷');
+  ok(r.route, '繼承者第一步:買媒體曝光(按鈕直接能按)');
+  ok(r.threat, '對手派兵時,教練第一名變成應付來襲');
+  ok(r.heat, '關注太高時,教練建議慈善降溫');
+  eq(r.routes, [], '六個劇本都有路線,第一步都有按鈕');
+  ok(r.pure, '教練只讀狀態,不改存檔');
+  ok(r.pick === true || r.pick === 'no-pick', '「去蓋」打開出牌選單');
+  ok(r.min, '教練可以縮小成小圖示');
+  ok(r.off, '關掉教練之後卡片消失');
+  ok(page.__errors.length === 0, `有 JS 錯誤:\n      ${page.__errors.join('\n      ')}`);
+  await page.__ctx.close();
+});
+
 test('帝國第三十八輪:拖牌時重畫也拖得出去、按住就暫停、部隊目的地在地圖上點', async (browser) => {
   const page = await freshPage(browser, { seed: SEED, hash: '#/tycoon' });
   const r = await page.evaluate(() => {
@@ -2727,12 +2798,12 @@ test('帝國第三十四輪:名人劇本 —— 浮存金零利率、對手起�
     const hR = tyDealPrice('hostile', rv), mR = tyDealPrice('merge', rv);
     const need = tyNeeds('deal:hostile', rv).find(n => n.want != null && /淨值/.test(n.lab));
     TY.scn = 'heir'; const hH = tyDealPrice('hostile', rv), mH = tyDealPrice('merge', rv);
-    out.lbo = Math.abs(hR / hH - .65) < 1e-9 && Math.abs(mR / mH - .65) < 1e-9;
+    out.lbo = Math.abs(hR / hH - TY_LBO) < 1e-9 && Math.abs(mR / mH - TY_LBO) < 1e-9;
     out.lboNeed = need && /18/.test(String(need.want));
     // 浮存金:複利者借款在浮存金額度內零利率,其他劇本沒有
     tyStart('float', 154); TY.rt = true; TY_NEWCARD.length = 0;
     const fr = tyFloatFree(); const bank = TY.biz.find(b => b.k === 'bank');
-    out.freeAmt = Math.abs(fr - bank.cap * .55 * 2) < 1;
+    out.freeAmt = Math.abs(fr - bank.cap * .55 * TY_FLOAT_K) < 1;
     TY.debt = fr * .9; const c0 = TY.cash, i0 = TY.interest; tyNext();
     out.noIntr = Math.abs(TY.interest - i0) < 1;
     tyStart('heir', 155); out.otherNone = tyFloatFree() === 0;
@@ -2743,10 +2814,10 @@ test('帝國第三十四輪:名人劇本 —— 浮存金零利率、對手起�
     out.names = /巴菲特/.test(document.body.textContent) && /索羅斯/.test(document.body.textContent) && /王永慶/.test(document.body.textContent);
     return out;
   });
-  ok(r.scale, '對手起點依劇本縮放(同一個種子,比例 = 兩個劇本的倍數比)');
+  ok(r.scale, '對手起點依劇本縮放(同一個種子,比例 = 兩個劇本的倍數比;開局保底沒有介入時)');
   ok(r.selfBiz, '白手起家起手一間 3 億的小建設行');
   ok(r.macroBiz && r.raiderBiz, '狙擊手起手一支基金、掠奪者起手一家能源公司');
-  ok(r.lbo, '掠奪者的敵意收購 / 併吞只付 65%');
+  ok(r.lbo, '掠奪者的敵意收購 / 併吞只付 TY_LBO 的比例');
   ok(r.lboNeed, '掠奪者敵意收購的淨值門檻是對方的三成');
   ok(r.freeAmt && r.noIntr, '複利者:浮存金額度內借款零利率');
   ok(r.otherNone, '其他劇本沒有零利率額度');

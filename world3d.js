@@ -1089,7 +1089,7 @@ function placeSite(obj, d){
   obj.quaternion.setFromRotationMatrix(M);
   /* 駐在城市裡的部隊站在城市的東南邊一點,不要跟建築疊在一起。
      偏移量是「幾塊地磚寬」,所以要跟著縮放走(見 applyScale)。 */
-  obj.userData.at = { x: c.x, y: c.y, z: c.z, e: [ex, ey, ez], q: [qx, qy, qz], slot: d._slot || null, base: a };
+  obj.userData.at = { x: c.x, y: c.y, z: c.z, e: [ex, ey, ez], q: [qx, qy, qz], slot: d._slot || null, base: a, b0: d._base || .0085 };
   applyScale(obj, performance.now());
 }
 function applyScale(obj, now){
@@ -1128,7 +1128,10 @@ function applyScale(obj, now){
     const L = obj.userData.navy ? seaDirs(S.id, S.lat, S.lng, D) : slotDirs(S.id, S.lat, S.lng, D);
     const [ang, f] = L[S.n % L.length], ring = Math.floor(S.n / L.length);
     const r = D * f * (1 + ring * .8), k = 1 / Math.max(.2, Math.cos(S.lat * Math.PI / 180));
-    const c = G.getCoords(S.lat + Math.sin(ang) * r, S.lng + Math.cos(ang) * r * k, at.base);
+    /* ⚠ 高度要用**實際站的那一點**的地形 —— 第一版用城市中心的高度,台北旁邊就是中央山脈,
+       部隊站到山坡上、模型卻還在城市的高度,整台坦克被山埋住(使用者:「坦克卡在下面」)。 */
+    const la = S.lat + Math.sin(ang) * r, lo = S.lng + Math.cos(ang) * r * k;
+    const c = G.getCoords(la, lo, (at.b0 != null ? at.b0 + Math.max(elevAlt(la, lo), elevAlt(S.lat, S.lng)) : at.base));
     obj.position.set(c.x, c.y, c.z);
   }
 }
