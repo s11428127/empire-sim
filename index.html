@@ -2481,6 +2481,9 @@
   .vz-note{font-size:11.5px;color:var(--g-t3);line-height:1.6;margin:4px 0 0}
   .vz-head{font-size:14px;margin:2px 0 4px}
   .vz-pay{margin:6px 0 2px}
+  .vz-gain{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;margin:0 0 5px}
+  .vz-gain b{font-size:14px}
+  .vz-gain span{font-size:11px;color:var(--g-t3)}
   .vz-pay .vz-cells{display:grid;grid-template-columns:repeat(40,1fr);gap:1px;height:10px}
   .vz-pay .vz-cells i,.vz-pay em span i{display:block;background:#2a3a4a}
   .vz-pay .vz-cells i.w,.vz-pay em span i.w{background:#c9a227}
@@ -10461,7 +10464,7 @@ function tyBizActs(b){
     const lv=tyBizLv(b), pv=tyUpPreview(b);
     main.push(row('upgrade', lv>=TY_LV_MAX?`已經是 Lv${TY_LV_MAX}`:`⬆ 升到 Lv${lv+1}`, 'up', id,
       lv>=TY_LV_MAX?'':`花 ${tyM(pv.cost)} → 每季多 <b class="${pv.dcf>=0?'up':'down'}">${pv.dcf>=0?'+':''}${tyM(pv.dcf)}</b>`,
-      lv>=TY_LV_MAX?'':tyPayStrip(pv.pay)));
+      lv>=TY_LV_MAX?'':tyPayStrip(pv.pay, pv.dval-pv.cost)));
   }
   if(!d.shell && !b.pub){
     main.push(row('ipo','🔔 送上市 IPO','',id,
@@ -10546,7 +10549,7 @@ function tyBizTab(){
       </div>
       ${tyNeedHTML(tyNeeds('found',{k,site}))}
       <div class="o-pre" title="投入 ${tyM(cost)} · 估值起點約 ${tyM(val)}">開在${escH(tySite(site).nm)}:每季約 <b class="${cfR>=0?'up':'down'}">${tySgn(cfR)}</b>${
-          d.fameCf?'(看名氣不看資本)':''}${tyPayStrip(cfR>0?tyBizCost(k,site)/cfR:Infinity)}</div>
+          d.fameCf?'(看名氣不看資本)':''}${tyPayStrip(cfR>0?tyBizCost(k,site)/cfR:Infinity, tyBuildGain(k,site))}</div>
       </div>`;
   }).join('');
 
@@ -10554,7 +10557,7 @@ function tyBizTab(){
     <div class="ty-cards">${mine}</div>
     <div class="hm-sec vz-sec">可以成立的事業${tyCmpBtn('open','哪一種最划算')}</div>
     <div class="expo-note">下拉選「開在哪裡」:▲ 越多越好(景氣熱、賺得多),成本 ▼ 越多越便宜。
-      每一種底下的長條是這一局的 40 季:<b>黃色是等回本,綠色是回本之後都是賺的</b>。
+      每一種底下先寫<b>蓋下去身家馬上多多少</b>(公司本身值的錢 − 花掉的現金),再畫一條這一局的 40 季:黃色是等現金收回,綠色之後都是多賺的。
       「估值」點越多,上市後越值錢;「穩」點越多,景氣差時越不會虧。</div>
     <div class="ty-opens">${list}</div>`;
 }
@@ -13425,18 +13428,29 @@ function tyBars(rows, opt){
         <b class="vb-v${r.v<0?' down':''}">${r.txt!=null?r.txt:fmt(r.v)}</b></div>`;
     }).join('')}</div>`;
 }
-/* 回本時間軸:一格 = 一季,整條 = 這一局的 40 季。灰 = 過去、黃 = 等回本、綠 = 回本之後。 */
-function tyPayStrip(pay){
+/* 蓋下去之後身家立刻多多少 = 公司的估值 − 花掉的現金。
+   跟 tyBizVal 同一支公式,只是拿一家「還沒蓋的」假公司去算,不寫回 TY。
+   ⚠ 使用者看到回本時間軸問「這麼久才回本,會不會都沒人蓋」—— 回本只看現金,
+   漏掉了最大的那一塊:公司本身就值錢(建設開發蓋好的那一刻大約值成本的兩倍)。 */
+function tyBuildGain(k, site){
+  const cost=tyBizCost(k, site);
+  return tyBizVal({ k, site, cap:cost, cap0:cost, own:1, pub:false, cf:0, born:TY.t }) - cost;
+}
+/* 回本時間軸:一格 = 一季,整條 = 這一局的 40 季。灰 = 過去、黃 = 等現金收回、綠 = 之後都是多賺的。
+   gain(選填):蓋 / 升級之後身家馬上多多少 —— 有的話放在最上面,它比回本重要。 */
+function tyPayStrip(pay, gain){
   const N=TY_QN, now=Math.min(TY.t, N-1);
+  const g = gain==null ? '' : `<div class="vz-gain" title="估值 − 花掉的錢"><b class="${gain>=0?'up':'down'}">身家馬上 ${tySgn(gain)}</b><span>${
+      gain>=0?'公司本身就值錢,蓋下去身家不會變少':'估值還比花的錢少'}</span></div>`;
   if(!isFinite(pay) || pay<=0)
-    return `<div class="vz-pay burn" title="現金流是負的"><em>🔥 還在燒錢 —— 回不了本,要靠估值(上市)</em></div>`;
+    return `<div class="vz-pay burn" title="現金流是負的">${g}<em>🔥 前幾季在燒錢,現金收不回 —— 靠估值(上市)賺</em></div>`;
   const end=now+pay;
   const cells=Array.from({length:N},(_,i)=>`<i class="${i<now?'p':i<end?'w':'g'}"></i>`).join('');
-  const txt = end>N ? '這一局結束前回不了本'
-            : pay<=4 ? '一年內回本' : pay<=8 ? '兩年內回本' : pay<=16 ? '四年內回本' : '要等很久才回本';
-  return `<div class="vz-pay" title="約 ${pay.toFixed(1)} 季回本(一格 = 一季,整條 = 這一局 40 季)">
+  const txt = end>N ? (gain>0 ? '現金這局收不回,但公司值錢' : '這一局收不回現金')
+            : pay<=4 ? '一年內收回現金' : pay<=8 ? '兩年內收回現金' : pay<=16 ? '四年內收回現金' : '現金要很久才收回';
+  return `<div class="vz-pay" title="約 ${pay.toFixed(1)} 季收回現金(一格 = 一季,整條 = 這一局 40 季)">${g}
       <span class="vz-cells">${cells}</span>
-      <em><b class="${end>N?'down':pay<=8?'up':''}">${txt}</b><span><i class="w"></i>等回本<i class="g"></i>之後都是賺的</span></em></div>`;
+      <em><b class="${end>N&&!(gain>0)?'down':pay<=8?'up':''}">${txt}</b><span><i class="w"></i>等現金收回<i class="g"></i>之後都是多賺的</span></em></div>`;
 }
 /* 等級點:1~5 */
 const tyDots = (n, cls) => `<span class="vz-dots ${cls||''}" aria-label="${n} / 5">${
@@ -13518,11 +13532,13 @@ function tyCmpBody(k, arg, t){
       return { bk, d, site, cost, cf, pay: cf>0 ? cost/cf : Infinity };
     });
     const lab=x=>`${x.d.ic||''} ${x.d.nm}<i>${escH(tySite(x.site).nm)}</i>`;
-    if(t===0) return tyBars(L.map(x=>({ lab:lab(x), v:x.cf })).sort((a,b)=>b.v-a.v))
+    if(t===0) return tyBars(L.map(x=>({ lab:lab(x), v:tyBuildGain(x.bk, x.site) })).sort((a,b)=>b.v-a.v))
+      + '<p class="vz-note">蓋下去的那一刻,公司的估值 − 花掉的現金 = 你的身家多了多少。這是建設最大的好處:現金花掉了,但換到一家值更多錢的公司。</p>';
+    if(t===1) return tyBars(L.map(x=>({ lab:lab(x), v:x.cf })).sort((a,b)=>b.v-a.v))
       + `<p class="vz-note">${arg?'開在這座城':'開在你目前選的城市'},第一季大約每季賺多少。</p>`;
-    if(t===1) return tyBars(L.map(x=>({ lab:lab(x), v:isFinite(x.pay)?Math.min(x.pay,60):0, txt:isFinite(x.pay)?`${Math.round(x.pay)} 季`:'燒錢' }))
+    if(t===2) return tyBars(L.map(x=>({ lab:lab(x), v:isFinite(x.pay)?Math.min(x.pay,60):0, txt:isFinite(x.pay)?`${Math.round(x.pay)} 季`:'燒錢' }))
         .sort((a,b)=>(a.txt==='燒錢')-(b.txt==='燒錢') || a.v-b.v), { mark:{ v:TY_QN-TY.t, lab:'這局剩下的時間' } })
-      + '<p class="vz-note">幾季回本:<b>越短越好</b>。超過直線的,這一局結束前回不了本(但估值還是算身家)。</p>';
+      + '<p class="vz-note">只靠每季現金流,要幾季才把花掉的現金收回來:<b>越短越好</b>。超過直線的這局收不回現金 —— 但公司本身值錢,身家不會少(看第一頁)。</p>';
     return tyBars(L.map(x=>({ lab:lab(x), v:x.cost, me:TY.cash>=x.cost, txt:tyM(x.cost) })).sort((a,b)=>a.v-b.v),
         { mark:{ v:Math.max(0,TY.cash), lab:'你的現金' } })
       + '<p class="vz-note">藍色 = 現金買得起。</p>';
@@ -13554,7 +13570,7 @@ function tyCmpBody(k, arg, t){
 }
 const TY_CMP_TABS = {
   nw:['跟對手比','跟過去的自己比','身家組成'], biz:['每季賺多少','值多少','投報率'],
-  open:['每季賺多少','幾季回本','要花多少'], asset:['最近漲跌','風險','配息'], city:['景氣','稅率','競爭'],
+  open:['身家馬上多多少','每季賺多少','幾季收回現金','要花多少'], asset:['最近漲跌','風險','配息'], city:['景氣','稅率','競爭'],
 };
 const TY_CMP_NM = { nw:'身家比一比', biz:'我的事業比一比', open:'哪一種事業最划算', asset:'資產比一比', city:'城市比一比' };
 function tyCmpHTML(){
@@ -14356,7 +14372,7 @@ function tyPickHTML(){
       const opts=tyBuildOpts(id);
       /* 第四十輪:一眼看出「每季賺多少、幾季回本、這座城有沒有加成」,細節收到小字 */
       body=tyPartnerGate(id)+tyProsConsHTML(id, true)
-        +`<div class="vz-sec"><span class="vz-note">底下每一種的長條 = 這一局 40 季,黃色等回本、之後都是賺的</span>${tyCmpBtn('open:'+id,'在這裡蓋哪一種最划算')}</div>`
+        +`<div class="vz-sec"><span class="vz-note">「身家馬上」= 蓋好那一刻公司值的錢 − 花掉的現金;長條是現金多久收回</span>${tyCmpBtn('open:'+id,'在這裡蓋哪一種最划算')}</div>`
         +opts.map(k=>{
         const d=TY_BIZ[k], cost=tyBizCost(k,id);
         const cf=d.shell?0:cost*(d.fameCf ? tyBrandRate(1) : d.cf)*tySpecMul(id,'biz',k,'cf')*tyClamp(tyRegIdx(s.reg),.3,2.2);
@@ -14366,7 +14382,7 @@ function tyPickHTML(){
           : cf>0 ? `<b class="pk-big up">每季 +${tyM(cf)}</b>`
           : `<b class="pk-big down">前幾季每季 ${tySgn(cf)}</b><i class="pk-pay">靠估值(上市)賺</i>`;
         return row(img, `${d.ic} ${escH(d.nm)} ${big}`,
-          `花 ${tyM(cost)} · ${escH(TY_BIZ_PLAIN[k]||'')}${edge?`<br><span class="pk-edge">這座城:${edge}</span>`:''}${d.shell?'':tyPayStrip(cf>0?cost/cf:Infinity)}`,
+          `花 ${tyM(cost)} · ${escH(TY_BIZ_PLAIN[k]||'')}${edge?`<br><span class="pk-edge">這座城:${edge}</span>`:''}${d.shell?'':tyPayStrip(cf>0?cost/cf:Infinity, tyBuildGain(k,id))}`,
           tyActBtn('found',{k,site:id},'蓋',` data-k="${k}" data-site="${id}"`), tyNeedHTML(tyNeeds('found',{k,site:id}),'tight'),
           `<em class="pk-d">${escH(d.dsc)}</em>`);
       }).join('');

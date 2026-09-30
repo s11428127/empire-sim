@@ -2483,6 +2483,14 @@ test('帝國第三十五輪:看得懂的數字 —— 只列還差的條件、�
     const strip = document.querySelector('.ty-cards .vz-pay .vz-cells');
     out.strip = !!strip && strip.children.length === TY_QN;
     out.oldFig = !document.querySelector('.ty-cards .c-fig');
+    // 身家馬上多多少:蓋下去的估值 − 花掉的現金;算的時候不能動到存檔
+    const nb = TY.biz.length, snap = JSON.stringify(TY.biz);
+    const g = tyBuildGain('dev', TY.home);
+    out.gain = g > 0 && TY.biz.length === nb && JSON.stringify(TY.biz) === snap;
+    const nw0 = tyNW(), c = tyBizCost('dev', TY.home); tyFound('dev', TY.home);
+    out.gainReal = Math.abs((tyNW() - nw0) - g) < c * .02;
+    renderPage();
+    out.gainShown = [...document.querySelectorAll('.ty-opens .ty-open')].filter(e => e.querySelector('.vz-gain')).length >= 8;
     // 箭頭:有利 / 不利用自己的顏色,不借漲跌色
     out.arr = /gain/.test(tyArr(1.3)) && /cost/.test(tyArr(1.3, true)) && tyArr(1.01) === '' && /▲▲/.test(tyArr(1.2));
     // 城市優缺點:台北的六種資產手續費合併成一格
@@ -2504,7 +2512,7 @@ test('帝國第三十五輪:看得懂的數字 —— 只列還差的條件、�
     // 每一種比較、每一個分頁都畫得出來
     let bad = [];
     for (const k of ['nw', 'biz', 'open', 'open:tpe', 'asset', 'city:tpe', 'city:nyc'])
-      for (let t = 0; t < 3; t++) {
+      for (let t = 0; t < 4; t++) {
         TY_CMP = k; TY_CMP_T = t; renderPage();
         const b = document.querySelector('.vz-cmp .vz-cb');
         if (!b || !(b.querySelector('.vb') || b.querySelector('.vz-line'))) bad.push(k + ':' + t);
@@ -2521,6 +2529,9 @@ test('帝國第三十五輪:看得懂的數字 —— 只列還差的條件、�
   ok(r.big, '事業卡:大字每季賺多少 + 本錢 vs 現在值的長條');
   ok(r.strip, '升級:回本時間軸是一局 40 格');
   ok(r.oldFig, '事業卡不再有四個並排的數字');
+  ok(r.gain, '「身家馬上多多少」算得出正數,而且不會改動存檔');
+  ok(r.gainReal, '預估的「身家馬上多多少」= 真的蓋下去之後身家的變化');
+  ok(r.gainShown, '每一種可以成立的事業都寫出「身家馬上多多少」');
   ok(r.arr, '加成箭頭:有利 / 不利用自己的顏色,< 2% 不畫');
   ok(r.merged, '台北的手續費優惠合併成一格,不再重複六次 −30%');
   ok(r.open, '比較面板:我 + 每個對手一條、有勝利線');
