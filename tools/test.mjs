@@ -2480,6 +2480,11 @@ test('帝國第四十輪:設定 —— 字體大小、漲跌顏色、音效、�
     out.red = !tyUpGreen() && !document.documentElement.hasAttribute('data-upgreen');
     document.querySelector('[data-ty="fs"][data-v="1"]').click();
     out.back = tyFs() === '1';
+    // 即時制的指揮點是一點一點回來的(小數),畫面上只顯示整數
+    TY_MODAL = null; TY.ap = 6.5320875; renderPage();
+    const em = document.querySelector('.hd-ap em').textContent;
+    TY_PICK = { k: 'build', site: 'tpe' }; TY_MODAL = 'pick'; renderPage();
+    out.ap = /^6 \/ \d+$/.test(em.trim()) && !/6\.53/.test(document.querySelector('.tg-mb').textContent);
     return out;
   });
   ok(r.introFs, '開局畫面就能選字體大小');
@@ -2488,6 +2493,7 @@ test('帝國第四十輪:設定 —— 字體大小、漲跌顏色、音效、�
   ok(r.fs, '字體大小:存起來、立刻套用');
   ok(r.green && r.red, '漲跌顏色可以切換');
   ok(r.back, '字體可以調回標準');
+  ok(r.ap, '指揮點有小數時,畫面只顯示整數(不是 6.5320875)');
   ok(page.__errors.length === 0, `有 JS 錯誤:\n      ${page.__errors.join('\n      ')}`);
   await page.__ctx.close();
 });

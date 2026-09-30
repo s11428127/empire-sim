@@ -12498,7 +12498,7 @@ function tyPlotHTML(P){
   const ms=(TY.space&&TY.space.ms)||{}, who=x=>x==='me'?'你':x?((TY.rivals.find(r=>r.id===x)||{}).nm||'?'):'—';
   return `<div class="pk-h"><div><b>${w==='moon'?'🌙':'🔴'} ${escH(q.nm)}</b> · ${wn}第 ${i+1} 號建地
       <p>固定的建地(像大富翁的格子):一塊蓋一棟,先搶先贏。太空建築算進身家、每季付補給費(造價 2%),付不出來整季停擺。</p>
-      <span class="pk-ap">這一季還有 <b>${tyApNow()}</b> 點行動點 · 蓋 / 收購 / 登月各 2 點</span></div></div>
+      <span class="pk-ap">這一季還有 <b>${Math.floor(tyApNow()+1e-9)}</b> 點${TY.rt?'指揮點':'行動點'} · 蓋 / 收購 / 登月各 2 點</span></div></div>
     <div class="pk-list">${body}</div>
     <div class="p-sec">🏆 太空競賽<span>第一個達成的人拿名氣 +10</span></div>
     <div class="ty-facts"><div><em>第一個登月</em><b>${escH(who(ms.moon))}</b></div><div><em>第一個登火星</em><b>${escH(who(ms.mars))}</b></div>
@@ -13519,7 +13519,7 @@ function tyTodo(){
   if(TY.gens) for(const g of TY.gens) if(!g.u) push(1, TY_GENS[g.k].ic, `將領 ${escH(g.nm)} 還沒指派給部隊 —— 沒指派就沒有效果,薪水照付`, go('modal:troop','','去指派'));
   const nw=Math.max(1,tyNW());
   if(TY.cash>nw*.5 && TY.cash>5e8) push(1,'💰',`現金佔身家 ${(TY.cash/nw*100).toFixed(0)}% —— 閒錢沒有在賺,拖「投資」或「建設」到城市`, '');
-  if(!tyTester() && !TY.rt && tyApNow()>0) push(0,'🎴',`這一季還有 <b>${tyApNow()}</b> 點行動點沒用(下一季會補滿,用不完就浪費)`, '');
+  if(!tyTester() && !TY.rt && tyApNow()>0) push(0,'🎴',`這一季還有 <b>${Math.floor(tyApNow()+1e-9)}</b> 點行動點沒用(下一季會補滿,用不完就浪費)`, '');
   return out.sort((a,b)=>b.lv-a.lv);
 }
 function tyTodoTab(){
@@ -14218,7 +14218,7 @@ function tyHand(){
       <div class="hd-mid">
         ${tyTester() ? `<div class="hd-ap" title="測試人員:行動點無限"><b>行動點</b><em>∞ 測試模式</em></div>` : `<div class="hd-ap" title="每一季補滿 ${mx} 點(人脈每 25 點多 1 點,最多 9 點)">
           <b>${TY.rt?'指揮點':'行動點'}</b><span class="pips">${Array.from({length:mx},(_,i)=>`<i class="${pip(i)}"></i>`).join('')}</span>
-          <em>${ap} / ${mx}</em></div>`}
+          <em>${Math.floor(ap+1e-9)} / ${mx}</em></div>`}
         ${(()=>{ const L=tyTodo(), hot=L.filter(x=>x.lv>=2).length;
           return `<button type="button" class="hd-todo${hot?' hot':''}${TY_MODAL==='todo'?' on':''}" data-ty="modal:todo" title="這一季該注意的事">📌 待辦 <b>${L.length}</b></button>`; })()}
         ${TY.endless?`<span class="hd-end" title="十年結算:第 ${TY.final?TY.final.rank:'?'} 名">♾ 無盡模式</span>`:''}
@@ -14708,7 +14708,7 @@ function tyPickHTML(){
   if(P.k==='plots') return tyPlotsHTML(P);
   const c=tyCard(P.k); if(!c) return '';
   const head=`<div class="pk-h">${tyCardHTML(c)}<div><b>${escH(c.nm)}</b>${P.site?` → ${escH(tySite(P.site).nm)}`:''}
-      <p>${escH(c.dsc)}</p><span class="pk-ap">這一季還有 <b>${tyApNow()}</b> 點行動點 · 這張牌 ${c.ap} 點</span></div></div>`;
+      <p>${escH(c.dsc)}</p><span class="pk-ap">這一季還有 <b>${Math.floor(tyApNow()+1e-9)}</b> 點${TY.rt?'指揮點':'行動點'} · 這張牌 ${c.ap} 點</span></div></div>`;
   if(c.tgt==='city' && !P.site){
     // 沒有地球的退回模式:直接列出可以出的城市
     const ok=TY_SITES.filter(s=>{ try{ return c.ok(s.id); }catch(e){ return false; } });
