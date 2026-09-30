@@ -2462,6 +2462,80 @@ test('帝國第二十輪:月球 / 火星建地(登月、火星計畫前置、補
   await page.__ctx.close();
 });
 
+test('帝國第三十八輪:拖牌時重畫也拖得出去、按住就暫停、部隊目的地在地圖上點', async (browser) => {
+  const page = await freshPage(browser, { seed: SEED, hash: '#/tycoon' });
+  const r = await page.evaluate(() => {
+    const out = {}, log = [];
+    // 測試環境沒有 WebGL:沿用真的 W3D,只換掉瞄準那幾支(測完還原)
+    const W = window.W3D, keys = ['ok', 'aim', 'aimAt', 'aimDrop', 'aimCancel', 'aiming'];
+    const saved = Object.fromEntries(keys.map(k => [k, W[k]]));
+    let aimOpt = null;
+    Object.assign(W, { ok: true, aim: o => { aimOpt = o; log.push('aim'); }, aimAt: () => log.push('at'),
+      aimDrop: () => { log.push('drop'); return true; }, aimCancel: () => log.push('cancel'), aiming: () => !!aimOpt });
+    try {
+      tyStart('heir', 191); TY.rt = true; TY_SPEED = 1; TY_MODAL = null; TY_NEWCARD.length = 0; TY_FALLQ.length = 0; renderPage();
+      const btn = document.querySelector('.hd-cards [data-card="build"]');
+      const rc = btn.getBoundingClientRect(), x = rc.left + rc.width / 2, y = rc.top + rc.height / 2;
+      const pe = (type, dx, dy) => new PointerEvent(type, { bubbles: true, cancelable: true, pointerType: 'touch', clientX: x + dx, clientY: y + dy });
+      btn.dispatchEvent(pe('pointerdown', 0, 0));
+      out.press = TY_PRESS === true && tyClockHeld();
+      // 季末結算 / 對手行動剛好在這時候重畫 —— 手上那顆牌被換掉了
+      renderPage();
+      out.detached = !btn.isConnected;
+      // iPad:之後的事件只送到那顆已經離開頁面的牌(不會冒泡到 window)
+      btn.dispatchEvent(pe('pointermove', 4, -30));
+      btn.dispatchEvent(pe('pointermove', 8, -90));
+      out.dragged = log.includes('aim') && TY_DRAG === true && !!document.querySelector('.pc-ghost');
+      btn.dispatchEvent(pe('pointerup', 8, -90));
+      out.dropped = log.includes('drop') && TY_DRAG === false && TY_PRESS === false && !document.querySelector('.pc-ghost');
+      aimOpt = null;
+      out.resumed = !tyClockHeld();
+      // 同一個事件不處理兩次(window 與牌本身都聽):一般情況(牌還在頁面上)只 aim 一次
+      log.length = 0; renderPage();
+      const b2 = document.querySelector('.hd-cards [data-card="build"]');
+      const r2 = b2.getBoundingClientRect(), x2 = r2.left + r2.width / 2, y2 = r2.top + r2.height / 2;
+      const pe2 = (type, dy) => new PointerEvent(type, { bubbles: true, cancelable: true, pointerType: 'touch', clientX: x2, clientY: y2 + dy });
+      b2.dispatchEvent(pe2('pointerdown', 0)); b2.dispatchEvent(pe2('pointermove', -60)); b2.dispatchEvent(pe2('pointerup', -60));
+      out.once = log.filter(x => x === 'aim').length === 1 && log.filter(x => x === 'drop').length === 1;
+      aimOpt = null;
+      // 保險:放開的事件遺失 → 15 秒後自己恢復
+      TY_PRESS = true; TY_PRESS_AT = performance.now() - 20000; tyClockTick();
+      out.watchdog = TY_PRESS === false;
+      // 部隊:目的地在地圖上點(主要按鈕),清單收起來
+      TY.cash = 900e8; tyRecruit('law'); tyRecruit('raid');
+      TY_USEL = new Set(tyUnits().map(u => u.id)); TY_MODAL = 'troop'; renderPage();
+      const mapBtn = document.querySelector('.tg-mb .cm-map[data-ty="uaim"]');
+      const alt = document.querySelector('.tg-mb details.cm-alt');
+      out.mapBtn = !!mapBtn && !mapBtn.disabled && /2 支/.test(mapBtn.textContent);
+      out.altClosed = !!alt && !alt.open && !!alt.querySelector('select[data-utgt]');
+      mapBtn.click();
+      out.aimTroop = !!aimOpt && typeof aimOpt.pick === 'function';
+      out.hintHome = aimOpt && /你的據點/.test(aimOpt.hint(TY.home));
+      const f = tyRivalForces()[0];
+      out.hintForce = !f || /駐軍/.test(aimOpt.hint(f.site));
+      const u0 = tyUnits()[0].to;
+      aimOpt.pick('hkg');
+      out.sent = tyUnits().every(u => u.to === 'hkg') && u0 == null;
+      aimOpt = null;
+    } finally { Object.assign(W, saved); }
+    return out;
+  });
+  ok(r.press, '手指按住牌的那一刻,時間就暫停');
+  ok(r.detached, '(測試前提)重畫把原本那顆牌換掉了');
+  ok(r.dragged, '牌被換掉之後,事件只送到舊的那顆牌,也還是拖得出去');
+  ok(r.dropped, '放開:出牌、拖曳狀態清掉、時間恢復');
+  ok(r.resumed, '放開之後時間繼續跑');
+  ok(r.once, '同一個事件不會處理兩次');
+  ok(r.watchdog, '放開的事件遺失時,15 秒後自己恢復');
+  ok(r.mapBtn, '部隊:「在地圖上點目的地」是主要按鈕');
+  ok(r.altClosed, '部隊:清單選目的地收起來(還在,當備援)');
+  ok(r.aimTroop, '按下去就進入地圖瞄準');
+  ok(r.hintHome && r.hintForce, '地圖上移到哪裡,就說那裡是什麼(你的據點 / 對手駐軍)');
+  ok(r.sent, '在地圖上點了城市,勾選的部隊就出發');
+  ok(page.__errors.length === 0, `有 JS 錯誤:\n      ${page.__errors.join('\n      ')}`);
+  await page.__ctx.close();
+});
+
 test('帝國第三十七輪:長按看細節、方格進度、出牌選單的城市收成一行、投資範圍條', async (browser) => {
   const page = await freshPage(browser, { seed: SEED, hash: '#/tycoon' });
   const r = await page.evaluate(async () => {
