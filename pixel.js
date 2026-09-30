@@ -486,6 +486,9 @@ SPR.rocket = S([
 SPR.sat = S([
   '......kk......', '......ke......', 'bcbcb.kk.bcbcb', 'cbcbckeeekcbcbc',
   'bcbcbkeyekbcbcb', 'cbcbckeeekcbcbc', 'bcbcb.kk.bcbcb', '......kk......']);
+SPR.moon = S([
+  '....kkkkk....', '..kkwwwwwkk..', '.kwwwwwwggwk.', '.kwggwwwgggk.', 'kwwgggwwwggwk', 'kwwwggwwwwwwk',
+  'kwwwwwwwwwwwk', 'kggwwwwwggwwk', 'kgggwwwgggwwk', '.kggwwwwggwk.', '.kwwwwwwwwwk.', '..kkwwwwwkk..', '....kkkkk....']);
 SPR.hotel5 = tower({ body:'o', win:'l', floors:6, w:10, roof:['..kkkkkkkk..', '..kyryryryk.', '..kkkkkkkk..'] });
 
 /* ---- 地標(每座城一個,參考那款遊戲「每座城都認得出來」)---- */

@@ -2462,6 +2462,38 @@ test('帝國第二十輪:月球 / 火星建地(登月、火星計畫前置、補
   await page.__ctx.close();
 });
 
+test('帝國第四十九輪:手牌有「登月」—— 不用先找到月球上的建地', async (browser) => {
+  const page = await freshPage(browser, { seed: SEED, hash: '#/tycoon' });
+  const r = await page.evaluate(() => {
+    const out = {};
+    tyStart('heir', 221); TY.rt = true; TY_SPEED = 0; TY_MODAL = null; TY_NEWCARD.length = 0; renderPage();
+    out.lockedAtStart = !tyHasCard('moon');
+    TY.t = 3; tyCardsSync(); out.unlock = tyHasCard('moon') && TY_NEWCARD.includes('moon');
+    TY_NEWCARD.length = 0; renderPage();
+    out.inHand = !!document.querySelector('[data-card="moon"], [data-k="moon"]');
+    tyCardGo('moon');
+    const mb = document.querySelector('.tg-mb');
+    out.panel = TY_MODAL === 'pick' && !!mb.querySelector('[data-ty="moonland"]') && !!mb.querySelector('[data-ty="space:moon"]');
+    out.needStar = /星鏈/.test(mb.textContent);
+    TY.cash += 500e8; TY.ap = tyApMax(); tyLaunch(TY.home); TY.ap = tyApMax();
+    TY_PICK = { k: 'moon' }; TY_MODAL = 'pick'; renderPage();
+    document.querySelector('.tg-mb [data-ty="moonland"]').click();
+    out.landed = !!tySpace().moon;
+    TY_PICK = { k: 'moon' }; TY_MODAL = 'pick'; renderPage();
+    out.after = /已經登月/.test(document.querySelector('.tg-mb').textContent) && !document.querySelector('.tg-mb [data-ty="moonland"]');
+    return out;
+  });
+  ok(r.lockedAtStart, '開局還沒有登月牌');
+  ok(r.unlock, '第 4 季(或發過星鏈)翻出登月牌');
+  ok(r.inHand, '登月牌出現在手牌');
+  ok(r.panel, '點登月牌:面板有「登月」與「去月球」');
+  ok(r.needStar, '還沒發星鏈:面板寫出要先發星鏈');
+  ok(r.landed, '發過星鏈後,面板上的登月按鈕真的會登月');
+  ok(r.after, '登月之後面板改成「已經登月」,不會再出現登月按鈕');
+  ok(page.__errors.length === 0, `有 JS 錯誤:\n      ${page.__errors.join('\n      ')}`);
+  await page.__ctx.close();
+});
+
 test('帝國第四十輪:設定 —— 字體大小、漲跌顏色、音效、教練都在一頁', async (browser) => {
   const page = await freshPage(browser, { seed: SEED, hash: '#/tycoon' });
   const r = await page.evaluate(() => {
