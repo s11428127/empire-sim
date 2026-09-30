@@ -2527,6 +2527,8 @@
   .vz-rng .t u{position:absolute;top:2px;bottom:2px;background:#5b7a96}
   .vz-rng .t s{position:absolute;top:-3px;bottom:-3px;width:2px;margin-left:-1px;background:#e6edf3}
   .vz-rng .t i{position:absolute;top:50%;width:9px;height:9px;margin:-4.5px 0 0 -4.5px;background:#ffd84a;box-shadow:0 0 0 1px #000}
+  .cm-map{width:100%;font-size:14px;padding:10px 12px}
+  details.cm-alt{margin:2px 0 4px} details.cm-alt>summary{cursor:pointer;font-size:11.5px;color:var(--g-t3);padding:4px 0}
   .qs{display:flex;flex-direction:column;gap:8px;margin:0 0 14px}
   .qs-s{display:grid;grid-template-columns:30px 1fr;gap:2px 10px;padding:10px;background:var(--g-p2);border:1px solid var(--g-line)}
   .qs-s i{grid-row:span 2;font-style:normal;width:26px;height:26px;display:flex;align-items:center;justify-content:center;
@@ -10998,12 +11000,16 @@ function tyCmdHTML(){
       <div class="cm-r"><b class="cm-n">已選 ${n} 支</b>
         <button type="button" class="ty-b alt" data-ty="uselall">全選</button>
         <button type="button" class="ty-b alt" data-ty="uselnone"${n?'':' disabled'}>全不選</button></div>
-      <div class="cm-r"><select data-utgt aria-label="派去哪裡"><option value="">目的地…</option>${tyDestAll(TY_UTGT)}</select>
-        <button type="button" class="ty-b alt" data-ty="uaim"${n?'':' disabled'} title="在地圖上點目標城市">🎯 地圖上選</button></div>
       <div class="cm-r"><span class="cm-l">到了</span>${seg('ord','attack','⚔ 進攻')}${seg('ord','hold','🛡 駐紮')}</div>
       ${TY_UORD.ord==='attack'?`<div class="cm-r"><span class="cm-l">多支</span>${seg('mode','seq','到了就打')}${seg('mode','mass','全部到齊再打')}</div>
       <div class="cm-hint">${TY_UORD.mode==='mass'?'到齊再打:勝率用全部兵力算,比較高,但要等最慢那支。':'到了就打:每一支到了就直接進攻(目的地沒有駐軍就打同一區的);前一場還在打的排隊接著上。'}</div>`:''}
-      <div class="cm-r">${tyActBtn('march', null, `出發(${n} 支 · 1 點)`, canGo?'':' disabled')}
+      ${/* 第四十七輪:目的地改成「在地圖上點」為主 —— 使用者:「下拉選單城市列得很長」。
+           清單留著當備援(沒有 3D 地球、或想用搜尋的人),預設收起來。 */ ''}
+      ${window.W3D && W3D.ok ? `<div class="cm-r"><button type="button" class="ty-b cm-map" data-ty="uaim"${n?'':' disabled'}>🗺 在地圖上點目的地${n?`(${n} 支 · 點了就出發)`:'(先勾選下面的部隊)'}</button></div>` : ''}
+      <details class="cm-alt"${!(window.W3D && W3D.ok) || TY_UTGT ? ' open' : ''}><summary>或從清單選目的地</summary>
+        <div class="cm-r"><select data-utgt aria-label="派去哪裡"><option value="">目的地…</option>${tyDestAll(TY_UTGT)}</select>
+          ${tyActBtn('march', null, `出發(${n} 支 · 1 點)`, canGo?'':' disabled')}</div></details>
+      <div class="cm-r">
         <button type="button" class="ty-b alt" data-ty="armyform"${n>=2?'':' disabled'}>🎖 編成軍團</button>
         <button type="button" class="ty-b alt" data-ty="armysplit"${inArmy?'':' disabled'}>拆散軍團</button>
         <button type="button" class="ty-b alt" data-ty="disbandsel"${n?'':' disabled'}>解散</button></div>
@@ -11115,8 +11121,14 @@ function tyAimUnits(units){
   const from=tySite(units[0].to || units[0].site);
   W3D.aim({ from, label:`${units.map(u=>TY_UNITS[u.k].ic).join('')} 派到哪裡?`,
     valid: id=>units.some(u=>u.site!==id || u.to), hint: id=>{
-      const r=tyRivalsA().find(x=>x.home===id);
-      return r ? `${r.ic||''} ${r.nm}的大本營 · 併購小組駐紮後敵意收購 +10%/支` : '';
+      /* 第四十七輪:在地圖上移到哪裡,就說那裡是什麼、到了會怎樣(新手不用先看懂清單的分組) */
+      const r=tyRivalsA().find(x=>x.home===id), S=tySite(id);
+      const f=tyRivalForces().filter(x=>x.site===id);
+      if(f.length) return `⚔ ${[...new Set(f.map(x=>x.r.nm))].join('、')}的駐軍在這裡 —— 到了會開打`;
+      if(r) return `${r.ic||''} ${r.nm}的大本營 · 併購小組駐紮後敵意收購 +10%/支`;
+      if(tyMySites().some(x=>x.id===id)) return '🛡 你的據點 —— 到了就駐防,守住這裡的事業';
+      if(S.minor) return `🏳 ${S.sub||S.nm}的地方富豪 —— 駐紮可以佔領`;
+      return '';
     },
     pick: id=>{
       TY_LAST_MOVE=null;
@@ -13653,7 +13665,7 @@ const tyPipTxt = t => t.replace(/(\d+)\s*\/\s*(\d+)/g, (m,a,b)=>{ a=+a; b=+b;
   let tm=null, sx=0, sy=0, fired=false, tip=null;
   const close=()=>{ if(tip){ tip.remove(); tip=null; } };
   addEventListener('pointerdown', e=>{
-    close();
+    close(); fired=false;
     if(e.pointerType==='mouse') return;
     const t=e.target && e.target.closest ? e.target.closest('.tycon [title]') : null;
     const txt=t && t.getAttribute('title');
@@ -13667,7 +13679,7 @@ const tyPipTxt = t => t.replace(/(\d+)\s*\/\s*(\d+)/g, (m,a,b)=>{ a=+a; b=+b;
       tip.style.top=(Math.max(8, sy-r.height-22)+scrollY)+'px';
     }, 450);
   }, true);
-  addEventListener('pointermove', e=>{ if((tm||tip) && Math.hypot(e.clientX-sx, e.clientY-sy)>10){ clearTimeout(tm); tm=null; close(); } }, true);   // 開始拖牌:泡泡收掉
+  addEventListener('pointermove', e=>{ if((tm||tip) && Math.hypot(e.clientX-sx, e.clientY-sy)>10){ clearTimeout(tm); tm=null; close(); fired=false; } }, true);   // 開始拖牌:泡泡收掉,之後的點擊照常
   addEventListener('pointerup', ()=>{ clearTimeout(tm); tm=null; }, true);
   addEventListener('pointercancel', ()=>{ clearTimeout(tm); tm=null; }, true);
   addEventListener('click', e=>{ if(fired){ fired=false; e.preventDefault(); e.stopImmediatePropagation(); } }, true);
@@ -14030,7 +14042,10 @@ function tyDenyShake(){
    ========================================================================= */
 let TY_DRAG=false, TY_SPEED=1, TY_SPEED_LAST=1, TY_CLK_LAST=0, TY_TOASTS=[], TY_TOAST_ID=0, TY_AP_INT=-1;
 const TY_QMS = { 1:40000, 2:20000, 3:10000 };      // 量測:好的打法 15~18 季贏 → 1× 大約 10~12 分鐘(使用者:「最快十幾二十分鐘」)
-const tyClockHeld = () => !TY || !TY.rt || !!TY.done || (!!TY_MODAL && !tySideModal()) || TY_FALLQ.length>0 || TY_NEWCARD.length>0
+/* 第四十七輪:手指按住牌的那一刻就暫停(TY_PRESS),不是等拖出 10px 才算 ——
+   不然按下去到開始移動的那一小段裡,季末結算 / 對手行動會重畫手牌,牌就拖不出去了。 */
+let TY_PRESS=false, TY_PRESS_AT=0;
+const tyClockHeld = () => !TY || !TY.rt || !!TY.done || TY_PRESS || TY_DRAG || (!!TY_MODAL && !tySideModal()) || TY_FALLQ.length>0 || TY_NEWCARD.length>0
                          || document.hidden || (window.W3D && W3D.aiming && W3D.aiming());
 function tyClockHTML(){
   const held=tyClockHeld() && TY_SPEED>0, pct=Math.round((TY.prog||0)*100);
@@ -14109,6 +14124,7 @@ function tyQuarterGo(auto){
 function tyClockTick(){
   const now=performance.now(), dt=TY_CLK_LAST ? Math.min(400, now-TY_CLK_LAST) : 0; TY_CLK_LAST=now;
   if(!TY || !TY.rt || TY.done) return;
+  if(TY_PRESS && now-TY_PRESS_AT>15000) TY_PRESS=false;        // 保險:放開的事件遺失了也不會一直停著
   if(TY_TOASTS.length && TY_TOASTS.some(t=>t.until<Date.now())){ TY_TOASTS=TY_TOASTS.filter(t=>t.until>=Date.now()); tyToastPaint(); }
   if(TY_SPEED>0 && !tyClockHeld()){
     const q=dt/TY_QMS[TY_SPEED];
@@ -14696,9 +14712,15 @@ function tyArmCard(btn){
     const k=btn.dataset.card, c=tyCard(k); if(!c) return;
     const x0=ev.clientX, y0=ev.clientY;
     let drag=false, gone=false, ghost=null;
+    TY_PRESS=true; TY_PRESS_AT=performance.now();
     /* 在月球 / 火星上:建設、投資牌拖到星球上的建地(白框)放開 = 選那一塊。使用者:「拉出建設的卡沒有給我選地區」 */
     const planet = TY_PLANET && (k==='build' || k==='invest') && tyHasCard(k) && window.W3D && W3D.planetAim;
-    const stop=()=>{ removeEventListener('pointermove', mv); removeEventListener('pointerup', up); removeEventListener('pointercancel', cancel); };
+    /* ⚠ iPad(觸控)的 pointer 事件是跟著「按下去的那一顆」走的:那顆牌如果在拖的途中被重畫換掉,
+       後面的 move / up 只會送到那顆已經離開頁面的牌,不會冒泡到 window —— 牌就拖不出去。
+       所以兩邊都聽(window + 牌本身),同一個事件只處理一次。 */
+    const seen=new WeakSet(), once=fn=>e=>{ if(seen.has(e)) return; seen.add(e); fn(e); };
+    const stop=()=>{ TY_PRESS=false;
+      for(const t of [window, btn]){ t.removeEventListener('pointermove', mvL); t.removeEventListener('pointerup', upL); t.removeEventListener('pointercancel', cancelL); } };
     const cancel=()=>{ gone=true; stop(); TY_DRAG=false; if(ghost) ghost.remove(); if(drag && window.W3D){ if(planet){ W3D.planetAim && W3D.planetAim(false); } else W3D.aimCancel(); } };
     const mv=e=>{
       const dx=e.clientX-x0, dy=e.clientY-y0;
@@ -14731,9 +14753,12 @@ function tyArmCard(btn){
       else if(drag){ if(ghost) ghost.remove(); if(!W3D.aimDrop(e.clientX, e.clientY)) W3D.aimCancel(); }
       else { tySfx('pick','tap'); tyCardGo(k); }
     };
-    addEventListener('pointermove', mv, { passive:false });
-    addEventListener('pointerup', up);
-    addEventListener('pointercancel', cancel);
+    const mvL=once(mv), upL=once(up), cancelL=once(cancel);
+    for(const t of [window, btn]){
+      t.addEventListener('pointermove', mvL, { passive:false });
+      t.addEventListener('pointerup', upL);
+      t.addEventListener('pointercancel', cancelL);
+    }
   });
 }
 function bindTycoon(root){
