@@ -2463,6 +2463,72 @@
   /* ---- 蓋在地圖上的面板 ---- */
   /* ⚠ 面板蓋的是**地圖**,不是整頁。底部功能列要一直按得到 ——
      不然開了一張面板就只能按 ✕ 才出得來,而參考的那款遊戲不是這樣。 */
+  /* ---- 第四十三輪:看得懂的數字(長條、回本時間軸、箭頭、比較面板) ---- */
+  .vz-bars{display:flex;flex-direction:column;gap:6px;margin:6px 0 10px}
+  .vz-bars .vb{display:grid;grid-template-columns:minmax(76px,34%) 1fr auto;gap:8px;align-items:center;font-size:12.5px}
+  .vz-bars .vb-l{color:var(--g-t2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .vz-bars .vb-l i{font-style:normal;color:var(--g-t3);font-size:10.5px;margin-left:4px}
+  .vz-bars .vb.me .vb-l{color:var(--g-t);font-weight:600}
+  .vz-bars .vb-t{position:relative;height:14px;background:rgba(255,255,255,.04)}
+  .vz-bars .vb-t u{position:absolute;top:1px;bottom:1px;background:rgb(var(--c));min-width:2px}
+  .vz-bars .vb.me .vb-t u{box-shadow:0 0 0 1px #fff inset}
+  .vz-bars .vb-0{position:absolute;left:50%;top:-2px;bottom:-2px;width:1px;background:var(--g-t3)}
+  .vz-bars .vb-t s{position:absolute;top:-3px;bottom:-3px;width:0;border-left:2px dashed #ffd84a;text-decoration:none}
+  .vz-bars .vb-t s em{position:absolute;bottom:100%;transform:translateX(-50%);white-space:nowrap;font-style:normal;
+    font-size:10px;color:#ffd84a;margin-bottom:2px}
+  .vz-bars .vb:first-child{margin-top:12px}
+  .vz-bars .vb-v{font-size:12px;font-variant-numeric:tabular-nums;text-align:right;min-width:52px;white-space:nowrap}
+  .vz-note{font-size:11.5px;color:var(--g-t3);line-height:1.6;margin:4px 0 0}
+  .vz-head{font-size:14px;margin:2px 0 4px}
+  .vz-pay{margin:6px 0 2px}
+  .vz-pay .vz-cells{display:grid;grid-template-columns:repeat(40,1fr);gap:1px;height:10px}
+  .vz-pay .vz-cells i,.vz-pay em span i{display:block;background:#2a3a4a}
+  .vz-pay .vz-cells i.w,.vz-pay em span i.w{background:#c9a227}
+  .vz-pay .vz-cells i.g,.vz-pay em span i.g{background:var(--up)}
+  .vz-pay em{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;font-style:normal;font-size:11.5px;margin-top:4px}
+  .vz-pay em span{display:flex;align-items:center;gap:4px;color:var(--g-t3);font-size:10.5px}
+  .vz-pay em span i{width:8px;height:8px;margin-left:4px}
+  .vz-pay.burn em{color:var(--down)}
+  .vz-dots{display:inline-flex;gap:2px;vertical-align:middle}
+  .vz-dots i{width:7px;height:7px;background:#2a3a4a}
+  .vz-dots i.on{background:#ffd84a}
+  .vz-arr{font-size:10px;letter-spacing:-1px;margin-left:2px}
+  .vz-arr.gain{color:#6fd0ff} .vz-arr.cost{color:#ffb340}
+  .vz-meter{display:block;height:6px;background:#2a3a4a;margin-top:6px}
+  .vz-meter u{display:block;height:100%;background:var(--g-ac)}
+  .vz-meter.hot u{background:var(--down)}
+  .vz-cmpb{font:inherit;font-size:12px;cursor:pointer;padding:4px 9px;border:1px solid var(--g-ac);
+    background:rgba(41,151,255,.12);color:var(--g-t);white-space:nowrap}
+  .vz-cmps{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 12px}
+  .vz-cmpb:hover{background:rgba(41,151,255,.25)}
+  .vz-cmp{position:absolute;inset:0;z-index:420;background:rgba(0,0,0,.55);display:flex;align-items:flex-end;justify-content:center}
+  .vz-cmpc{width:min(560px,100%);max-height:86%;display:flex;flex-direction:column;background:var(--g-p);
+    border:2px solid var(--g-ac);box-shadow:0 -4px 0 #000}
+  .vz-ch{display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border-bottom:1px solid var(--g-line)}
+  .vz-ch b{font-size:15px}
+  .vz-tabs{display:flex;gap:6px;flex-wrap:wrap;padding:8px 12px 0}
+  .vz-cb{overflow:auto;padding:8px 12px 14px;-webkit-overflow-scrolling:touch}
+  .vz-line{width:100%;height:auto;display:block;margin:4px 0}
+  .vz-leg{display:flex;gap:12px;flex-wrap:wrap;font-size:11.5px;color:var(--g-t2);margin:0 0 8px}
+  .vz-leg b{display:inline-block;width:10px;height:10px;margin-right:4px;vertical-align:-1px}
+  .vz-sec{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin:4px 0 8px}
+  .c-big{display:flex;align-items:baseline;gap:8px;margin:8px 0 2px}
+  .c-big em{font-style:normal;font-size:11px;color:var(--g-t3)}
+  .c-big b{font-size:20px;font-variant-numeric:tabular-nums}
+  .c-val{display:grid;grid-template-columns:auto 1fr auto;gap:6px;align-items:center;font-size:11px;color:var(--g-t3);margin:4px 0 6px}
+  .c-val span.vt{position:relative;height:8px;background:rgba(255,255,255,.05)}
+  .c-val span.vt u{position:absolute;left:0;top:0;bottom:0}
+  .c-val span.vt u.cap{background:#5b6b7c}
+  .c-val span.vt u.val{background:var(--g-ac);height:4px;top:2px}
+  .c-val b{color:var(--g-t);font-size:12px}
+  .ty-need .n .n-bar{display:inline-block;width:46px;height:6px;background:#2a3a4a;margin:0 4px;vertical-align:middle}
+  .ty-need .n .n-bar s{display:block;height:100%;background:var(--down);text-decoration:none}
+  .pc-fx{display:flex;flex-wrap:wrap;gap:4px 10px;margin-top:3px}
+  .pc-fx span{font-size:11.5px;color:var(--g-t2);white-space:nowrap}
+  .r-meta{display:flex;gap:10px;flex-wrap:wrap;font-size:10.5px;color:var(--g-t3);margin-top:2px}
+  .r-meta span{display:inline-flex;align-items:center;gap:4px}
+  .r-pre .pre-bar{display:inline-block;width:70px;height:7px;background:#2a3a4a;vertical-align:middle;margin:0 4px}
+  .r-pre .pre-bar u{display:block;height:100%;background:var(--g-ac)}
   .tg-modal{position:absolute;inset:0;z-index:300;display:flex;flex-direction:column;
     background:#0a1722}
   .tg-mt{display:flex;align-items:center;flex:0 0 auto;
@@ -8173,7 +8239,9 @@ function tySpecEdge(id, kind, key){
        借用漲跌色會讓同一個綠色在兩行之間代表相反的意思。
        所以自己一組:對你有利用強調色、對你不利用警示色。 */
     const good = lowGood ? pct<0 : pct>0;
-    out.push(`<em class="${good?'gain':'cost'}">${nm} ${pct>0?'+':''}${pct.toFixed(0)}%</em>`);
+    /* 第四十三輪:百分比 → 箭頭(▲ 小、▲▲ 中、▲▲▲ 大),精確數字放 title */
+    const n=Math.abs(pct)<12?1:Math.abs(pct)<30?2:3;
+    out.push(`<em class="${good?'gain':'cost'}" title="${nm} ${pct>0?'+':''}${pct.toFixed(0)}%">${nm}${(pct>0?'▲':'▼').repeat(n)}</em>`);
   }
   return out.join(' · ');
 }
@@ -8211,10 +8279,31 @@ function tySpecPlain(k){
   }
   return out.join(';');
 }
+/* 第四十三輪:特色的效果畫成箭頭,同樣的效果合併成一格
+   (台北原本寫了六次「買 X 股:手續費 −30%」→ 一格「6 種資產 手續費▼▼」,游標停上去看是哪幾種)。 */
+function tySpecFx(k){
+  const d=TY_SPEC[k]; if(!d) return '';
+  const out=[];
+  for(const [bk,e] of Object.entries(d.biz||{})){
+    const nm = bk==='*' ? '所有公司' : (TY_BIZ[bk]||{}).nm; if(!nm) continue;
+    const bits=[['cf','賺',false],['cost','開辦成本',true],['mult','估值',false]]
+      .map(([f,lab,low])=>e[f]!=null && tyArr(e[f],low) ? `${lab}${tyArr(e[f],low)}` : '').filter(Boolean);
+    if(bits.length) out.push(`<span>${(TY_BIZ[bk]||{}).ic||'🏢'} ${nm} ${bits.join(' ')}</span>`);
+  }
+  const g={};
+  for(const [ak,e] of Object.entries(d.asset||{})){
+    const nm = ak==='*' ? '所有資產' : (tyAsset(ak)||{}).nm; if(!nm) continue;
+    for(const [f,lab,low] of [['fee','手續費',true],['yld','配息',false]])
+      if(e[f]!=null && tyArr(e[f],low)){ const key=f+':'+e[f]; (g[key]=g[key]||{ lab, low, m:e[f], nm:[] }).nm.push(nm); }
+  }
+  for(const x of Object.values(g))
+    out.push(`<span title="${escH(x.nm.join('、'))}">📈 ${x.nm.length>2?`${x.nm.length} 種資產`:escH(x.nm.join('、'))} ${x.lab}${tyArr(x.m,x.low)}</span>`);
+  return out.length ? `<span class="pc-fx">${out.join('')}</span>` : '';
+}
 function tyProsCons(id){
   const s=tySite(id), R=TY_REGIONS[s.reg]||{}, pros=[], cons=[];
   for(const k of tySpecs(id)){ const d=TY_SPEC[k]; if(!d) continue;
-    const eff=tySpecPlain(k), item=`${d.ic} <b>${escH(d.nm)}</b>${eff?`<span>${escH(eff)}</span>`:`<span>${escH(d.dsc)}</span>`}`;
+    const eff=tySpecFx(k), item=`${d.ic} <b>${escH(d.nm)}</b>${eff||`<span>${escH(d.dsc)}</span>`}`;
     (d.good===false ? cons : pros).push(item); }
   if(s.tax<=.12) pros.push(`💸 <b>稅低</b><span>公司稅 ${(s.tax*100).toFixed(1)}%</span>`);
   else if(s.tax>=.27) cons.push(`🧾 <b>稅高</b><span>公司稅 ${(s.tax*100).toFixed(1)}%</span>`);
@@ -9192,7 +9281,8 @@ function tyCover(k){
 /* 一條數字門檻:你現在 have,需要 want。 */
 const tyNd = (lab, have, want, fmt) => {
   const f = fmt || (v => v.toFixed(0));
-  return { lab, ok: have >= want - 1e-6, now: f(Math.max(0,have)), want: f(Math.max(0,want)) };
+  return { lab, ok: have >= want - 1e-6, now: f(Math.max(0,have)), want: f(Math.max(0,want)),
+           p: Math.max(0, Math.min(1, have/Math.max(1e-9,want))) };
 };
 /* 一條「有沒有」門檻。lab 寫成**通過時**的樣子,no 是沒過時要說的那句話。 */
 const tyNb = (lab, ok, no) => ({ lab, ok, no });
@@ -9562,11 +9652,16 @@ function tyBlock(act, arg){
 }
 
 /* 卡片上那一行:每一條門檻一顆小標,過了打勾、沒過打叉。 */
+/* 第四十三輪:只列「還差的」—— 已經符合的收成一格(游標停上去看得到是哪幾項)。
+   還差的數字條件多一條進度條:差多少一眼看得出來。 */
 function tyNeedHTML(list, cls){
   if(!list || !list.length) return '';
-  return `<div class="ty-need ${cls||''}">${list.map(n=>
-    `<span class="n ${n.ok?'ok':'no'}"><i>${n.ok?'✓':'✕'}</i>${escH(n.lab)}${
-      n.now!=null ? ` <b>${n.now}</b> / ${n.want}` : ''}</span>`).join('')}</div>`;
+  const bad=list.filter(n=>!n.ok), good=list.filter(n=>n.ok);
+  const tip=escH(good.map(n=>'✓ '+n.lab+(n.now!=null?` ${n.now} / ${n.want}`:'')).join('\n'));
+  return `<div class="ty-need ${cls||''}">${bad.map(n=>
+    `<span class="n no"><i>✕</i>${escH(n.lab)}${n.p!=null?`<span class="n-bar"><s style="width:${(n.p*100).toFixed(0)}%"></s></span>`:''}${
+      n.now!=null ? ` <b>${n.now}</b> / ${n.want}` : ''}</span>`).join('')}${
+    good.length ? `<span class="n ok" title="${tip}"><i>✓</i>${bad.length?`其他 ${good.length} 項都 OK`:'條件都符合'}</span>` : ''}</div>`;
 }
 /* 按鈕的 disabled 與提示,兩顆按鈕共用一套寫法 */
 function tyActBtn(act, arg, label, attrs, cls){
@@ -10220,14 +10315,14 @@ function tyBuyPreview(k, site){
   const n=amt*(1-fee)/upx;
   const yr=a.yld ? amt*a.yld*4 : 0;
   const ym=tySpecMul(site,'asset',k,'yld'), fm=tySpecMul(site,'asset',k,'fee');
-  return `買 <b>${tyM(amt)}</b> ≈ <b>${tyUnitTxt(n,a.u)}</b>`
-    + `(每${a.u} ${tyM(upx)})`
-    + (yr?` · 一年孳息約 ${tyM(yr*ym)}${Math.abs(ym-1)>.02
-          ?`(${tySite(site).nm} ${ym>1?'+':''}${((ym-1)*100).toFixed(0)}%)`:''}`
-        :' · 沒有配息,只能賺價差')
-    + ` · 佔淨值 ${(amt/Math.max(1,tyNW())*100).toFixed(1)}%`
-    + ` · 交易成本 ${tyM(amt*fee)}${Math.abs(fm-1)>.02
-        ?`(${tySite(site).nm} ${fm>1?'+':''}${((fm-1)*100).toFixed(0)}%)`:''}`;
+  /* 第四十三輪:只留「花多少、買到幾個」,其他畫成一條「佔身家多少」;細節放進 title */
+  const sh=Math.max(0, Math.min(1, amt/Math.max(1,tyNW())));
+  const tip=`每${a.u} ${tyM(upx)} · 交易成本 ${tyM(amt*fee)}${Math.abs(fm-1)>.02?`(${tySite(site).nm} ${fm>1?'+':''}${((fm-1)*100).toFixed(0)}%)`:''}`
+    + (yr?` · 一年孳息約 ${tyM(yr*ym)}`:'') + ` · 佔淨值 ${(sh*100).toFixed(1)}%`;
+  return `<span title="${escH(tip)}">買 <b>${tyM(amt)}</b> ≈ <b>${tyUnitTxt(n,a.u)}</b>`
+    + ` · 佔身家<span class="pre-bar"><u style="width:${(sh*100).toFixed(1)}%"></u></span>${sh>=.5?'<b class="down">一半以上!</b>':sh>=.2?'不少':'一小口'}`
+    + (yr?` · 一年配息約 ${tyM(yr*ym)}${tyArr(ym)}`:' · 沒有配息,只賺價差')
+    + `${tyArr(fm,true)?` · 手續費${tyArr(fm,true)}`:''}</span>`;
 }
 
 /* 走勢縮圖。跟交易日誌的縮圖同一套畫法:沒有座標軸,只有形狀。 */
@@ -10293,11 +10388,9 @@ function tyAssetTab(){
       const i=tyRegIdx(m.reg);
       // 同一種資產在不同市場的交易成本與孳息不一樣(見城市特色)
       const fe=tySpecMul(m.id,'asset',a.k,'fee'), yl=tySpecMul(m.id,'asset',a.k,'yld');
-      const tag=[Math.abs(fe-1)>.02?`成本 ${fe>1?'+':''}${((fe-1)*100).toFixed(0)}%`:'',
-                 (a.yld&&Math.abs(yl-1)>.02)?`孳息 ${yl>1?'+':''}${((yl-1)*100).toFixed(0)}%`:'']
-                .filter(Boolean).join(' · ');
-      return `<option value="${m.id}"${m.id===mkt?' selected':''}>${m.nm} 景氣 ${
-        ((i-1)*100>=0?'+':'')}${((i-1)*100).toFixed(0)}%${tag?' · '+tag:''}</option>`;
+      const ar=(x)=>{ const d=x-1; if(Math.abs(d)<.02) return ''; const n=Math.abs(d)<.12?1:Math.abs(d)<.3?2:3; return (d>0?'▲':'▼').repeat(n); };
+      const tag=[ar(i)?`景氣${ar(i)}`:'', ar(fe)?`手續費${ar(fe)}`:'', (a.yld&&ar(yl))?`配息${ar(yl)}`:''].filter(Boolean).join(' ');
+      return `<option value="${m.id}"${m.id===mkt?' selected':''}>${m.nm}${tag?' · '+tag:''}</option>`;
     }).join('');
     const where=mine.sort((x,y)=>Math.abs(tyPosVal(y))-Math.abs(tyPosVal(x)))
       .map(p=>`${tySite(p.site).nm} ${tyUnitTxt(tyUnitCount(p),a.u)}`).join(' · ');
@@ -10311,8 +10404,9 @@ function tyAssetTab(){
       <div class="r-px"><b>${(px*tyRegIdx(tySite(mkt).reg)).toFixed(1)}</b>
         <span class="${ch>=0?'up':'down'}">${tyPct1(ch)}</span>
         ${tyPxSpark(a.k,88,26)}
-        <em>抵押 ${(a.ltv*100).toFixed(0)}% · 成本 ${(a.fee*100).toFixed(1)}%${
-          a.yld?` · 孳息 ${(a.yld*400).toFixed(1)}%/年`:''}</em></div>
+        <span class="r-meta" title="抵押 ${(a.ltv*100).toFixed(0)}% · 成本 ${(a.fee*100).toFixed(1)}%${a.yld?` · 孳息 ${(a.yld*400).toFixed(1)}%/年`:''}">
+          <span>風險${tyDots(Math.max(1,Math.min(5,Math.round(a.vol/.035))))}</span>
+          <span>配息${tyDots(a.yld?Math.max(1,Math.min(5,Math.round(a.yld*400/.9))):0)}</span></span></div>
       <div class="r-pos ${short?'sh':''}">${v?tyM(Math.abs(v)):'—'}
         <em>${short ? '空單 '+tyUnitTxt(Math.abs(units),a.u)
                     : (v ? tyUnitTxt(units,a.u)+(where?' · '+where:'') : '未持有')}</em></div>
@@ -10332,14 +10426,15 @@ function tyAssetTab(){
     return `<div class="p-sec">${g.nm}<span>${g.sub}</span></div><div class="ty-rows">${rows}</div>`;
   }).join('');
 
-  return `<div class="ty-sizebar"><span>下單金額</span>${chips}
+  return `<div class="vz-sec"><span class="vz-note">哪一種最近在漲、哪一種最刺激、哪一種配息多?</span>${tyCmpBtn('asset','比較所有資產')}</div>
+    <div class="ty-sizebar"><span>下單金額</span>${chips}
       <span class="ty-amt">
         <input type="number" inputmode="decimal" min="0" step="0.5" id="tyAmt"
           value="${TY_AMT!=null?(TY_AMT/1e8).toFixed(1):''}" placeholder="自訂" aria-label="下單金額(億)">
         <i>億</i></span>
       <em>選比例或直接打金額。每一列底下那一行會直接告訴你這筆錢買得到什麼、
         一年生得出多少孳息 —— 按下去之前就看得到。
-        下拉是「買在哪個市場」,後面的百分比是當地景氣指數。</em></div>
+        下拉是「買在哪個市場」:▲ 越多越好,手續費 ▼ 越多越便宜。</em></div>
     ${groups}`;
 }
 
@@ -10365,8 +10460,8 @@ function tyBizActs(b){
   if(!d.shell){
     const lv=tyBizLv(b), pv=tyUpPreview(b);
     main.push(row('upgrade', lv>=TY_LV_MAX?`已經是 Lv${TY_LV_MAX}`:`⬆ 升到 Lv${lv+1}`, 'up', id,
-      lv>=TY_LV_MAX?'':`花 ${tyM(pv.cost)} · 每季 ${pv.dcf>=0?'+':''}${tyM(pv.dcf)} · ${
-        isFinite(pv.pay)?`<b>${pv.pay.toFixed(1)} 季回本</b>`:'<b class="down">還在燒錢</b>'}`));
+      lv>=TY_LV_MAX?'':`花 ${tyM(pv.cost)} → 每季多 <b class="${pv.dcf>=0?'up':'down'}">${pv.dcf>=0?'+':''}${tyM(pv.dcf)}</b>`,
+      lv>=TY_LV_MAX?'':tyPayStrip(pv.pay)));
   }
   if(!d.shell && !b.pub){
     main.push(row('ipo','🔔 送上市 IPO','',id,
@@ -10411,11 +10506,12 @@ function tyBizTab(){
         <button type="button" class="tag site" data-ty="site" data-k="${b.site||TY.home}"
           title="在地圖上看這裡">📍 ${escH(tySite(b.site||TY.home).nm)}</button>
         <span class="tag">${tyWhen(b.born)} 成立</span></div>
-      <div class="c-fig">
-        <span>投入資本 <b>${tyM(b.cap)}</b></span>
-        <span>估值 <b>${shell?'—':tyM(val)}</b></span>
-        <span>持股 <b>${(b.own*100).toFixed(0)}%</b></span>
-        <span>上季現金流 <b class="${b.cf>=0?'up':'down'}">${shell?'—':tySgn(b.cf)}</b></span></div>
+      ${shell?'':`<div class="c-big"><em>每季賺</em><b class="${b.cf>=0?'up':'down'}">${tySgn(b.cf*b.own)}</b>${
+          b.own<1?`<em>(你持股 ${(b.own*100).toFixed(0)}%)</em>`:''}</div>
+        <div class="c-val" title="投入資本 ${tyM(b.cap)} · 估值 ${tyM(val)}">
+          <span>本錢 → 現在值</span>
+          <span class="vt"><u class="cap" style="width:${(b.cap/Math.max(1,b.cap,val)*100).toFixed(0)}%"></u><u class="val" style="width:${(val/Math.max(1,b.cap,val)*100).toFixed(0)}%"></u></span>
+          <b class="${val>=b.cap?'up':'down'}">${val>=b.cap?`值本錢的 ${(val/Math.max(1,b.cap)).toFixed(1)} 倍`:`跌破本錢`}</b></div>`}
       ${shell?'':`<div class="c-lvbar" title="等級 ${lv} / ${TY_LV_MAX}">${
         Array.from({length:TY_LV_MAX},(_,i)=>`<i class="${i<lv?'on':''}${i===4?' ms':''}"></i>`).join('')}</div>`}
       ${tyBizActs(b)}
@@ -10430,36 +10526,36 @@ function tyBizTab(){
       /* 下拉裡就要看得出「開在這裡划不划算」—— 不然使用者得一個一個點過去比。
          cf 是城市特色對現金流的加成,cost 是對開辦成本的。 */
       const cf=tySpecMul(x.id,'biz',k,'cf'), co=tySpecMul(x.id,'biz',k,'cost');
-      const tag=[Math.abs(cf-1)>.02?`現金流 ${cf>1?'+':''}${((cf-1)*100).toFixed(0)}%`:'',
-                 Math.abs(co-1)>.02?`成本 ${co>1?'+':''}${((co-1)*100).toFixed(0)}%`:'']
-                .filter(Boolean).join(' · ');
-      return `<option value="${x.id}"${x.id===site?' selected':''}>${x.nm} 景氣 ${
-        ((i-1)*100>=0?'+':'')}${((i-1)*100).toFixed(0)}%${tag?' · '+tag:''}${lock?' 🔒':''}</option>`;
+      /* 第四十三輪:下拉裡不再是一串百分比,改成箭頭(▲ 越多越好;▼ 成本越多越便宜) */
+      const ar=(m,low)=>{ const d=m-1; if(Math.abs(d)<.02) return ''; const n=Math.abs(d)<.12?1:Math.abs(d)<.3?2:3; return (d>0?'▲':'▼').repeat(n); };
+      const tag=[ar(i)?`景氣${ar(i)}`:'', ar(cf)?`賺${ar(cf)}`:'', ar(co)?`成本${ar(co)}`:''].filter(Boolean).join(' ');
+      return `<option value="${x.id}"${x.id===site?' selected':''}>${x.nm}${tag?' · '+tag:''}${lock?' 🔒':''}</option>`;
     }).join('');
     /* 開一家要多少現金流、多少估值 —— 按下去之前就看得到,
        跟資產那一頁的成交預覽同一套規矩。 */
     const idx=tyRegIdx(tySite(site).reg);
     const cf=cost*d.cf*idx, val=Math.max(cost*.4, Math.max(0,cf)*4*d.mult*.5);
+    const cfR=cost*(d.fameCf?tyBrandRate(1):d.cf)*idx*tySpecMul(site,'biz',k,'cf');
     return `<div class="ty-open">
-      <div class="o-t"><b>${d.nm}</b><span>${tyM(cost)}
-        · 稅率 ${(tySite(site).tax*100).toFixed(1)}% · 估值倍數 ${d.mult}×</span></div>
+      <div class="o-t"><b>${d.ic||''} ${d.nm}</b><span title="稅率 ${(tySite(site).tax*100).toFixed(1)}% · 估值倍數 ${d.mult}×">${tyM(tyBizCost(k,site))}
+        · 估值 ${tyDots(Math.max(1,Math.min(5,Math.round(d.mult/6))))} · 穩 ${tyDots(Math.max(1,Math.min(5,Math.round(5-d.vol*2.2))))}</span></div>
       <div class="o-d">${d.dsc}</div>
       <div class="o-row">
         <select class="ty-mkt" data-bizsite="${k}" aria-label="${d.nm}開在哪">${opts}</select>
         ${tyActBtn('found',{k,site},'成立',` data-k="${k}" data-site="${site}"`)}
       </div>
       ${tyNeedHTML(tyNeeds('found',{k,site}))}
-      <div class="o-pre">開在${escH(tySite(site).nm)} · 投入 <b>${tyM(cost)}</b> ·
-        第一季現金流大約 <b class="${cf>=0?'up':'down'}">${tySgn(cf)}</b>${
-          d.fameCf?'(這一家的現金流看名氣不看資本)':''} · 估值起點約 ${tyM(val)}</div>
+      <div class="o-pre" title="投入 ${tyM(cost)} · 估值起點約 ${tyM(val)}">開在${escH(tySite(site).nm)}:每季約 <b class="${cfR>=0?'up':'down'}">${tySgn(cfR)}</b>${
+          d.fameCf?'(看名氣不看資本)':''}${tyPayStrip(cfR>0?tyBizCost(k,site)/cfR:Infinity)}</div>
       </div>`;
   }).join('');
 
-  return `<div class="ty-cards">${mine}</div>
-    <div class="hm-sec">可以成立的事業<span class="stag">估值倍數越高的,現金流通常越差 —— 那是市場在買故事</span></div>
-    <div class="expo-note">下拉選的是「開在哪裡」。後面的百分比是當地景氣指數(直接乘進現金流與估值),
-      前面的稅率是那個司法管轄區的法定公司稅率 —— 那是真實數字,不是模型算出來的。
-      每一顆「成立」底下那一行寫著它要什麼:<b>打勾的是你已經有的,打叉的是還差的</b>。</div>
+  return `${TY.biz.filter(b=>!TY_BIZ[b.k].shell).length>1?`<div class="vz-sec"><span></span>${tyCmpBtn('biz','比較我的事業')}</div>`:''}
+    <div class="ty-cards">${mine}</div>
+    <div class="hm-sec vz-sec">可以成立的事業${tyCmpBtn('open','哪一種最划算')}</div>
+    <div class="expo-note">下拉選「開在哪裡」:▲ 越多越好(景氣熱、賺得多),成本 ▼ 越多越便宜。
+      每一種底下的長條是這一局的 40 季:<b>黃色是等回本,綠色是回本之後都是賺的</b>。
+      「估值」點越多,上市後越值錢;「穩」點越多,景氣差時越不會虧。</div>
     <div class="ty-opens">${list}</div>`;
 }
 
@@ -10574,7 +10670,7 @@ function tyDataTab(){
     head.map(h=>`<th${h[1]?' class="n"':''}>${h[0]}</th>`).join('')}</tr></thead><tbody>${body}</tbody></table></div>`
     :`<div class="empty">${empty}</div>`;
   return `
-  <div class="p-sec">身家<span>淨值 ${tyM(nw)} · 富豪榜第 ${tyRank()} 名</span></div>
+  <div class="p-sec vz-sec">身家 ${tyM(nw)} · 第 ${tyRank()} 名${tyCmpBtn('nw','身家比一比')}</div>
   <div class="ty-stack">${parts.map(x=>`<i style="width:${(x[1]/gross*100).toFixed(1)}%;background:${x[2]}"></i>`).join('')}</div>
   <div class="ty-legend">${parts.map(x=>`<span><b style="background:${x[2]}"></b>${x[0]} ${tyM(x[1])}</span>`).join('')}
     <span><b style="background:#e05252"></b>負債 −${tyM(TY.debt)}</span></div>
@@ -11154,7 +11250,7 @@ function tyRivalTab(){
     </div>`;
   }).join('');
 
-  return `${tyRivalFeed()}
+  return `<div class="vz-sec"><span class="vz-note">你跟每個對手差多少、離勝利線多遠</span>${tyCmpBtn('nw','身家比一比')}</div>${tyRivalFeed()}
     <div class="expo-note">這些人跟你玩同一場遊戲。他們會擴張、會互相併購、
       會在危機那一季斷掉,也會因為你打進他的地盤而記恨;場上人少了,會有新富豪崛起。
       <b>關係</b>決定他願不願意跟你談,<b>勢力</b>決定他值不值得你談。</div>
@@ -12763,11 +12859,12 @@ function tySitePanel(id){
       <b>${escH(s.nm)}</b>
       <span>${escH(s.sub||'')}${s.sub?' · ':''}${escH(REGION_NAME[s.iso]||s.iso)} · ${R.nm}</span></div>
     ${tyProsConsHTML(id)}
+    <div class="vz-sec"><span class="vz-note">這裡跟別的城市比起來怎麼樣?</span>${tyCmpBtn('city:'+id,'跟其他城市比')}</div>
     <div class="ty-facts">
-      <div><em>法定公司稅率${s.minor?'(約略)':''}</em><b>${(s.tax*100).toFixed(1)}%</b></div>
-      <div><em>地區指數</em><b class="${idx>=1?'up':'down'}">${((idx-1)*100>=0?'+':'')}${((idx-1)*100).toFixed(1)}%</b></div>
-      <div><em>政策風險</em><b>${(R.pol||0)>=.8?'高':(R.pol||0)>=.45?'中':'低'}${par?'(有夥伴,減半)':''}</b></div>
-      <div><em>當地競爭</em><b>${TY.reg[s.reg].comp>.5?TY.reg[s.reg].comp.toFixed(1):'—'}</b></div>
+      <div title="法定公司稅率 ${(s.tax*100).toFixed(1)}%"><em>公司稅 · ${s.tax<=.12?'低':s.tax>=.27?'高':'中'}${s.minor?'(約略)':''}</em><b>${(s.tax*100).toFixed(1)}%</b>${tyVzBar(s.tax,.35,.27)}</div>
+      <div title="地區指數 ${((idx-1)*100>=0?'+':'')}${((idx-1)*100).toFixed(1)}%"><em>景氣</em><b class="${idx>=1?'up':'down'}">${idx>=1.08?'偏熱':idx<=.92?'偏冷':'平常'} ${tyArr(idx)}</b>${tyVzBar(idx-.5,1.2)}</div>
+      <div><em>政策風險</em><b>${(R.pol||0)>=.8?'高':(R.pol||0)>=.45?'中':'低'}${par?'(有夥伴,減半)':''}</b>${tyVzBar((R.pol||0)*(par?.5:1),1.2,.8)}</div>
+      <div title="當地競爭 ${TY.reg[s.reg].comp.toFixed(1)}"><em>當地競爭</em><b>${TY.reg[s.reg].comp>.5?tyDots(Math.max(1,Math.min(5,Math.round(TY.reg[s.reg].comp/2)))):'沒有'}</b></div>
     </div>
     <div class="p-note">${escH(s.note)}</div>
     ${s.minor?tyLocalHTML(id):''}
@@ -13230,6 +13327,8 @@ function tyMoreSheet(){
   return `<div class="tg-ovl">${TY_OVERVIEW.map(([k,ic,nm,sub])=>`<button type="button" class="tg-ml ov" data-ty="modal:${k}">
         <i>${ic}</i><b>${nm}</b><span>${sub}</span></button>`).join('')}</div>
     <div class="tg-more">
+      <div class="vz-sec"><b>📊 比一比</b><span class="vz-note">用長條看你跟別人、各種選擇差多少</span></div>
+      <div class="vz-cmps">${tyCmpBtn('nw','身家')}${tyCmpBtn('biz','我的事業')}${tyCmpBtn('open','哪種事業划算')}${tyCmpBtn('asset','資產')}${tyCmpBtn('city:'+TY.home,'城市')}</div>
       <button type="button" class="tg-ml" data-ty="modal:data"><b>我的全部資料</b>
         <span>身家組成、每一筆資產與事業、部隊、對手 —— 一頁看完</span></button>
       <button type="button" class="tg-ml" data-ty="modal:rank"><b>富豪榜</b>
@@ -13291,6 +13390,187 @@ function tyTodoTab(){
     ${L.length?`<div class="td-list">${L.map(x=>`<div class="td-row lv${x.lv}"><i>${x.ic}</i>
       <span>${x.txt}</span>${x.btn}</div>`).join('')}</div>`:'<div class="empty">沒有急事。按「下一季」吧。</div>'}`;
 }
+/* =========================================================================
+   看得懂的數字(第四十三輪)
+   -------------------------------------------------------------------------
+   使用者:「遊戲裡的數字太多了,我看了一堆數字完全沒有感覺和想法。多用圖表或可視化,
+   一目瞭然;也可以新增跟其他東西比較的按鈕。」
+   規則:
+     · 重要的數字(身家、現金、每季賺多少)留著,但放大、只留一個
+     · 「跟誰比」的數字 → 長條(我是藍色、對手用他在地圖上的顏色、其他灰色)
+     · 「多久回本」→ 一局 40 季的時間軸,看得到回本那一格落在哪
+     · 「加成幾 %」→ 箭頭(▲ 小、▲▲ 中、▲▲▲ 大;綠 = 對你有利)
+     · 條件清單只列還差的那幾項,已經符合的收成一格「✓ 其他都 OK」
+     · 精確數字沒有消失:游標停上去(title)就看得到
+   ========================================================================= */
+const TY_ME_COL='41,151,255', TY_OTHER_COL='120,132,148';
+/* 橫條圖。rows:[{ lab, v, me, col:'r,g,b', txt, tip }]
+   有負值時從中線往左右畫(同一把尺)。opt.mark = { v, lab }:一條直線(例如勝利線)。 */
+function tyBars(rows, opt){
+  opt=opt||{}; const fmt=opt.fmt||tyM;
+  if(!rows.length) return `<div class="empty">${opt.empty||'沒有東西可以比。'}</div>`;
+  const vals=rows.map(r=>Math.abs(r.v||0)).concat(opt.mark?[Math.abs(opt.mark.v)]:[]);
+  const mx=Math.max(1e-9, ...vals), neg=rows.some(r=>r.v<0);
+  const W=v=>Math.max(0, Math.min(100, Math.abs(v)/mx*(neg?50:100)));
+  const pos=v=>neg ? 50+(v>=0?1:-1)*W(v) : W(v);
+  return `<div class="vz-bars${neg?' neg':''}">${rows.map((r,i)=>{
+      const c=r.col||(r.me?TY_ME_COL:TY_OTHER_COL), w=W(r.v||0);
+      const bar = neg
+        ? `<u style="${r.v<0?`right:50%`:`left:50%`};width:${w.toFixed(1)}%;--c:${c}"></u>`
+        : `<u style="left:0;width:${w.toFixed(1)}%;--c:${c}"></u>`;
+      const mk = opt.mark ? `<s style="left:${pos(opt.mark.v).toFixed(1)}%">${i===0?`<em>${opt.mark.lab}</em>`:''}</s>` : '';
+      return `<div class="vb${r.me?' me':''}" title="${escH(r.tip||(String(r.lab).replace(/<[^>]+>/g,'')+':'+fmt(r.v)))}">
+        <span class="vb-l">${r.lab}</span>
+        <span class="vb-t">${neg?'<i class="vb-0"></i>':''}${bar}${mk}</span>
+        <b class="vb-v${r.v<0?' down':''}">${r.txt!=null?r.txt:fmt(r.v)}</b></div>`;
+    }).join('')}</div>`;
+}
+/* 回本時間軸:一格 = 一季,整條 = 這一局的 40 季。灰 = 過去、黃 = 等回本、綠 = 回本之後。 */
+function tyPayStrip(pay){
+  const N=TY_QN, now=Math.min(TY.t, N-1);
+  if(!isFinite(pay) || pay<=0)
+    return `<div class="vz-pay burn" title="現金流是負的"><em>🔥 還在燒錢 —— 回不了本,要靠估值(上市)</em></div>`;
+  const end=now+pay;
+  const cells=Array.from({length:N},(_,i)=>`<i class="${i<now?'p':i<end?'w':'g'}"></i>`).join('');
+  const txt = end>N ? '這一局結束前回不了本'
+            : pay<=4 ? '一年內回本' : pay<=8 ? '兩年內回本' : pay<=16 ? '四年內回本' : '要等很久才回本';
+  return `<div class="vz-pay" title="約 ${pay.toFixed(1)} 季回本(一格 = 一季,整條 = 這一局 40 季)">
+      <span class="vz-cells">${cells}</span>
+      <em><b class="${end>N?'down':pay<=8?'up':''}">${txt}</b><span><i class="w"></i>等回本<i class="g"></i>之後都是賺的</span></em></div>`;
+}
+/* 等級點:1~5 */
+const tyDots = (n, cls) => `<span class="vz-dots ${cls||''}" aria-label="${n} / 5">${
+  Array.from({length:5},(_,i)=>`<i class="${i<n?'on':''}"></i>`).join('')}</span>`;
+/* 加成箭頭:m 是乘數(1.3 = +30%)。lowGood:成本、手續費這種越低越好 */
+function tyArr(m, lowGood){
+  const d=m-1; if(Math.abs(d)<.02) return '';
+  const n=Math.abs(d)<.12?1:Math.abs(d)<.3?2:3, good=lowGood?d<0:d>0;
+  /* ⚠ 不用 --up / --down:那兩個顏色只代表盈虧(見 tySpecEdge)。對你有利 / 不利用另一組 */
+  return `<b class="vz-arr ${good?'gain':'cost'}" title="${d>0?'+':'−'}${Math.round(Math.abs(d)*100)}%">${(d>0?'▲':'▼').repeat(n)}</b>`;
+}
+/* 小量表:0~100 的條,danger 以上變紅 */
+const tyVzBar = (v, max, danger) => {
+  const p=Math.max(0, Math.min(100, v/Math.max(1e-9,max)*100));
+  return `<span class="vz-meter${danger!=null&&v>=danger?' hot':''}"><u style="width:${p.toFixed(1)}%"></u></span>`;
+};
+
+/* ---- 比較面板 ---- */
+let TY_CMP=null, TY_CMP_T=0;
+const tyCmpBtn = (k, lab) => `<button type="button" class="vz-cmpb" data-ty="cmp" data-k="${escH(k)}">📊 ${lab||'比較'}</button>`;
+const tyPctF = v => `${v>=0?'+':'−'}${Math.abs(v).toFixed(v!==0&&Math.abs(v)<10?1:0)}%`;
+/* 身家走勢:我 vs 目前榜首(同一把尺、同一條時間軸) */
+function tyNwLines(){
+  const me=(TY.nw||[]).slice(), top=tyRivalsA().slice().sort((a,b)=>b.nw-a.nw)[0];
+  const th=top ? (top.hist||[]).slice(-me.length) : [];
+  if(me.length<2) return '<div class="empty">再過一季就有走勢可以看。</div>';
+  const W=320, H=150, P=10, L=Math.max(me.length, th.length);
+  const all=me.concat(th), mx=Math.max(...all), mn=Math.min(0, ...all), rg=(mx-mn)||1;
+  const X=(i,n)=>P+(i+(L-n))/(L-1)*(W-P*2-46), Y=v=>H-P-(v-mn)/rg*(H-P*2);
+  const path=(d)=>d.map((v,i)=>`${i?'L':'M'}${X(i,d.length).toFixed(1)},${Y(v).toFixed(1)}`).join(' ');
+  const tc=top?(TY_RVCOL[top.id]||TY_OTHER_COL):TY_OTHER_COL;
+  const lab=(d,t,c)=>d.length?`<text x="${(X(d.length-1,d.length)+4).toFixed(1)}" y="${(Y(d[d.length-1])+4).toFixed(1)}" fill="var(--g-t)" font-size="11">${t}</text>`:'';
+  return `<svg class="vz-line" viewBox="0 0 ${W} ${H}" role="img" aria-label="身家走勢:你與榜首">
+      <line x1="${P}" x2="${W-P-46}" y1="${Y(0).toFixed(1)}" y2="${Y(0).toFixed(1)}" stroke="var(--g-line)"/>
+      ${th.length>1?`<path d="${path(th)}" fill="none" stroke="rgb(${tc})" stroke-width="2" stroke-linejoin="round"/>`:''}
+      <path d="${path(me)}" fill="none" stroke="rgb(${TY_ME_COL})" stroke-width="2.5" stroke-linejoin="round"/>
+      ${lab(me,'你')}${top&&th.length>1?lab(th,escH(top.nm.split(' ')[0].slice(0,4))):''}
+    </svg>
+    <div class="vz-leg"><span><b style="background:rgb(${TY_ME_COL})"></b>你</span>${top?`<span><b style="background:rgb(${tc})"></b>${escH(top.nm)}(現在的榜首)</span>`:''}</div>`;
+}
+function tyCmpBody(k, arg, t){
+  if(k==='nw'){
+    const rv=tyRivalsA().slice().sort((a,b)=>b.nw-a.nw), nw=tyShownNW(), top=rv[0]?rv[0].nw:0;
+    if(t===0){
+      const rows=[{ lab:'<b>你</b>', v:nw, me:true }].concat(rv.map(r=>({ lab:`${r.ic||''} ${escH(r.nm)}`, v:r.nw, col:TY_RVCOL[r.id] })))
+        .sort((a,b)=>b.v-a.v);
+      const gap=2*top-nw;
+      return `<div class="vz-head">${gap>0?`離勝利線還差 <b>${tyM(gap)}</b>`
+          : TY.t<TY_ECON_T ? `<b class="up">已經越過勝利線</b> —— 但第 ${TY_ECON_T} 季起才開始算,先守住`
+          : `<b class="up">已經越過勝利線</b>(撐住兩季就贏)`}</div>
+        ${tyBars(rows, { mark: top?{ v:2*top, lab:'勝利線:榜首 ×2' }:null })}
+        <p class="vz-note">經濟霸權 = 你的身家到達目前榜首的兩倍(第 ${TY_ECON_T} 季起算),連續兩季。</p>`;
+    }
+    if(t===1){
+      const d=TY.nw||[], s=d[0]||nw, q=d.length>1?d[d.length-2]:nw;
+      return `${tyNwLines()}
+        ${tyBars([{ lab:'開局', v:s }, { lab:'上一季', v:q }, { lab:'<b>現在</b>', v:nw, me:true }])}`;
+    }
+    const sp=Math.max(0, nw-(TY.cash+tyAssetVal()+tyBizTotal()-TY.debt));
+    return `${tyBars([{ lab:'💵 現金', v:TY.cash }, { lab:'📈 投資', v:tyAssetVal() }, { lab:'🏢 事業', v:tyBizTotal() },
+        ...(sp>1e6?[{ lab:'🚀 其他(太空、持股)', v:sp }]:[]), { lab:'🏦 負債', v:-TY.debt }])}
+      <p class="vz-note">往右是你有的,往左是你欠的。身家 = 右邊加起來 − 左邊。</p>`;
+  }
+  if(k==='biz'){
+    const bz=TY.biz.filter(b=>!TY_BIZ[b.k].shell);
+    const lab=b=>`${TY_BIZ[b.k].ic||''} ${TY_BIZ[b.k].nm}<i>${escH(tySite(b.site||TY.home).nm)}</i>`;
+    if(t===0) return tyBars(bz.map(b=>({ lab:lab(b), v:(b.cf||0)*b.own })).sort((a,b)=>b.v-a.v), { empty:'你還沒有事業。' })
+      + '<p class="vz-note">上一季每家公司幫你賺(或燒)多少。</p>';
+    if(t===1) return tyBars(bz.map(b=>({ lab:lab(b), v:tyBizVal(b)*b.own })).sort((a,b)=>b.v-a.v), { empty:'你還沒有事業。' })
+      + '<p class="vz-note">每家公司現在值多少(算進你的身家)。</p>';
+    return tyBars(bz.map(b=>({ lab:lab(b), v:(b.cf||0)/Math.max(1,b.cap)*400 })).sort((a,b)=>b.v-a.v), { fmt:v=>tyPctF(v)+'/年', empty:'你還沒有事業。' })
+      + '<p class="vz-note">投報率 = 一年賺的 ÷ 投進去的本錢。越長越會賺錢;往左 = 在燒錢。</p>';
+  }
+  if(k==='open'){
+    const L=(arg?tyBuildOpts(arg):Object.keys(TY_BIZ)).filter(x=>!TY_BIZ[x].shell).map(bk=>{
+      const d=TY_BIZ[bk], site=arg||tyBizSiteOf(bk), cost=tyBizCost(bk, site), idx=tyRegIdx(tySite(site).reg);
+      const rate=d.fameCf ? tyBrandRate(1) : d.cf;
+      const cf=cost*rate*idx*tySpecMul(site,'biz',bk,'cf');
+      return { bk, d, site, cost, cf, pay: cf>0 ? cost/cf : Infinity };
+    });
+    const lab=x=>`${x.d.ic||''} ${x.d.nm}<i>${escH(tySite(x.site).nm)}</i>`;
+    if(t===0) return tyBars(L.map(x=>({ lab:lab(x), v:x.cf })).sort((a,b)=>b.v-a.v))
+      + `<p class="vz-note">${arg?'開在這座城':'開在你目前選的城市'},第一季大約每季賺多少。</p>`;
+    if(t===1) return tyBars(L.map(x=>({ lab:lab(x), v:isFinite(x.pay)?Math.min(x.pay,60):0, txt:isFinite(x.pay)?`${Math.round(x.pay)} 季`:'燒錢' }))
+        .sort((a,b)=>(a.txt==='燒錢')-(b.txt==='燒錢') || a.v-b.v), { mark:{ v:TY_QN-TY.t, lab:'這局剩下的時間' } })
+      + '<p class="vz-note">幾季回本:<b>越短越好</b>。超過直線的,這一局結束前回不了本(但估值還是算身家)。</p>';
+    return tyBars(L.map(x=>({ lab:lab(x), v:x.cost, me:TY.cash>=x.cost, txt:tyM(x.cost) })).sort((a,b)=>a.v-b.v),
+        { mark:{ v:Math.max(0,TY.cash), lab:'你的現金' } })
+      + '<p class="vz-note">藍色 = 現金買得起。</p>';
+  }
+  if(k==='asset'){
+    const A=TY_ASSETS;
+    if(t===0) return tyBars(A.map(a=>{ const d=(TY.pxH&&TY.pxH[a.k])||[]; const ch=d.length>1?(d[d.length-1]/d[0]-1)*100:0;
+        return { lab:`${a.ic} ${a.nm}`, v:ch, txt:tyPctF(ch) }; }).sort((a,b)=>b.v-a.v))
+      + '<p class="vz-note">最近這一段(走勢圖那一段)漲了還是跌了。過去不代表未來。</p>';
+    if(t===1) return tyBars(A.map(a=>({ lab:`${a.ic} ${a.nm}`, v:a.vol, txt:tyDots(Math.max(1,Math.min(5,Math.round(a.vol/.04)))) })).sort((a,b)=>b.v-a.v))
+      + '<p class="vz-note">一季之內可能晃多大。越長 = 越刺激,賺賠都大。</p>';
+    return tyBars(A.map(a=>({ lab:`${a.ic} ${a.nm}`, v:(a.yld||0)*400, txt:a.yld?tyPctF(a.yld*400)+'/年':'沒有' })).sort((a,b)=>b.v-a.v))
+      + '<p class="vz-note">放著不動,一年會生出多少利息或股利(不算漲跌)。</p>';
+  }
+  if(k==='city'){
+    const S=TY_SITES.filter(x=>!x.minor), me=arg, nm=escH(tySite(me).nm);
+    /* 目前這座城固定在第一列,底下才是全部排序 —— 不然它會被埋在四十幾列裡 */
+    const pin=(rows, better, word)=>{ rows.sort(better); const i=rows.findIndex(r=>r.me), m=rows[i];
+      return `<div class="vz-head">${nm}${word}排第 <b>${i+1}</b> / ${rows.length}</div>`
+        + tyBars([m, ...rows.filter(r=>!r.me)]); };
+    if(t===0) return pin(S.map(s=>{ const v=(tyRegIdx(s.reg)-1)*100; return { lab:escH(s.nm), v, me:s.id===me, txt:tyPctF(v) }; }), (a,b)=>b.v-a.v, '的景氣')
+      + '<p class="vz-note">往右 = 比平常熱,開在那裡的公司多賺;往左 = 偏冷。</p>';
+    if(t===1) return pin(S.map(s=>({ lab:escH(s.nm), v:s.tax*100, me:s.id===me, txt:(s.tax*100).toFixed(1)+'%' })), (a,b)=>a.v-b.v, '的稅(由低到高)')
+      + '<p class="vz-note">公司稅:越短越好(但搬去越低的地方,越容易被盯)。</p>';
+    return pin(S.map(s=>{ const r=TY.reg[s.reg]||{}; return { lab:escH(s.nm), v:r.comp||0, me:s.id===me, txt:tyDots(Math.max(0,Math.min(5,Math.round((r.comp||0)/2)))) }; }), (a,b)=>a.v-b.v, '的競爭(由少到多)')
+      + '<p class="vz-note">對手打進來越多,你在那裡的現金流被壓越多。越短越好。</p>';
+  }
+  return '';
+}
+const TY_CMP_TABS = {
+  nw:['跟對手比','跟過去的自己比','身家組成'], biz:['每季賺多少','值多少','投報率'],
+  open:['每季賺多少','幾季回本','要花多少'], asset:['最近漲跌','風險','配息'], city:['景氣','稅率','競爭'],
+};
+const TY_CMP_NM = { nw:'身家比一比', biz:'我的事業比一比', open:'哪一種事業最划算', asset:'資產比一比', city:'城市比一比' };
+function tyCmpHTML(){
+  if(!TY_CMP || !TY) return '';
+  const [k, arg]=TY_CMP.split(':'), tabs=TY_CMP_TABS[k]||[];
+  const t=Math.min(TY_CMP_T, Math.max(0,tabs.length-1));
+  return `<div class="vz-cmp" role="dialog" aria-modal="true" aria-label="${TY_CMP_NM[k]||'比較'}">
+    <div class="vz-cmpc">
+      <div class="vz-ch"><b>📊 ${TY_CMP_NM[k]||'比較'}${(k==='city'||k==='open')&&arg?`:${escH(tySite(arg).nm)}`:''}</b>
+        <button type="button" class="tg-x" data-ty="cmpx" aria-label="關閉">✕</button></div>
+      ${tabs.length>1?`<div class="vz-tabs">${tabs.map((x,i)=>`<button type="button" class="ty-chip${i===t?' on':''}" data-ty="cmpt" data-v="${i}">${x}</button>`).join('')}</div>`:''}
+      <div class="vz-cb">${tyCmpBody(k, arg, t)}</div>
+    </div></div>`;
+}
+
+addEventListener('keydown', e=>{ if(e.key==='Escape' && TY_CMP){ e.preventDefault(); e.stopImmediatePropagation(); TY_CMP=null; renderPage(); } }, true);
 function tyModalHTML(){
   if(!TY_MODAL) return '';
   const k=TY_MODAL;
@@ -13398,6 +13678,7 @@ function tycoonPage(){
       ${tyTicker()}
       ${TY.done?`<div class="tg-end">${tyEndHTML()}</div>`:''}
       ${tyModalHTML()}
+      ${tyCmpHTML()}
       ${tyNewCardHTML()}
       ${tyFallHTML()}
     </div>
@@ -13916,6 +14197,9 @@ function tyGoalTab(){
   return `<div class="expo-note">三條路,<b>先達成哪一條就贏</b>。紀錄比的是用了幾季(遊戲時間),暫停、選幾倍速都不影響。
       現在是第 <b>${TY.t+1}</b> 季 / 最多 ${TY_QN} 季 · 實際 ${tyClockTxt(TY.real)}</div>
     ${['econ','war','mars'].map(row).join('')}
+    ${rv?`<div class="p-sec vz-sec">經濟霸權:你跟榜首${tyCmpBtn('nw','跟所有人比')}</div>
+      ${tyBars([{ lab:'<b>你</b>', v:tyShownNW(), me:true }, { lab:`${rv.ic||''} ${escH(rv.nm)}`, v:rv.nw, col:TY_RVCOL[rv.id] }],
+               { mark:{ v:2*rv.nw, lab:'勝利線:榜首 ×2' } })}`:''}
     <div class="p-sec">⚠ 會輸的情況</div>
     <div class="expo-note">被起訴(關注 100)、破產,或<b>某個對手先達成經濟霸權</b>(身家是其他所有人的 3 倍,連續 3 季,第 12 季起)。
       ${rv?`現在跑最前面的是 ${tyRvLink(rv)}(${tyM(rv.nw)})${rv.domHold?` —— <b class="down">已經領先 ${rv.domHold} 季</b>`:''}。`:''}
@@ -14071,16 +14355,18 @@ function tyPickHTML(){
     case 'build': {
       const opts=tyBuildOpts(id);
       /* 第四十輪:一眼看出「每季賺多少、幾季回本、這座城有沒有加成」,細節收到小字 */
-      body=tyPartnerGate(id)+tyProsConsHTML(id, true)+opts.map(k=>{
+      body=tyPartnerGate(id)+tyProsConsHTML(id, true)
+        +`<div class="vz-sec"><span class="vz-note">底下每一種的長條 = 這一局 40 季,黃色等回本、之後都是賺的</span>${tyCmpBtn('open:'+id,'在這裡蓋哪一種最划算')}</div>`
+        +opts.map(k=>{
         const d=TY_BIZ[k], cost=tyBizCost(k,id);
         const cf=d.shell?0:cost*(d.fameCf ? tyBrandRate(1) : d.cf)*tySpecMul(id,'biz',k,'cf')*tyClamp(tyRegIdx(s.reg),.3,2.2);
         const img=PX.img('pk:biz:'+k, k==='shell'?PX.SPR.shell:PX.bizTower(k,.35), { fit:[56,64] });
         const edge=tySpecEdge(id,'biz',k);
         const big = d.shell ? `<b class="pk-big">不賺錢 · 省稅用</b>`
-          : cf>0 ? `<b class="pk-big up">每季 +${tyM(cf)}</b><i class="pk-pay">約 ${Math.ceil(cost/cf)} 季回本</i>`
+          : cf>0 ? `<b class="pk-big up">每季 +${tyM(cf)}</b>`
           : `<b class="pk-big down">前幾季每季 ${tySgn(cf)}</b><i class="pk-pay">靠估值(上市)賺</i>`;
         return row(img, `${d.ic} ${escH(d.nm)} ${big}`,
-          `花 ${tyM(cost)} · ${escH(TY_BIZ_PLAIN[k]||'')}${edge?`<br><span class="pk-edge">這座城:${edge}</span>`:''}`,
+          `花 ${tyM(cost)} · ${escH(TY_BIZ_PLAIN[k]||'')}${edge?`<br><span class="pk-edge">這座城:${edge}</span>`:''}${d.shell?'':tyPayStrip(cf>0?cost/cf:Infinity)}`,
           tyActBtn('found',{k,site:id},'蓋',` data-k="${k}" data-site="${id}"`), tyNeedHTML(tyNeeds('found',{k,site:id}),'tight'),
           `<em class="pk-d">${escH(d.dsc)}</em>`);
       }).join('');
@@ -14096,12 +14382,14 @@ function tyPickHTML(){
         ? `<div class="expo-note inv-last">上一季你的投資 <b class="${L.d>=0?'up':'down'}">${L.d>=0?'+':'−'}${tyM(Math.abs(L.d))}</b>${
             L.top?`(${escH(tyAsset(L.top.k).nm)} ${L.top.d>=0?'+':'−'}${tyM(Math.abs(L.top.d))})`:''}</div>` : '';
       const opts=tyInvestOpts(id).map(a=>({ a, o:tyAssetOutlook(a.k) })).sort((x,y)=>y.o.m-x.o.m);
-      body=tyPartnerGate(id)+tyProsConsHTML(id, true)+last+tySizeChips('每次下多少現金')+opts.map(({a,o},i)=>{
+      body=tyPartnerGate(id)+tyProsConsHTML(id, true)+last
+        +`<div class="vz-sec"><span class="vz-note">▲ 越多越看好,點越多漲跌越大</span>${tyCmpBtn('asset','比較所有資產')}</div>`
+        +tySizeChips('每次下多少現金')+opts.map(({a,o},i)=>{
         const img=PX.img('pk:as:'+a.k, PX.assetSprite(a.k), { fit:[56,64] });
         const p=TY.pos.find(x=>x.k===a.k && x.site===id);
         const pl=p&&p.q>0 ? tyPosVal(p)-p.cb : 0;
         return row(img, `${a.ic} ${escH(a.nm)} <i class="inv-tag ${o.tag.c}">${o.tag.t}</i>${i===0&&o.m>0?' <i class="inv-best">👍 現在最順</i>':''}`,
-          `<span class="inv-why">${escH(o.why)} · 預期每季 <b class="${o.m>=0?'up':'down'}">${o.m>=0?'+':''}${(o.m*100).toFixed(1)}%</b>,波動 ±${(o.v*100).toFixed(0)}%</span><br>${tyBuySimple(a.k, id)}${tySpecEdge(id,'asset',a.k)?`<br><span class="pk-edge">這座城:${tySpecEdge(id,'asset',a.k)}</span>`:''}`,
+          `<span class="inv-why" title="預期每季 ${o.m>=0?'+':''}${(o.m*100).toFixed(1)}%,波動 ±${(o.v*100).toFixed(0)}%">${escH(o.why)} · 看好 <b class="${o.m>=0?'up':'down'}">${(o.m>=0?'▲':'▼').repeat(Math.abs(o.m)<.01?1:Math.abs(o.m)<.03?2:3)}</b> · 刺激 ${tyDots(Math.max(1,Math.min(5,Math.round(o.v/.06))))}</span><br>${tyBuySimple(a.k, id)}${tySpecEdge(id,'asset',a.k)?`<br><span class="pk-edge">這座城:${tySpecEdge(id,'asset',a.k)}</span>`:''}`,
           tyActBtn('buy', null, '買', ` data-k="${a.k}" data-site="${id}"`),
           p&&p.q>0?`<em class="pk-d">已持有 ${tyM(tyPosVal(p))} · <b class="${pl>=0?'up':'down'}">${pl>=0?'賺':'賠'} ${tyM(Math.abs(pl))}</b></em>`:'',
           `<em class="pk-d">${escH(a.dsc)}</em>`);
@@ -14122,11 +14410,11 @@ function tyPickHTML(){
       const sizeBar=tySizeChips('賣掉多少');
       body=(t.pos.some(p=>p.q>0)?sizeBar:'')+t.pos.filter(p=>p.q>0).map(p=>{ const a=tyAsset(p.k), v=tyPosVal(p);
         return row(PX.img('pk:as:'+a.k, PX.assetSprite(a.k), { fit:[56,64] }), `${a.ic} ${escH(a.nm)} ${pl(v,p.cb)}`,
-          `現值 ${tyM(v)} · 成本 ${tyM(p.cb)} · 這次賣 ${Math.round(TY_SIZE*100)}% ≈ ${tyM(v*TY_SIZE)}`,
+          `<span title="現值 ${tyM(v)} · 成本 ${tyM(p.cb)}">這次賣 ${Math.round(TY_SIZE*100)}% ≈ <b>${tyM(v*TY_SIZE)}</b></span>`,
           tyActBtn('sell', null, '賣', ` data-k="${p.k}" data-site="${id}"`), '');
       }).join('') + t.biz.map(b=>{ const d=TY_BIZ[b.k], v=tyBizVal(b)*b.own, c=(b.cap||0)*b.own;
         return row(PX.img('pk:biz:'+b.k, d.shell?PX.SPR.shell:PX.bizTower(b.k,.35), { fit:[56,64] }), `${d.ic} ${escH(d.nm)} ${d.shell?'':pl(v,c)}`,
-          d.shell?'空殼公司':`估值 ${tyM(v)} · 投入 ${tyM(c)} · 每季賺 <b class="${(b.cf||0)>=0?'up':'down'}">${tySgn((b.cf||0)*b.own)}</b> · 賣掉要付 6% 交易成本`,
+          d.shell?'空殼公司':`<span title="估值 ${tyM(v)} · 投入 ${tyM(c)} · 賣掉要付 6% 交易成本">賣掉之後少了每季 <b class="${(b.cf||0)>=0?'up':'down'}">${tySgn((b.cf||0)*b.own)}</b> 的收入</span>`,
           tyActBtn('sellbiz', b.id, d.shell?'註銷':'賣掉', ` data-id="${b.id}"`, 'warn'), '');
       }).join('') || '<div class="empty">你在這裡沒有東西可以賣。</div>';
       break; }
@@ -14433,6 +14721,10 @@ function bindTycoon(root){
       renderPage(); return;
     }
     if(a==='close'){ TY_MODAL=null; TY_BLD=null; renderPage(); return; }
+    /* 比較面板(第四十三輪):開 / 換分頁 / 關 */
+    if(a==='cmp'){ TY_CMP=b.dataset.k; TY_CMP_T=0; tySfx('click','tap'); renderPage(); return; }
+    if(a==='cmpt'){ TY_CMP_T=+b.dataset.v||0; renderPage(); return; }
+    if(a==='cmpx'){ TY_CMP=null; renderPage(); return; }
     /* 總覽 = 據點面板的最上層(世界):你的帝國在哪幾個國家、各地區的景氣。 */
     if(a==='overview'){
       TY_SEL=null; TY_ISO=null; TY_BLD=null;

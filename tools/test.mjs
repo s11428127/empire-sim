@@ -2462,6 +2462,77 @@ test('帝國第二十輪:月球 / 火星建地(登月、火星計畫前置、補
   await page.__ctx.close();
 });
 
+test('帝國第三十五輪:看得懂的數字 —— 只列還差的條件、回本時間軸、箭頭、比較面板', async (browser) => {
+  const page = await freshPage(browser, { seed: SEED, hash: '#/tycoon' });
+  const r = await page.evaluate(() => {
+    const out = {};
+    TY_SPEED = 0;
+    tyStart('heir', 161); TY.rt = true; TY_NEWCARD.length = 0; TY.cash = 300e8;
+    tyFound('tech', TY.home); tyFound('hotel', TY.home);
+    for (let i = 0; i < 3; i++) tyNext();
+    // 條件:只列還差的,符合的收成一格
+    const h = tyNeedHTML([{ lab: '現金', ok: true, now: '5', want: '1' }, { lab: '名氣', ok: false, now: '22', want: '35', p: 22 / 35 },
+                          { lab: '行動點', ok: true }]);
+    const div = document.createElement('div'); div.innerHTML = h;
+    out.needNo = div.querySelectorAll('.n.no').length === 1 && /名氣/.test(div.querySelector('.n.no').textContent) && !!div.querySelector('.n-bar');
+    out.needOk = div.querySelectorAll('.n.ok').length === 1 && /2 項/.test(div.querySelector('.n.ok').textContent);
+    // 事業卡:大字每季賺、本錢 vs 現在值、升級的回本時間軸(40 格)
+    TY_MODAL = 'biz'; renderPage();
+    const card = document.querySelector('.ty-cards .ty-card');
+    out.big = !!card.querySelector('.c-big') && !!card.querySelector('.c-val');
+    const strip = document.querySelector('.ty-cards .vz-pay .vz-cells');
+    out.strip = !!strip && strip.children.length === TY_QN;
+    out.oldFig = !document.querySelector('.ty-cards .c-fig');
+    // 箭頭:有利 / 不利用自己的顏色,不借漲跌色
+    out.arr = /gain/.test(tyArr(1.3)) && /cost/.test(tyArr(1.3, true)) && tyArr(1.01) === '' && /▲▲/.test(tyArr(1.2));
+    // 城市優缺點:台北的六種資產手續費合併成一格
+    const pc = document.createElement('div'); pc.innerHTML = tyProsConsHTML('tpe');
+    out.merged = !/−30%/.test(pc.textContent) && /種資產/.test(pc.textContent);
+    // 比較面板:從對手頁開,有我、有勝利線;換分頁;✕ 與 Esc 都關得掉
+    TY_MODAL = 'rival'; renderPage();
+    document.querySelector('[data-ty="cmp"][data-k="nw"]').click();
+    const box = document.querySelector('.vz-cmp');
+    out.open = !!box && !!box.querySelector('.vb.me') && !!box.querySelector('.vb-t s')
+      && box.querySelectorAll('.vb').length === tyRivalsA().length + 1;
+    box.querySelectorAll('[data-ty="cmpt"]')[1].click();
+    out.tab = TY_CMP_T === 1 && !!document.querySelector('.vz-cmp .vz-line');
+    document.querySelector('[data-ty="cmpx"]').click();
+    out.closed = !document.querySelector('.vz-cmp') && TY_MODAL === 'rival';
+    TY_CMP = 'asset'; renderPage();
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    out.esc = TY_CMP === null && !document.querySelector('.vz-cmp');
+    // 每一種比較、每一個分頁都畫得出來
+    let bad = [];
+    for (const k of ['nw', 'biz', 'open', 'open:tpe', 'asset', 'city:tpe', 'city:nyc'])
+      for (let t = 0; t < 3; t++) {
+        TY_CMP = k; TY_CMP_T = t; renderPage();
+        const b = document.querySelector('.vz-cmp .vz-cb');
+        if (!b || !(b.querySelector('.vb') || b.querySelector('.vz-line'))) bad.push(k + ':' + t);
+      }
+    out.bad = bad;
+    // 城市比較:目前那座城固定在第一列
+    TY_CMP = 'city:nyc'; TY_CMP_T = 0; renderPage();
+    out.pin = document.querySelector('.vz-cmp .vb').classList.contains('me') && /紐約/.test(document.querySelector('.vz-cmp .vb').textContent);
+    TY_CMP = null; renderPage();
+    return out;
+  });
+  ok(r.needNo, '條件清單:還差的那一項列出來,附進度條');
+  ok(r.needOk, '條件清單:已經符合的收成一格「其他 N 項都 OK」');
+  ok(r.big, '事業卡:大字每季賺多少 + 本錢 vs 現在值的長條');
+  ok(r.strip, '升級:回本時間軸是一局 40 格');
+  ok(r.oldFig, '事業卡不再有四個並排的數字');
+  ok(r.arr, '加成箭頭:有利 / 不利用自己的顏色,< 2% 不畫');
+  ok(r.merged, '台北的手續費優惠合併成一格,不再重複六次 −30%');
+  ok(r.open, '比較面板:我 + 每個對手一條、有勝利線');
+  ok(r.tab, '比較面板換分頁(跟過去的自己比 = 走勢線)');
+  ok(r.closed, '比較面板按 ✕ 關掉,底下的面板還在');
+  ok(r.esc, '比較面板按 Esc 關掉');
+  eq(r.bad, [], '每一種比較、每一個分頁都要畫得出東西');
+  ok(r.pin, '城市比較:目前這座城固定在第一列');
+  ok(page.__errors.length === 0, `有 JS 錯誤:\n      ${page.__errors.join('\n      ')}`);
+  await page.__ctx.close();
+});
+
 test('帝國第三十四輪:名人劇本 —— 浮存金零利率、對手起點、起手公司、槓桿收購、開局卡片', async (browser) => {
   const page = await freshPage(browser, { seed: SEED, hash: '#/tycoon' });
   const r = await page.evaluate(() => {
