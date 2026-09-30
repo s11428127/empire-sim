@@ -14121,6 +14121,9 @@ const TY_CARDS = [
     dsc:'拖到城市:發射一批衛星罩住那個地區。每季收網路費,那個地區你賺錢的公司現金流 +10%。衛星 10 季後退役,要再補發。',
     ok:id=>tySite(id).reg!=='off',
     unlock:()=>TY.t>=3 || TY.biz.some(b=>b.k==='tech'), why:'有一家科技公司,或第 4 季' },
+  { k:'moon', nm:'登月', col:'#c9d1e0', ap:2, tgt:'none', art:()=>PX.SPR.moon,
+    dsc:'一次性登上月球:月球的建地全部開放,第一個登月的人名氣 +10。月球是去火星的中繼站 —— 火星計畫要先在月球蓋 2 棟。',
+    unlock:()=>TY.t>=3 || !!(TY.space && TY.space.sats.some(s=>s.until>TY.t)), why:'有一批星鏈,或第 4 季' },   // 只讀:不能呼叫 tySpace()(會建出 TY.space)
   { k:'mars', nm:'火星計畫', col:'#e5484d', ap:2, tgt:'none', art:()=>PX.SPR.rocket,
     dsc:'先建月球基地(登月 + 月球 2 棟),再走四個階段:火箭研發 → 無人補給 → 首批登陸 → 自給自足。每段先付錢、跑幾季、到期揭曉成敗。走完殖民地每季帶回投入的 3.5%。',
     unlock:()=>TY.t>=4 && tyNW()>=40e8, why:'第 5 季、身家 40 億' },
@@ -14844,6 +14847,18 @@ function tyPickHTML(){
           `<em class="pk-d">${cur?`這個地區已經有一批,${tyWhen(cur.until)} 退役 —— 剩 2 季內才能補發換新。`:'星鏈跟你的公司要在同一個地區才划算:網路費大約收回 1.2 倍成本,真正賺的是那 10% 現金流。'}</em>`)
         + tySpaceHTML();
       break; }
+    case 'moon': {
+      const sp=tySpace(), n=TY_PLOTS.moon.length;
+      body = sp.moon
+        ? `<div class="expo-note">🌙 你已經登月了。月球 ${n} 塊建地開放 —— 你蓋了 ${tyPlotsOf('me','moon')} 塊。
+             把「建設」拖到月球上的白框就能蓋。</div>`
+        : `<div class="pk-o"><span class="pk-img">${PX.img('pk:moon', PX.SPR.moon, { fit:[56,64] })}</span>
+             <div class="pk-t"><b>🌙 登月</b><span>一次性花費 ${tyM(tyMoonCost())} · 之後月球 ${n} 塊建地全部開放 · 第一個登月的人名氣 +10</span>
+             ${tyNeedHTML(tyNeeds('moonland'),'tight')}</div>
+             <div class="pk-b">${tyActBtn('moonland', null, '登月', '', 'warn')}</div></div>`;
+      body += `<div class="pk-o"><div class="pk-t"><b>看月球</b><span>飛過去看月球上的建地(誰蓋了哪一塊)</span></div>
+               <div class="pk-b"><button type="button" class="ty-b alt" data-ty="space:moon">🌙 去月球</button></div></div>`;
+      break; }
     case 'mars':
       body=tySpaceHTML(true); break;
     case 'lobby':
@@ -15127,7 +15142,7 @@ function bindTycoon(root){
     // 月球 / 火星:打開那顆星自己的畫面(可以轉、可以縮放)
     if(a==='space:moon' || a==='space:mars'){
       const k=a.slice(6);
-      if(TY_MODAL==='todo') TY_MODAL=null;          // 從待辦清單點「去看」:先把清單收起來
+      if(TY_MODAL==='todo' || TY_MODAL==='pick') TY_MODAL=null;          // 從待辦清單 / 登月牌點「去看」:先把面板收起來
       if(TY_PLANET===k) return;
       if(TY_PLANET==null && window.W3D && W3D.flyToPlanet && W3D.ok){ W3D.flyToPlanet(k, h=>tyOpenPlanet(k, { from:h })); return; }   // 從地球飛過去,不是直接切
       tyOpenPlanet(k); return;
