@@ -5741,7 +5741,7 @@ const midnight = () => { const d=new Date(); d.setHours(0,0,0,0); return d; };
    ========================================================================= */
 const TY_KEY='orbit.tycoon.v1';
 /* 劇本能力的幾個旋鈕(第四十八輪重新校準,見 README) */
-const TY_FLOAT_K=4.5, TY_LBO=.4, TY_RAID_P=.45;
+const TY_FLOAT_K=5.5, TY_LBO=.4, TY_RAID_P=.45;
 const TY_TOP0=1.25;                   // 開局時榜首至少是你的幾倍(第四十八輪)
 const TY_QN=40;                       // 一局 40 季 = 10 年
 const TY_Y0=2026;                     // 開局年份
@@ -5873,7 +5873,7 @@ const TY_ASSETS = [
 
   /* ---- 固定收益與避險 ---- */
   { k:'bond',  g:'fix', nm:'債券',   tag:'政府與投資級公司債', ic:'📜', u:'張', up:1e6,
-    drift:.004, beta:-.008, rat:-.045, inf:-.010, vol:.018, ltv:.85, fee:.0006, yld:.009, short:false,
+    drift:.004, beta:-.008, rat:-.030, inf:-.010, vol:.018, ltv:.85, fee:.0006, yld:.009, short:false,
     dsc:'利率一升,舊債券就變便宜 —— 這是課本第一頁,但每次升息循環都有人忘記。',
     why:'漲:降息、衰退、避險。跌:升息、通膨。它是這裡唯一可以抵押到 85% 的東西。' },
   { k:'gold',  g:'fix', nm:'黃金',   tag:'實體貴金屬', ic:'🪙', u:'公斤', up:3e6,
@@ -5883,7 +5883,7 @@ const TY_ASSETS = [
 
   /* ---- 實體資產 ---- */
   { k:'estate',g:'real', nm:'房地產', tag:'商辦、土地與收租物件', ic:'🏠', u:'棟', up:5e7,
-    drift:.010, beta:.030, rat:-.038, inf:.016, vol:.028, ltv:.75, fee:.030, yld:.011, short:false,
+    drift:.014, beta:.030, rat:-.022, inf:.016, vol:.028, ltv:.75, fee:.020, yld:.011, short:false,
     dsc:'可以借到最多錢的資產 —— 富豪故事的起點幾乎都在這裡。買賣一次的成本也最重。',
     why:'漲:降息(貸款變便宜)、通膨、當地資金湧入。跌:升息、當地信貸緊縮、供給過剩。' },
   { k:'oil',   g:'real', nm:'原油',   tag:'大宗商品', ic:'🛢', u:'桶', up:2400,
@@ -5942,17 +5942,17 @@ const TY_BIZ = {
             dsc:'高固定成本 + 高知名度。它會幫你製造名氣,也會在衰退時把你拖下水。' },
   media:  { ic:'📺', nm:'媒體製作',   cost:8e8,  cf:.030, vol:.5, mult:12, sens:{senti:.4}, fame:2.6,
             dsc:'本身不太賺錢,但它是名氣的印鈔機 —— 而名氣可以直接換成錢(見品牌授權)。' },
-  brand:  { ic:'👑', nm:'品牌授權',   cost:3e8,  cf:.020, vol:.25, mult:16, fameCf:true, need:{fame:35},
+  brand:  { ic:'👑', nm:'品牌授權',   cost:3e8,  cf:.020, vol:.25, mult:12, fameCf:true, need:{fame:35},
             dsc:'幾乎不投資本,只出借你的名字。名氣越大現金流越大,而且景氣好壞都照收。' },
   tech:   { ic:'💻', nm:'科技公司',   cost:10e8, cf:-.012, vol:1.8, mult:30, sens:{senti:1.5, rate:-1.4},
             dsc:'前期燒錢,估值倍數卻是所有事業裡最高的。上市之後你的身家會跟著情緒一起坐雲霄飛車。' },
   fund:   { ic:'📊', nm:'避險基金',   cost:15e8, cf:.060, vol:1.3, mult:10, need:{fame:20}, sens:{senti:.6},
             dsc:'替別人管錢,收 2% 管理費 + 20% 績效費 —— 用別人的錢賺自己的錢。績效費看你自己的部位:景氣差時有空單、景氣好時有股票才拿得到;開越多支,客戶的錢越分散。' },
-  bank:   { ic:'🏦', nm:'銀行與保險', cost:40e8, cf:.035, vol:.6, mult:9, float:.55, sens:{rate:.4},
+  bank:   { ic:'🏦', nm:'銀行與保險', cost:40e8, cf:.042, vol:.6, mult:9, float:.55, sens:{rate:.4},
             dsc:'保費先收、賠款後付,中間那筆「浮存金」等於一筆零利率的長期資金,可以拿去投資。' },
-  energy: { ic:'⛽', nm:'能源與礦業', cost:35e8, cf:.050, vol:1.1, mult:6, sens:{oil:1.2},
+  energy: { ic:'⛽', nm:'能源與礦業', cost:35e8, cf:.050, vol:1.1, mult:6, sens:{oil:.8},
             dsc:'現金流跟油價綁死。它是你在通膨與戰爭裡的對沖。' },
-  infra:  { ic:'🚧', nm:'基建工程',   cost:25e8, cf:.042, vol:.4, mult:7, need:{infl:30},
+  infra:  { ic:'🚧', nm:'基建工程',   cost:25e8, cf:.042, vol:.4, mult:9, need:{infl:30},
             dsc:'政府標案。要有人脈才拿得到,但拿到之後幾乎不受景氣影響。' },
   shell:  { ic:'📄', nm:'空殼公司',   cost:.4e8, cf:0, vol:0, mult:0, shell:true,
             dsc:'沒有員工、沒有營收,只有一份登記文件。它本身不賺錢 —— 它是別的手法的鑰匙。' },
@@ -5971,19 +5971,19 @@ const TY_SCN = [
   /* 第四十二輪:每個劇本對應一群做法相近的真實富豪(like),照他們的做法玩的勝率(win,電腦照固定打法
      各跑 50 局的結果,見 README)、難度(diff 1~5)與玩起來的感覺(fun)。
      rivals = 對手的起點倍數:同一個「兩倍於榜首」的目標,從三千萬起家的人面對的是同一代還沒長大的對手。 */
-  { k:'heir', home:'tpe', rivals:1.4, nm:'繼承者', sub:'父親的地產帝國,和一大筆貸款',
+  { k:'heir', home:'tpe', rivals:.7, nm:'繼承者', sub:'父親的地產帝國,和一大筆貸款',
     cash:30e8, debt:25e8, credit:78, fame:22, infl:38, biz:'dev',
-    like:['川普','庫許納(Kushner 家族)','許家印(恆大,借太多的反面教材)'], diff:2, win:'約 76%',
+    like:['川普','庫許納(Kushner 家族)','許家印(恆大,借太多的反面教材)'], diff:2, win:'約 66%',
     fun:'節奏最快:開局就能大舉借錢蓋樓、上媒體、掛名授權。爛掉的公司用破產保護切掉 —— 但借太滿會爆。',
     dsc:'你不是從零開始 —— 你從「別人願意借你錢」開始。房地產、名字、還有出事時能重來的本事。',
     perk:'借款利率 −0.6%;房地產交易成本減半;破產保護只扣一半名氣。' },
-  { k:'macro', home:'lon', rivals:.5, top0:1.1, nm:'狙擊手', sub:'一支小基金,和對央行下注的膽量',
+  { k:'macro', home:'lon', rivals:.6, top0:1.1, nm:'狙擊手', sub:'一支小基金,和對央行下注的膽量',
     cash:9e8, debt:0, credit:58, fame:22, infl:6, biz:'fund',
-    like:['索羅斯','德魯肯米勒(Druckenmiller)','保羅·都鐸·瓊斯'], diff:4, win:'約 40%',
+    like:['索羅斯','德魯肯米勒(Druckenmiller)','保羅·都鐸·瓊斯'], diff:4, win:'約 38%',
     fun:'看景氣燈號下注:衰退、泡沫放空,緊縮時放空外匯等央行棄守。賺得快也賠得快,要留現金。',
     dsc:'你相信價格會回到基本面,而且你知道政府撐不住的那一天長什麼樣子。',
     perk:'放空額度加倍;外匯與放空的交易成本減半;央行棄守時你賺的是別人的兩倍。' },
-  { k:'float', home:'nyc', rivals:.3, top0:1.1, nm:'複利者', sub:'一家小保險公司,和四十年的耐心',
+  { k:'float', home:'nyc', rivals:.2, top0:1.1, nm:'複利者', sub:'一家小保險公司,和四十年的耐心',
     cash:6e8, debt:0, credit:70, fame:10, infl:12, biz:'bank',
     like:['巴菲特','蒙格','普雷姆·瓦察(Fairfax,「加拿大巴菲特」)'], diff:1, win:'約 80%',
     fun:'最穩但前期最平淡:用保險的浮存金(零利率)買會賺錢的公司,別人恐慌時加碼,然後等。',
@@ -5995,15 +5995,15 @@ const TY_SCN = [
     fun:'用到最多系統:科技公司燒錢、上市、星鏈、月球、火星。前幾季在虧錢,上市那一刻身家翻好幾倍。',
     dsc:'你手上沒有資產,只有一個故事。而這個世界會為好故事付出非常荒謬的倍數。',
     perk:'科技事業估值倍數 +50%;上市門檻減半;上市後名氣加倍成長。' },
-  { k:'raider', home:'nyc', rivals:.3, top0:1.1, nm:'掠奪者', sub:'一家石油公司,和你借來的錢',
+  { k:'raider', home:'nyc', rivals:.25, top0:1.1, nm:'掠奪者', sub:'一家石油公司,和你借來的錢',
     cash:12e8, debt:6e8, credit:62, fame:14, infl:20, biz:'energy',
-    like:['伊坎(Icahn)','KKR(Kravis 與 Roberts)','布恩·皮肯斯(Boone Pickens)'], diff:5, win:'約 34%',
+    like:['伊坎(Icahn)','KKR(Kravis 與 Roberts)','布恩·皮肯斯(Boone Pickens)'], diff:5, win:'約 30%',
     fun:'互動最多:建倉、敵意收購、併吞,一路吃掉對手。仇家多、關注度高,收購失敗會掉名氣。',
     dsc:'你不創造公司,你買下它們 —— 用它們自己的資產做抵押,然後把值錢的部分拆出來賣掉。',
     perk:'敵意收購與併吞只要付 40% 的價款(其餘用對方的資產借)、敵意收購成功率 +45%、淨值有對方三成就能出手;開設事業成本 −25%;可以拆賣事業;借款上限更高。' },
-  { k:'self', home:'tpe', rivals:.3, nm:'白手起家', sub:'三千萬、一間小建設行,和沒有人接你電話的事實',
+  { k:'self', home:'tpe', rivals:.2, nm:'白手起家', sub:'三千萬、一間小建設行,和沒有人接你電話的事實',
     cash:.3e8, debt:0, credit:40, fame:2, infl:2, biz:'dev', bizCap:3e8,
-    like:['王永慶(台塑)','郭台銘(鴻海)','李嘉誠(長實)'], diff:3, win:'約 56%',
+    like:['王永慶(台塑)','郭台銘(鴻海)','李嘉誠(長實)'], diff:4, win:'約 38%',
     fun:'前三年最苦:錢少、借不到。先買曝光把名氣做起來,名氣夠了掛名授權,再滾大。逆轉感最強。',
     dsc:'很難的一局。沒有信用、沒有人脈、沒有安全網 —— 前三年你只有一件事可做:活著。',
     perk:'所有事業現金流 +50%(你自己下去做);名氣成長加倍;沒有任何人盯著你(關注度成長減半)。' },
@@ -7172,7 +7172,7 @@ function tyOccupyTurn(){
      改成「親手讓 3 位對手出局(併吞 / 打垮 / 封鎖到倒),而且你是榜首」 */
 const TY_WIN = {
   econ: { ic:'💰', nm:'經濟霸權', dsc:'第 10 季起,身家達到最有錢對手的 2 倍,連續 2 季' },
-  war:  { ic:'⚔',  nm:'征服',     dsc:'親手讓 3 位對手出局(併吞、打垮、封鎖到倒),而且你是榜首' },
+  war:  { ic:'⚔',  nm:'征服',     dsc:'親手讓 3 位對手出局(併吞、打垮、封鎖到倒),而且你是榜首(第 10 季起算)' },
   mars: { ic:'🚀', nm:'火星殖民', dsc:'先建月球基地(登月 + 2 棟),火星計畫四段走完,再在火星上有 4 塊建地' },
 };
 const TY_WAR_N = 3, TY_ECON_T = 10;
@@ -7186,7 +7186,7 @@ function tyWinProg(){
   const k=tyKills(), mp=tyPlotsOf('me','moon');
   return {
     econ: { v:tyClamp(nw/(2*top),0,1), txt:`${tyM(nw)} / ${tyM(2*top)}${TY.econHold?` · 已維持 ${TY.econHold} 季`:''}${TY.t<TY_ECON_T && nw>=2*top?` · 第 ${TY_ECON_T} 季起才開始算`:''}` },
-    war:  { v:tyClamp((Math.min(TY_WAR_N,k) + (tyIsTop()?1:0))/(TY_WAR_N+1),0,1), txt:`親手出局 ${k}/${TY_WAR_N} 人 · ${tyIsTop()?'你是榜首':'還不是榜首'}` },
+    war:  { v:tyClamp((Math.min(TY_WAR_N,k) + (tyIsTop()?1:0))/(TY_WAR_N+1),0,1), txt:`親手出局 ${k}/${TY_WAR_N} 人 · ${tyIsTop()?'你是榜首':'還不是榜首'}${TY.t<TY_ECON_T && k>=TY_WAR_N?` · 第 ${TY_ECON_T} 季起才算`:''}` },
     mars: { v:tyClamp((Math.min(2,mp) + Math.min(4,st) + Math.min(4,pl))/10,0,1), txt:`月球 ${Math.min(2,mp)}/2 棟 · 計畫 ${st}/4 段 · 火星建地 ${pl}/4 塊` },
   };
 }
@@ -7201,7 +7201,8 @@ function tyVictoryCheck(){
     if(r.domHold>=3){ TY.win=null; tyEnd('lost', `${r.nm}的身家是其他所有人的三倍以上,連續三季 —— 經濟霸權是他的。下一次:早一點封鎖、進攻或併吞跑在最前面的人。`); return; }
   }
   let w=null;
-  if(!rv.length || (tyKills()>=TY_WAR_N && tyIsTop())) w='war';
+  /* 第五十二輪:征服也跟經濟霸權一樣第 10 季起才算。量測:複利者只靠併吞,12 局 5 局在第 6~8 季就贏,比照路線玩還快 */
+  if(TY.t>=TY_ECON_T && (!rv.length || (tyKills()>=TY_WAR_N && tyIsTop()))) w='war';
   else if(TY.econHold>=2) w='econ';
   else if((TY.space?TY.space.mars.st:0)>=4 && tyPlotsOf('me','mars')>=4) w='mars';
   if(!w) return;
@@ -8562,10 +8563,14 @@ function tyStart(scnK, seed){
 /* 複利者劇本:保險公司手上的浮存金(資本 × 0.55 × TY_FLOAT_K),這個額度內的借款零利率 */
 const tyFloatFree = () => TY.scn!=='float' ? 0
   : TY.biz.reduce((a,b)=>a+(TY_BIZ[b.k].float ? b.cap*TY_BIZ[b.k].float*TY_FLOAT_K*b.own : 0), 0);
+/* 第五十二輪(平衡):量測「只蓋品牌授權」—— 繼承者 12 局贏 7、白手起家 12 局贏 8(比正常玩法還高)。
+   一家 3 億多、名氣 50 時年報酬 46%(其他公司 14~22%)、估值 16 倍。
+   改成:每季報酬 1.2% + 有效名氣 × 0.15(名氣 50 約年 35%)、稀釋 0.15 → 0.3、估值倍數 16 → 12 */
+const TY_BRAND = { base:.012, k:.15, dil:.3 };
 function tyBrandRate(extra){
   const n=TY.biz.filter(b=>b.k==='brand').length + (extra||0);
-  const fameEff=TY.fame/(1+.15*Math.max(0,n-1));
-  return .015 + fameEff/100*.20;
+  const fameEff=TY.fame/(1+TY_BRAND.dil*Math.max(0,n-1));
+  return TY_BRAND.base + fameEff/100*TY_BRAND.k;
 }
 /* 避險基金(第五十一輪)。使用者:「狙擊手只要一直蓋避險基金、升級就贏了,做空什麼的都沒玩到」。
    量測:只蓋基金 + 借滿,20 局 12 局在第 12~15 季經濟霸權,一筆交易都不用做。
@@ -8600,7 +8605,7 @@ function tyBizVal(b){
      還在燒錢的公司(cf 是負的)沒有盈餘可乘 —— 那就用資本乘一個很小的
      係數,因為市場買的是故事,不是損益表。科技公司的倍數之所以是 30,
      講的正是這件事。 */
-  const earn = (b.cf || b.cap*d.cf) * 4;
+  const earn = (b.cf || b.cap*tyBizRate(b.k,0)) * 4;     // 第五十二輪:剛開的公司照「真的會拿到的報酬」估(品牌看名氣、基金看部位),預覽才不會灌水
   const val  = earn>0 ? earn*mult*hype : b.cap*mult*.075*hype;
   /* 最後乘上**它開在哪裡**。同一家建設公司,開在杜拜和開在東京值的錢不一樣 ——
      而且會隨著那個地區自己的循環變動,跟全球景氣是兩件事。 */
@@ -9184,9 +9189,9 @@ const TY_EVENTS = [
   { id:'quake', cd:12, w:2, when:()=>TY.pos.some(p=>p.k==='estate'&&p.q>0), run(){
       const es=TY.pos.filter(p=>p.k==='estate'&&p.q>0);
       const p=es[Math.floor(tyRnd()*es.length)%es.length];
-      p.q*=.82;
+      p.q*=.9;      // 第五十二輪:18% → 10%(量測:只買房地產 20 季的身家跟什麼都不做一樣,天災吃掉了全部的報酬)
       return ['bad',`${tySite(p.site).nm}:天災`,
-        `地震與洪水。保險理賠要兩年,重建要三年,租客現在就走了。那一塊資產少了 18%。`];
+        `地震與洪水。保險理賠要兩年,重建要三年,租客現在就走了。那一塊資產少了 10%。`];
   }},
   { id:'sanction', cd:14, w:2, when:()=>tyMyRegions().some(r=>['me','cn','af'].includes(r)), run(){
       const c=tyMyRegions().filter(r=>['me','cn','af'].includes(r));
@@ -13954,7 +13959,7 @@ function tyCoachList(){
     add(60, '🧭', `${RT.R.nm}路線 ${RT.i+1}/${RT.R.steps.length}:${RT.cur.t}`, RT.cur.why, a); }
   // ---- 3. 其他機會 ----
   const prey=tyRivalsA().filter(r=>tyCanDo('deal:merge', r)).sort((a,b)=>b.nw-a.nw)[0];
-  if(prey) add(65, '👑', `你夠資格全面併吞 ${prey.nm}`, '把他整個買下來:他出局,大本營變你的一家公司', { ty:'rvinfo', k:prey.id, lab:`看 ${prey.nm}` });
+  if(prey) add(TY.t>=4 ? 65 : 55, '👑', `你夠資格全面併吞 ${prey.nm}`, '把他整個買下來:他出局,大本營變你的一家公司', { ty:'rvinfo', k:prey.id, lab:`看 ${prey.nm}` });      // 第五十二輪:前 4 季先照路線走(新手一開局就被叫去併吞會亂掉)
   for(const f of tyRivalForces()){ const o=tyAssaultOdds(f.r.id, f.site);
     if(o && o.mine.length && o.p>=.6){ add(55, '⚔', `可以進攻 ${f.r.nm} 在${tySite(f.site).nm}的駐軍(勝算 ${Math.round(o.p*100)}%)`, '打下來他在那一區的勢力會縮水,你的事業少一個競爭者', { ty:'site', k:f.site, lab:'去看' }); break; } }
   if(TY.cash>Math.max(3e8, nw*.25)){ const b=tyCoachBuild();
