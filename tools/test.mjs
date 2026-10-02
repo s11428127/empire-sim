@@ -2462,6 +2462,54 @@ test('帝國第二十輪:月球 / 火星建地(登月、火星計畫前置、補
   await page.__ctx.close();
 });
 
+test('帝國第五十二輪:平衡 —— 品牌不再無限複製、基金預覽不灌水、房地產有用、征服第 10 季起算', async (browser) => {
+  const page = await freshPage(browser, { seed: SEED, hash: '#/tycoon' });
+  const r = await page.evaluate(() => {
+    const out = {};
+    tyStart('heir', 11); TY.fame = 50; TY.macro.reg = 'expand';
+    // 品牌:第一家照名氣賺,越多家掉越快(稀釋 0.3)、估值倍數 12
+    const b1 = tyBrandRate(1), b4 = tyBrandRate(4);
+    out.brand = Math.abs(b1 - (TY_BRAND.base + .5 * TY_BRAND.k)) < 1e-9 && b4 < b1 * .6 && TY_BIZ.brand.mult === 12;
+    // 剛開的公司估值照「真的會拿到的報酬」:沒有部位的基金、名氣不同的品牌
+    TY.pos = [];
+    const v = k => tyBizVal({ k, site: TY.home, cap: 10e8, cap0: 10e8, own: 1, pub: false, cf: 0, born: TY.t });
+    const fundNoPos = v('fund'); TY.pos = [{ k: 'tech', site: 'nyc', q: 1, cb: 1 }]; const fundRight = v('fund'); TY.pos = [];
+    out.fundPreview = fundRight > fundNoPos;
+    TY.fame = 20; const bLow = v('brand'); TY.fame = 80; const bHigh = v('brand');
+    out.brandPreview = bHigh > bLow;
+    // 沒有一種公司的年報酬超過其他的兩倍(名氣 50、擴張期)
+    TY.fame = 50;
+    const rates = Object.keys(TY_BIZ).filter(k => !TY_BIZ[k].shell && k !== 'tech').map(k => tyBizRate(k, 1));
+    out.spread = Math.max(...rates) < 2.2 * (rates.reduce((a, b) => a + b, 0) / rates.length);
+    // 房地產:成長、升息敏感、交易成本、天災 10%
+    const es = tyAsset('estate');
+    out.estate = es.drift === .014 && es.rat === -.022 && es.fee === .02;
+    tyStart('heir', 12); TY.cash += 50e8; TY_SIZE = .3; tyBuy('estate', tyMktOf('estate'));
+    const p = TY.pos.find(x => x.k === 'estate'), q0 = p.q;
+    TY_EVENTS.find(e => e.id === 'quake').run();
+    out.quake = Math.abs(p.q / q0 - .9) < 1e-9;
+    // 征服:第 10 季以前就算三位對手出局也還不算
+    tyStart('heir', 133); TY.rt = true; TY_NEWCARD.length = 0;
+    const rv = tyRivalsA(); for (let i = 0; i < 3; i++) tyRivalDown(rv[i], 'me', '測試'); TY_FALLQ.length = 0;
+    for (const x of tyRivalsA()) x.nw = 1e8; TY.cash = 900e8; tyNext();
+    out.warEarly = !TY.done && /第 10 季起才算/.test(tyWinProg().war.txt);
+    // 開局卡片照量出來的勝率
+    const W = Object.fromEntries(TY_SCN.map(x => [x.k, x.win]));
+    out.cards = W.heir === '約 66%' && W.float === '約 80%' && W.macro === '約 38%' && W.founder === '約 62%' && W.raider === '約 30%' && W.self === '約 38%';
+    return out;
+  });
+  ok(r.brand, '品牌授權:第一家照名氣賺、越多家掉越快、估值倍數 12');
+  ok(r.fundPreview, '基金的估值預覽看部位(方向對的比沒有部位的值錢)');
+  ok(r.brandPreview, '品牌的估值預覽看名氣');
+  ok(r.spread, '沒有一種公司的報酬率超過平均的 2.2 倍');
+  ok(r.estate, '房地產:成長 0.014、升息敏感 −0.022、交易成本 2%');
+  ok(r.quake, '天災只砍那一塊房地產的 10%');
+  ok(r.warEarly, '第 10 季以前,三位對手出局也還不算征服');
+  ok(r.cards, '開局卡片照重新量的勝率');
+  ok(page.__errors.length === 0, `有 JS 錯誤:\n      ${page.__errors.join('\n      ')}`);
+  await page.__ctx.close();
+});
+
 test('帝國第五十一輪:基金要靠部位、投資牌能放空、點城市看全部、登月火箭與跳過動畫', async (browser) => {
   const page = await freshPage(browser, { seed: SEED, hash: '#/tycoon' });
   const r = await page.evaluate(() => {
@@ -2479,7 +2527,7 @@ test('帝國第五十一輪:基金要靠部位、投資牌能放空、點城市�
     TY.pos = [{ k: 'tech', site: 'nyc', q: -1, cb: 1 }];
     out.shortRight = tyFundRight();
     TY.pos = []; TY.macro.reg = 'expand';
-    out.card = TY_SCN.find(x => x.k === 'macro').win === '約 40%';
+    out.card = TY_SCN.find(x => x.k === 'macro').win === '約 38%';
     // ② 投資牌:放空鈕、這座城的市場寫清楚
     TY_PICK = { k: 'invest', site: 'nyc' }; TY_MODAL = 'pick'; renderPage();
     const mb = document.querySelector('.tg-mb');
@@ -2517,7 +2565,7 @@ test('帝國第五十一輪:基金要靠部位、投資牌能放空、點城市�
   ok(r.longRight, '景氣好時有股票:狙擊手績效費 ×2.2');
   ok(r.longWrongInBear, '景氣差時只有多單:方向錯');
   ok(r.shortRight, '景氣差時有空單:方向對');
-  ok(r.card, '狙擊手卡片勝率改成量出來的約 40%');
+  ok(r.card, '狙擊手卡片勝率改成量出來的約 38%(第五十二輪重量)');
   ok(r.shortBtn, '投資牌面板有「放空」');
   ok(r.mkt, '投資牌面板寫出這座城的市場買得到什麼、沒有的去哪買');
   ok(r.shorted, '在投資牌上按放空真的會開空單');
@@ -2926,7 +2974,7 @@ test('帝國第三十四輪:名人劇本 —— 浮存金零利率、對手起�
     // 對手起點:同一個種子,白手起家(×0.3)的對手是繼承者(×1.4)的 0.3/1.4
     tyStart('heir', 151); const hv = TY.rivals.map(x => x.nw);
     tyStart('self', 151); const sv = TY.rivals.map(x => x.nw);
-    out.scale = hv.every((v, i) => Math.abs(sv[i] / v - .3 / 1.4) < 1e-9);
+    out.scale = hv.every((v, i) => Math.abs(sv[i] / v - TY_SCN.find(x => x.k === 'self').rivals / TY_SCN.find(x => x.k === 'heir').rivals) < 1e-9);
     // 起手公司:白手起家一間 3 億的小建設行、狙擊手一支基金、掠奪者一家能源公司
     out.selfBiz = TY.biz.length === 1 && TY.biz[0].k === 'dev' && TY.biz[0].cap === 3e8 && TY.biz[0].cap0 === 3e8;
     tyStart('macro', 152); out.macroBiz = TY.biz.some(b => b.k === 'fund');
@@ -2973,7 +3021,7 @@ test('帝國第三十三輪:品牌稀釋、借越滿越貴、經濟霸權第 10 
     const r1 = tyBrandRate(1);
     for (const s of TY_SITES.filter(x => !x.minor).slice(0, 8)) if (tyCanDo('found', { k: 'brand', site: s.id })) tyFound('brand', s.id);
     const n = TY.biz.filter(b => b.k === 'brand').length, rn = tyBrandRate(0);
-    out.dilute = n >= 3 && rn < r1 && Math.abs(rn - (.015 + 80 / (1 + .15 * (n - 1)) / 100 * .2)) < 1e-9;
+    out.dilute = n >= 3 && rn < r1 && Math.abs(rn - (TY_BRAND.base + 80 / (1 + TY_BRAND.dil * (n - 1)) / 100 * TY_BRAND.k)) < 1e-9;
     // 借越滿越貴
     tyStart('heir', 142); TY_NEWCARD.length = 0; TY.debt = 0;
     const r0 = tyRate(); TY.debt = tyBorrowMax() * .9; const rHi = tyRate();
@@ -3027,7 +3075,7 @@ test('帝國第三十二輪:威脅卡、國家顏色只看在場的人、三條�
     const P = tyIsoPower('TH'); out.th = noF ? !!(P && P.top && P.top.me) : true;
     // 三條勝利路
     out.win = TY_WIN.war.dsc.includes('3') && /月球/.test(TY_WIN.mars.dsc);
-    tyStart('heir', 133); TY.rt = true; TY_NEWCARD.length = 0;
+    tyStart('heir', 133); TY.rt = true; TY_NEWCARD.length = 0; TY.t = TY_ECON_T;     // 第五十二輪:征服也是第 10 季起算
     const rv = tyRivalsA(); for (let i = 0; i < 3; i++) tyRivalDown(rv[i], 'me', '測試'); TY_FALLQ.length = 0;
     for (const x of tyRivalsA()) x.nw = 1e8; TY.cash = 900e8; tyNext();
     out.war = TY.done === 'win' && TY.win === 'war';
@@ -3574,7 +3622,7 @@ test('帝國第二十四輪:即時制(時鐘、指揮點回復、施工、血量
     out.rec = !!JSON.parse(localStorage.getItem('ty-best-v1') || '{}')['heir:econ'];
     renderPage(); out.endTxt = /勝利/.test(document.querySelector('#tyRoot').textContent);
     // 征服:所有對手出局
-    tyStart('heir', 52); TY.rt = true; TY_NEWCARD.length = 0;
+    tyStart('heir', 52); TY.rt = true; TY_NEWCARD.length = 0; TY.t = TY_ECON_T;
     for (const x of tyRivalsA()) tyRivalDown(x, 'me', '測試'); TY_FALLQ.length = 0;
     tyNext(); out.war = TY.done === 'win' && TY.win === 'war'; out.warDbg = [TY.done, TY.win, tyRivalsA().map(x=>x.id+x.nm+x.born), TY.t].join();
     // 火星殖民
