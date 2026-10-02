@@ -2462,6 +2462,76 @@ test('帝國第二十輪:月球 / 火星建地(登月、火星計畫前置、補
   await page.__ctx.close();
 });
 
+test('帝國第五十一輪:基金要靠部位、投資牌能放空、點城市看全部、登月火箭與跳過動畫', async (browser) => {
+  const page = await freshPage(browser, { seed: SEED, hash: '#/tycoon' });
+  const r = await page.evaluate(() => {
+    const out = {};
+    tyStart('macro', 7932); TY.rt = true; TY_SPEED = 0; TY_MODAL = null; TY_NEWCARD.length = 0; renderPage();
+    // ① 避險基金:開越多支越稀釋;績效費看部位方向
+    TY.pos = []; TY.macro.reg = 'expand';
+    const r1 = tyFundRate(0), r3 = tyFundRate(2);
+    out.dil = Math.abs(r3 - r1 / (1 + TY_FUND.dil * 2)) < 1e-9 && r3 < r1;
+    out.wrong = Math.abs(r1 - TY_BIZ.fund.cf * TY_FUND.wrong) < 1e-9;
+    TY.pos = [{ k: 'tech', site: 'nyc', q: 1, cb: 1 }];
+    out.longRight = tyFundRight() && Math.abs(tyFundRate(0) - TY_BIZ.fund.cf * TY_FUND.macro) < 1e-9;
+    TY.macro.reg = 'recess';
+    out.longWrongInBear = !tyFundRight();
+    TY.pos = [{ k: 'tech', site: 'nyc', q: -1, cb: 1 }];
+    out.shortRight = tyFundRight();
+    TY.pos = []; TY.macro.reg = 'expand';
+    out.card = TY_SCN.find(x => x.k === 'macro').win === '約 40%';
+    // ② 投資牌:放空鈕、這座城的市場寫清楚
+    TY_PICK = { k: 'invest', site: 'nyc' }; TY_MODAL = 'pick'; renderPage();
+    const mb = document.querySelector('.tg-mb');
+    out.shortBtn = !!mb.querySelector('[data-ty="short"][data-k="tech"]');
+    out.mkt = /的市場買得到/.test(mb.querySelector('.inv-mkt').textContent);
+    TY.ap = tyApMax(); TY_SIZE = .2;
+    mb.querySelector('[data-ty="short"][data-k="tech"]').click();
+    out.shorted = TY.pos.some(p => p.k === 'tech' && p.q < 0);
+    TY_PICK = { k: 'invest', site: 'nyc' }; TY_MODAL = 'pick'; renderPage();
+    out.coverBtn = !!document.querySelector('.tg-mb [data-ty="cover"][data-k="tech"]');
+    // ③ 點城市:最上面一張總表,你的 + 別人的;只讀
+    const rv = tyRivalsA()[0];
+    tyFound('fund', rv.home === 'lon' ? 'nyc' : 'lon');
+    const snap = JSON.stringify(TY);
+    TY_SEL = rv.home; TY_MODAL = 'site'; renderPage();
+    const cg = document.querySelector('.tg-mb .cg');
+    out.glance = !!cg && /別人在這裡/.test(cg.textContent) && /大本營/.test(cg.textContent) && cg.textContent.includes(rv.nm);
+    out.first = !!cg && cg.compareDocumentPosition(document.querySelector('.tg-mb .p-sec')) === Node.DOCUMENT_POSITION_FOLLOWING;
+    const home = TY.biz[TY.biz.length - 1].site;
+    TY_SEL = home; renderPage();
+    out.mine = /你在這裡/.test(document.querySelector('.tg-mb .cg').textContent) && /避險基金/.test(document.querySelector('.tg-mb .cg').textContent);
+    out.pure = JSON.stringify(TY) === snap;
+    // ④ 登月:火箭從大本營飛到月球(不是只升空);沒有 3D 時跳過鈕不出現、時間不會被擋
+    TY_MODAL = null; TY.cash += 500e8; TY.ap = tyApMax(); tyLaunch(TY.home); TY.ap = tyApMax();
+    tyMoonLand();
+    out.moonFlight = TY_LAST_LAUNCH && TY_LAST_LAUNCH.kind === 'moon' && TY_LAST_LAUNCH.site === TY.home;
+    TY_LAST_LAUNCH = null;
+    tySkipPaint();
+    out.noSkip = !TY_SKIP_EL || TY_SKIP_EL.hidden;
+    out.notHeld = tyAnimHeld() === false;
+    return out;
+  });
+  ok(r.dil, '避險基金:開越多支越稀釋(÷ 1 + 0.2 × 多開的支數)');
+  ok(r.wrong, '沒有部位:績效費只拿 ×0.7');
+  ok(r.longRight, '景氣好時有股票:狙擊手績效費 ×2.2');
+  ok(r.longWrongInBear, '景氣差時只有多單:方向錯');
+  ok(r.shortRight, '景氣差時有空單:方向對');
+  ok(r.card, '狙擊手卡片勝率改成量出來的約 40%');
+  ok(r.shortBtn, '投資牌面板有「放空」');
+  ok(r.mkt, '投資牌面板寫出這座城的市場買得到什麼、沒有的去哪買');
+  ok(r.shorted, '在投資牌上按放空真的會開空單');
+  ok(r.coverBtn, '有空單之後同一列變成「回補空單」');
+  ok(r.glance, '點對手大本營的城市:總表列出他的大本營');
+  ok(r.first, '總表在面板最上面(在其他段落之前)');
+  ok(r.mine, '點自己有公司的城市:總表列出你的公司');
+  ok(r.pure, '城市總表只讀狀態,不改存檔');
+  ok(r.moonFlight, '登月:火箭從大本營一路飛到月球');
+  ok(r.noSkip && r.notHeld, '沒有動畫在播:跳過鈕不出現、時間照走');
+  ok(page.__errors.length === 0, `有 JS 錯誤:\n      ${page.__errors.join('\n      ')}`);
+  await page.__ctx.close();
+});
+
 test('帝國第四十九輪:手牌有「登月」—— 不用先找到月球上的建地', async (browser) => {
   const page = await freshPage(browser, { seed: SEED, hash: '#/tycoon' });
   const r = await page.evaluate(() => {

@@ -5367,6 +5367,21 @@
   .pk-t b{ font-size:15px; font-weight:400 } .pk-t > span{ font-size:12.5px; color:var(--g-t2); line-height:1.45 }
   .pk-d{ font-size:12px; font-style:normal; color:var(--g-t3); line-height:1.45 }
   .pk-b .ty-b{ min-width:64px }
+  .pk-b2{ display:flex; flex-direction:column; gap:6px }
+  .ty-skip{ position:fixed; top:90px; left:50%; transform:translateX(-50%); z-index:900;
+    font:inherit; font-size:15px; padding:8px 18px; color:#fff; background:rgba(10,14,24,.82); border:2px solid #ffd60a; cursor:pointer;
+    box-shadow:0 4px 0 rgba(0,0,0,.4) }
+  .ty-skip[hidden]{ display:none }
+  .ty-skip:hover{ background:rgba(40,46,60,.92) }
+  .cg{ border:2px solid var(--line); background:rgba(0,0,0,.18); padding:8px 10px; margin:6px 0 10px }
+  .cg-h{ display:flex; justify-content:space-between; align-items:baseline; gap:8px; margin:4px 0 4px }
+  .cg-h b{ font-size:14px } .cg-h span{ font-size:12px; color:var(--txt-dim) }
+  .cg-l{ display:flex; flex-wrap:wrap; gap:6px; margin-bottom:6px }
+  .cg-c, .cg-r{ display:inline-flex; align-items:center; gap:4px; font-size:13px; padding:3px 7px; border:1px solid var(--line); background:rgba(255,255,255,.04); max-width:100% }
+  .cg-c i, .cg-r i{ font-style:normal; font-size:11.5px; color:var(--txt-dim) }
+  .cg-c.sh{ border-color:var(--down) } .cg-r.bad{ border-color:var(--down) }
+  .cg-e{ font-style:normal; font-size:12px; color:var(--txt-dim) }
+  .inv-mkt{ font-size:12px; color:var(--txt-dim); line-height:1.6; margin:2px 0 6px }
   .pk-cities{ display:flex; flex-wrap:wrap; gap:6px }
   @media (max-width:480px){
     .pk-o{ grid-template-columns:auto 1fr } .pk-b{ grid-column:1/-1 } .pk-b .ty-b{ width:100% }
@@ -5932,7 +5947,7 @@ const TY_BIZ = {
   tech:   { ic:'💻', nm:'科技公司',   cost:10e8, cf:-.012, vol:1.8, mult:30, sens:{senti:1.5, rate:-1.4},
             dsc:'前期燒錢,估值倍數卻是所有事業裡最高的。上市之後你的身家會跟著情緒一起坐雲霄飛車。' },
   fund:   { ic:'📊', nm:'避險基金',   cost:15e8, cf:.060, vol:1.3, mult:10, need:{fame:20}, sens:{senti:.6},
-            dsc:'替別人管錢,收 2% 管理費 + 20% 績效費 —— 用別人的錢賺自己的錢,虧損的部分別人承擔。' },
+            dsc:'替別人管錢,收 2% 管理費 + 20% 績效費 —— 用別人的錢賺自己的錢。績效費看你自己的部位:景氣差時有空單、景氣好時有股票才拿得到;開越多支,客戶的錢越分散。' },
   bank:   { ic:'🏦', nm:'銀行與保險', cost:40e8, cf:.035, vol:.6, mult:9, float:.55, sens:{rate:.4},
             dsc:'保費先收、賠款後付,中間那筆「浮存金」等於一筆零利率的長期資金,可以拿去投資。' },
   energy: { ic:'⛽', nm:'能源與礦業', cost:35e8, cf:.050, vol:1.1, mult:6, sens:{oil:1.2},
@@ -5964,7 +5979,7 @@ const TY_SCN = [
     perk:'借款利率 −0.6%;房地產交易成本減半;破產保護只扣一半名氣。' },
   { k:'macro', home:'lon', rivals:.5, top0:1.1, nm:'狙擊手', sub:'一支小基金,和對央行下注的膽量',
     cash:9e8, debt:0, credit:58, fame:22, infl:6, biz:'fund',
-    like:['索羅斯','德魯肯米勒(Druckenmiller)','保羅·都鐸·瓊斯'], diff:4, win:'約 46%',
+    like:['索羅斯','德魯肯米勒(Druckenmiller)','保羅·都鐸·瓊斯'], diff:4, win:'約 40%',
     fun:'看景氣燈號下注:衰退、泡沫放空,緊縮時放空外匯等央行棄守。賺得快也賠得快,要留現金。',
     dsc:'你相信價格會回到基本面,而且你知道政府撐不住的那一天長什麼樣子。',
     perk:'放空額度加倍;外匯與放空的交易成本減半;央行棄守時你賺的是別人的兩倍。' },
@@ -6799,7 +6814,7 @@ function tyMoonLand(){
   TY.cash-=cost; sp.moon=true;
   tySpaceMs('moon','me');
   tyLog('biz', `🌙 登月成功:月球的 ${TY_PLOTS.moon.length} 塊建地開放了。`);
-  if(typeof TY_PLANET==='undefined' || TY_PLANET==null) TY_LAST_LAUNCH={ site:TY.home, kind:'star' };   // 在月球畫面上登月就不切回地球播火箭
+  TY_LAST_LAUNCH={ site:TY.home, kind:'moon' };     // 第五十一輪:火箭從大本營一路飛到月球、著陸(在月球畫面上登月也一樣先回地球發射)
   tySave();
   return `<b>🌙 登月成功。</b>花費 ${tyM(cost)}。月球上的建地開放了 —— 點月球上的建地來蓋。`;
 }
@@ -8336,7 +8351,7 @@ function tySpecEdge(id, kind, key){
 const TY_BIZ_PLAIN = {
   dev:'景氣好時最賺,升息時最先受傷', hotel:'現金流高、會帶名氣,衰退時會虧',
   media:'本身賺得少,但每季幫你加名氣', brand:'幾乎不用本錢,名氣越高越賺;同一個名字掛越多家越稀釋',
-  tech:'前幾季會虧,但估值最高(上市最值錢)', fund:'賺管理費,景氣差時波動大',
+  tech:'前幾季會虧,但估值最高(上市最值錢)', fund:'賺管理費 + 績效費:你的部位方向對(景氣差放空、景氣好做多)才賺得多;開越多支越稀釋',
   bank:'穩,升息時反而更賺', energy:'跟油價走,通膨、戰爭時最好',
   infra:'最穩、不怕景氣,要有人脈', shell:'不賺錢,拿來省稅(會被盯)',
 };
@@ -8552,6 +8567,22 @@ function tyBrandRate(extra){
   const fameEff=TY.fame/(1+.15*Math.max(0,n-1));
   return .015 + fameEff/100*.20;
 }
+/* 避險基金(第五十一輪)。使用者:「狙擊手只要一直蓋避險基金、升級就贏了,做空什麼的都沒玩到」。
+   量測:只蓋基金 + 借滿,20 局 12 局在第 12~15 季經濟霸權,一筆交易都不用做。
+   現實裡基金收的是「管理費 + 績效費」:
+   ① 管理費會被自己稀釋 —— 同一個人開越多支基金,客戶的錢越分散:現金流 ÷ (1 + 0.2 ×(支數 − 1))
+   ② 績效費看你自己的部位做對沒有:景氣過熱、升息、衰退、危機時手上有空單,
+      或擴張、復甦時手上有股票 → ×1.4(狙擊手 ×2.2);什麼部位都沒有、或方向錯 → ×0.7 */
+const TY_FUND = { dil:.2, right:1.4, macro:2.2, wrong:.7 };
+const tyFundBear = () => ['boom','tight','recess','crisis'].includes(TY.macro.reg);
+const tyFundRight = () => TY.pos.some(p => tyFundBear() ? p.q<0 : (p.q>0 && tyAsset(p.k).g==='eq'));
+const tyFundPerf = () => tyFundRight() ? (TY.scn==='macro' ? TY_FUND.macro : TY_FUND.right) : TY_FUND.wrong;
+function tyFundRate(extra){
+  const n=TY.biz.filter(b=>b.k==='fund').length + (extra||0);
+  return TY_BIZ.fund.cf/(1+TY_FUND.dil*Math.max(0,n-1))*tyFundPerf();
+}
+/* 每季報酬率:品牌授權看名氣、避險基金看支數與部位,其他照表 */
+const tyBizRate = (k, extra) => TY_BIZ[k].fameCf ? tyBrandRate(extra) : k==='fund' ? tyFundRate(extra) : TY_BIZ[k].cf;
 function tyBizVal(b){
   const d=TY_BIZ[b.k]; if(!d || d.shell) return 0;
   let mult=d.mult;
@@ -8724,7 +8755,7 @@ function tyNext(){
     const d=TY_BIZ[b.k]; if(!d || d.shell) continue;
     if(b.ready!=null && b.ready>TY.t){ b.cf=0; continue; }       // 施工中:還沒有現金流
     let rate=d.cf;
-    if(d.fameCf) rate = tyBrandRate(0);               // 品牌授權:名氣就是營收(掛越多家越稀釋)
+    if(d.fameCf || b.k==='fund') rate = tyBizRate(b.k,0);   // 品牌授權看名氣、避險基金看支數與部位(都會稀釋)
     // 城市特色:在新竹開科技公司跟在拉哥斯開,同樣的資本吐出來的現金流不一樣
     rate *= tySpecMul(b.site||TY.home, 'biz', b.k, 'cf');
     const s=d.sens||{};
@@ -9924,7 +9955,7 @@ const tyUpCost = b => b.cap*(TY_LV_STEP-1);
 function tyBizCfEst(b){
   if(b.cf) return b.cf;
   const d=TY_BIZ[b.k]; if(d.shell) return 0;
-  const rate=d.fameCf ? tyBrandRate(0) : d.cf;
+  const rate=tyBizRate(b.k,0);
   return b.cap*rate*tySpecMul(b.site||TY.home,'biz',b.k,'cf')*tyClamp(tyRegIdx(tySite(b.site||TY.home).reg),.3,2.2);
 }
 function tyUpPreview(b){
@@ -10630,7 +10661,7 @@ function tyBizTab(){
        跟資產那一頁的成交預覽同一套規矩。 */
     const idx=tyRegIdx(tySite(site).reg);
     const cf=cost*d.cf*idx, val=Math.max(cost*.4, Math.max(0,cf)*4*d.mult*.5);
-    const cfR=cost*(d.fameCf?tyBrandRate(1):d.cf)*idx*tySpecMul(site,'biz',k,'cf');
+    const cfR=cost*tyBizRate(k,1)*idx*tySpecMul(site,'biz',k,'cf');
     return `<div class="ty-open">
       <div class="o-t"><b>${d.ic||''} ${d.nm}</b><span title="稅率 ${(tySite(site).tax*100).toFixed(1)}% · 估值倍數 ${d.mult}×">${tyM(tyBizCost(k,site))}
         · 估值 ${tyDots(Math.max(1,Math.min(5,Math.round(d.mult/6))))} · 穩 ${tyDots(Math.max(1,Math.min(5,Math.round(5-d.vol*2.2))))}</span></div>
@@ -10641,7 +10672,7 @@ function tyBizTab(){
       </div>
       ${tyNeedHTML(tyNeeds('found',{k,site}))}
       <div class="o-pre" title="投入 ${tyM(cost)} · 估值起點約 ${tyM(val)}">開在${escH(tySite(site).nm)}:每季約 <b class="${cfR>=0?'up':'down'}">${tySgn(cfR)}</b>${
-          d.fameCf?'(看名氣不看資本)':''}${tyPayStrip(cfR>0?tyBizCost(k,site)/cfR:Infinity, tyBuildGain(k,site))}</div>
+          d.fameCf?'(看名氣不看資本)':''}${k==='fund' ? (tyFundRight() ? `<b class="up">(績效費 ×${tyFundPerf()}:你的部位方向對)</b>` : `<b class="down">(績效費只拿 ×${TY_FUND.wrong}:${tyFundBear()?'景氣不好,手上要有空單':'景氣好,手上要有股票'})</b>`) : ''}${tyPayStrip(cfR>0?tyBizCost(k,site)/cfR:Infinity, tyBuildGain(k,site))}</div>
       </div>`;
   }).join('');
 
@@ -11132,13 +11163,16 @@ function tyPlayLast(){
   if(!window.W3D || !W3D.ok) return;
   /* 手機上面板是整張蓋住地圖的(而且面板打開時地球會暫停繪圖)——
      不先收起來,飛機、飛彈全部在面板底下播完,等於沒有動畫。 */
-  if(((TY_LAST_MOVE && !TY.rt) || TY_LAST_STRIKE || (TY_LAST_LAUNCH && !TY.rt)) && TY_MODAL && !tySideModal()){ TY_MODAL=null; renderPage(); }
+  if(((TY_LAST_MOVE && !TY.rt) || TY_LAST_STRIKE || TY_LAST_LAUNCH) && TY_MODAL && !tySideModal()){ TY_MODAL=null; renderPage(); }
   if(TY_LAST_LAUNCH){
-    // 即時制:鏡頭不自動追火箭,右上角出一顆「看火箭」(使用者:「點一下可以把鏡頭切到火箭發射的鏡頭」)
-    const L={ ...TY_LAST_LAUNCH, noChase:!!TY.rt };
-    if(W3D.launch) W3D.launch(L);
-    if(TY.rt) tyToast(L.kind==='mars'?'🚀 火星火箭升空':'🛰 衛星火箭升空', { ty:'watchrocket', lab:'看火箭' }, 8000);
+    /* 第五十一輪。使用者:「星鏈、月球、火星火箭的動畫都直接播完」—— 即時制原本不追焦,
+       火箭在畫面外飛完,等於沒有動畫。改成:自己發射的火箭一律追焦(星鏈升空 → 散開;登月 / 火星 →
+       一路飛過去、著陸),播的時候時間先停住(tyClockHeld),上方一顆「⏭ 跳過動畫」。 */
+    const L={ ...TY_LAST_LAUNCH };
     TY_LAST_LAUNCH=null;
+    if(TY_PLANET!=null) tyClosePlanet(true);          // 在月球 / 火星畫面上發射:先回地球看火箭升空
+    if(W3D.launch) W3D.launch(L);
+    TY_ANIM_T0=0; tySkipPaint();
   }
   if(TY_LAST_MOVE){ if(!TY.rt) W3D.animMove(TY_LAST_MOVE); TY_LAST_MOVE=null; }      // 即時制:地圖上的行軍標記自己會走過去
   if(TY_LAST_STRIKE){ W3D.animStrike(TY_LAST_STRIKE); TY_LAST_STRIKE=null; }
@@ -12874,6 +12908,34 @@ function tyLocalHTML(id){
       滿 100 接收他身家六成的產業;駐軍期間每季收保護費${trib?`(現在每季 <b>${tyM(trib)}</b>)`:'(每支戰鬥部隊他身家的 1.5%)'},
       但每支部隊每季關注 +0.6。${tyUnits().length?'下面「部隊」可以把部隊叫過來。':'還沒有部隊 —— 把「部隊」牌拖到任何城市招募。'}</div>`;
 }
+/* 第五十一輪:使用者「點一個城市就要看得到這座城市有什麼:你的建設、投資,還有別人的」。
+   原本「你在這裡有什麼」排在面板最下面(稅率、特色、規模之後),對手在這裡的大本營 / 分部 / 駐軍也沒有列。
+   面板最上面先放一張總表:你的(公司、投資、部隊)和別人的(大本營、分部、駐軍、正在打過來的部隊)。
+   只讀狀態:tyRvBlds 不寫入、不呼叫 tyLocal(它會建出 TY.loc)。 */
+function tyCityGlance(id){
+  const t=tySiteStuff(id);
+  const chip=(ic,txt,cls,ty)=>`<span class="cg-c${cls?' '+cls:''}">${ic} ${txt}</span>`;
+  const mine=[
+    ...t.biz.map(b=>chip(TY_BIZ[b.k].ic||'🏢', `${escH(TY_BIZ[b.k].nm)}${TY_BIZ[b.k].shell?'':` <i>Lv${tyBizLv(b)}</i>`}${b.ready!=null&&b.ready>TY.t?' <i>施工中</i>':''}`, 'biz')),
+    ...t.pos.filter(p=>Math.abs(tyPosVal(p))>1e6).map(p=>chip(tyAsset(p.k).ic, `${escH(tyAsset(p.k).nm)} <i>${p.q<0?'空單 ':''}${tyM(Math.abs(tyPosVal(p)))}</i>`, p.q<0?'sh':'pos')),
+    ...tyUnitsAt(id).map(u=>chip(TY_UNITS[u.k].ic, escH(TY_UNITS[u.k].nm), 'unit')),
+    ...tyUnits().filter(u=>u.to===id).map(u=>chip(TY_UNITS[u.k].ic, `${escH(TY_UNITS[u.k].nm)} <i>在路上</i>`, 'unit')),
+  ];
+  const rv=[];
+  for(const r of tyRivalsA()){
+    const lk=tyRvLink(r);
+    if(r.home===id) rv.push(`<span class="cg-r">${lk}<i>大本營 · 身家 ${tyM(r.nw)}</i></span>`);
+    const nb=tyRvBlds(r).filter(b=>b.site===id).length;
+    if(nb) rv.push(`<span class="cg-r">${lk}<i>分部${nb>1?' ×'+nb:''}</i></span>`);
+  }
+  for(const f of tyRivalForces().filter(f=>f.site===id)) rv.push(`<span class="cg-r">${tyRvLink(f.r)}<i>⚔ 駐軍</i></span>`);
+  for(const th of tyThreats().filter(th=>th.site===id)){ const r=tyRival(th.rid); if(r) rv.push(`<span class="cg-r bad">${tyRvLink(r)}<i>⚠ 部隊正打過來</i></span>`); }
+  return `<div class="cg">
+    <div class="cg-h"><b>你在這裡</b><span>${mine.length?tyM(t.val):'還沒有東西'}</span></div>
+    <div class="cg-l">${mine.join('')||'<em class="cg-e">拖「建設」「投資」「部隊」牌到這座城市</em>'}</div>
+    <div class="cg-h"><b>別人在這裡</b><span>${rv.length?rv.length+' 項':'沒有對手'}</span></div>
+    <div class="cg-l">${rv.join('')||'<em class="cg-e">目前沒有對手的公司或部隊</em>'}</div></div>`;
+}
 function tySitePanel(id){
   const s=tySite(id), t=tySiteStuff(id), R=TY_REGIONS[s.reg];
   const par=TY.partners[s.reg];
@@ -12929,7 +12991,7 @@ function tySitePanel(id){
     .filter(([k,d])=>!d.shell && s.kind.includes(TY_BIZ_KIND[k]||'hq'))
     .map(([k,d])=>{
       const cost=tyBizCost(k,id), edge=tySpecEdge(id,'biz',k);
-      const cf=cost*(d.fameCf ? tyBrandRate(1) : d.cf)
+      const cf=cost*tyBizRate(k,1)
              * tySpecMul(id,'biz',k,'cf') * tyClamp(idx,.3,2.2);
       return act(
         `<button type="button" class="ty-b${tyCanDo('found',{k,site:id})?'':' no'}"
@@ -12966,6 +13028,7 @@ function tySitePanel(id){
       <button type="button" class="p-city" data-ty="city" data-k="${id}" title="連點兩下地圖上的城市也可以">🏙 走進城市</button>
       <b>${escH(s.nm)}</b>
       <span>${escH(s.sub||'')}${s.sub?' · ':''}${escH(REGION_NAME[s.iso]||s.iso)} · ${R.nm}</span></div>
+    ${tyCityGlance(id)}
     ${tyProsConsHTML(id)}
     <div class="vz-sec"><span class="vz-note">這裡跟別的城市比起來怎麼樣?</span>${tyCmpBtn('city:'+id,'跟其他城市比')}</div>
     <div class="ty-facts">
@@ -13662,7 +13725,7 @@ function tyCmpBody(k, arg, t){
   if(k==='open'){
     const L=(arg?tyBuildOpts(arg):Object.keys(TY_BIZ)).filter(x=>!TY_BIZ[x].shell).map(bk=>{
       const d=TY_BIZ[bk], site=arg||tyBizSiteOf(bk), cost=tyBizCost(bk, site), idx=tyRegIdx(tySite(site).reg);
-      const rate=d.fameCf ? tyBrandRate(1) : d.cf;
+      const rate=tyBizRate(bk,1);
       const cf=cost*rate*idx*tySpecMul(site,'biz',bk,'cf');
       return { bk, d, site, cost, cf, pay: cf>0 ? cost/cf : Infinity };
     });
@@ -13822,11 +13885,11 @@ const TY_ROUTE = {
     { t:'再開一支避險基金', done:()=>tyCoachBizN('fund')>=2, why:'基金替別人管錢收費,是你穩定的本業',
       act:()=>tyCoachBuildAct(['fund']) },
     { t:'景氣看壞時放空科技股、買黃金', done:()=>tyCoachPos('tech',true) || tyCoachPos('semi',true) || !tyCoachBear(), why:'過熱、升息、衰退、危機時股票容易跌 —— 放空就是賭它跌',
-      act:()=>({ ty:'modal:asset', lab:'📉 去資產放空' }) },
+      act:()=>({ ty:'coachpick', k:'invest', site:tyMktOf('tech'), lab:'📉 出投資牌:放空科技股' }) },
     { t:'升息或危機時放空外匯,等央行撐不住', done:()=>tyCoachPos('fx',true) || !['tight','crisis'].includes(TY.macro.reg), why:'央行守不住匯率的那一天,放空的人賺兩倍(你的專長)',
-      act:()=>({ ty:'modal:asset', lab:'💱 去資產放空外匯' }) },
+      act:()=>({ ty:'coachpick', k:'invest', site:tyMktOf('fx'), lab:'💱 出投資牌:放空外匯' }) },
     { t:'景氣轉好時回補空單', done:()=>!TY.pos.some(p=>p.q<0) || tyCoachBear(), why:'景氣回升時空單會一路賠,先收回來',
-      act:()=>({ ty:'modal:asset', lab:'去資產回補' }) },
+      act:()=>({ ty:'coachpick', k:'invest', site:tyMktOf((TY.pos.find(p=>p.q<0)||{k:'tech'}).k), lab:'出投資牌:回補空單' }) },
   ]},
   founder: { nm:'馬斯克', steps:[
     { t:'買媒體曝光,名氣衝到 40', done:()=>TY.fame>=40, why:'創辦人賣的是故事 —— 名氣讓上市估值更高',
@@ -14167,6 +14230,17 @@ function tyBuildOpts(id){
   const s=tySite(id);
   return Object.keys(TY_BIZ).filter(k=>s.kind.includes(TY_BIZ_KIND[k]||'hq'));
 }
+/* 第五十一輪:使用者問「每個國家不一樣嗎?」—— 對,每座城市的市場只交易它有的東西
+   (交易所:股票、債券、加密;金融中心:外匯;產油區:原油;金庫:黃金;地產城市:房地產、藝術品)。
+   投資面板最上面直接寫出這裡買得到什麼、沒有的要去哪裡買。 */
+function tyInvMarketNote(id){
+  const here=tyInvestOpts(id).map(a=>a.k);
+  const miss=TY_ASSETS.filter(a=>!here.includes(a.k)).map(a=>{
+    const m=tyMarkets(a.k).filter(s=>!s.minor).slice(0,2).map(s=>s.nm).join('、');
+    return `${a.ic}${escH(a.nm)}${m?`(${escH(m)}…)`:''}`; });
+  return `<div class="inv-mkt">🏦 ${escH(tySite(id).nm)}的市場買得到 ${here.length} 種${
+    miss.length?` · 這裡沒有:${miss.join(' · ')}`:' · 所有資產都買得到'}</div>`;
+}
 function tyInvestOpts(id){
   const s=tySite(id);
   return TY_ASSETS.filter(a=>s.kind.includes(TY_ASSET_KIND[a.k]||'ex'));
@@ -14297,7 +14371,33 @@ const TY_QMS = { 1:40000, 2:20000, 3:10000 };      // 量測:好的打法 15~18 
 /* 第四十七輪:手指按住牌的那一刻就暫停(TY_PRESS),不是等拖出 10px 才算 ——
    不然按下去到開始移動的那一小段裡,季末結算 / 對手行動會重畫手牌,牌就拖不出去了。 */
 let TY_PRESS=false, TY_PRESS_AT=0;
-const tyClockHeld = () => !TY || !TY.rt || !!TY.done || TY_PRESS || TY_DRAG || (!!TY_MODAL && !tySideModal()) || TY_FALLQ.length>0 || TY_NEWCARD.length>0
+/* 第五十一輪:火箭追焦、著陸動畫播的時候時間先停住(看動畫不該吃掉一季);
+   保險:同一段動畫超過 20 秒就不再擋(避免畫面層出狀況時整局卡住) */
+let TY_ANIM_T0=0;
+function tyAnimHeld(){
+  const busy=!!(window.W3D && W3D.animBusy && W3D.animBusy());
+  if(!busy){ TY_ANIM_T0=0; return false; }
+  const now=performance.now(); if(!TY_ANIM_T0) TY_ANIM_T0=now;
+  return now-TY_ANIM_T0 < 20000;
+}
+/* 「⏭ 跳過動畫」:有火箭在飛、或星球正在播著陸時才出現(畫面層的 UI,不進存檔) */
+let TY_SKIP_EL=null;
+function tySkipPaint(){
+  const busy=!!(TY && window.W3D && W3D.animBusy && W3D.animBusy());
+  if(!busy){ if(TY_SKIP_EL) TY_SKIP_EL.hidden=true; return; }
+  if(!TY_SKIP_EL){
+    TY_SKIP_EL=document.createElement('button'); TY_SKIP_EL.type='button'; TY_SKIP_EL.className='ty-skip';
+    TY_SKIP_EL.innerHTML='⏭ 跳過動畫';
+    TY_SKIP_EL.addEventListener('click', ()=>{ if(window.W3D && W3D.animSkip) W3D.animSkip(); tySfx('click','tap'); tySkipPaint(); });
+    document.body.appendChild(TY_SKIP_EL);
+  }
+  /* 放在地圖那一格的上緣(頂欄、數字列下面),不擋住火箭也不蓋到數字 */
+  const host=(TY_PLANET!=null && document.getElementById('tyPlanetHost')) || document.getElementById('tyGlobeHost');
+  const r=host && host.getBoundingClientRect();
+  TY_SKIP_EL.style.top=(r && r.height ? Math.max(8, r.top+12) : 90)+'px';
+  TY_SKIP_EL.hidden=false;
+}
+const tyClockHeld = () => !TY || !TY.rt || !!TY.done || TY_PRESS || TY_DRAG || (!!TY_MODAL && !tySideModal()) || TY_FALLQ.length>0 || TY_NEWCARD.length>0 || tyAnimHeld()
                          || document.hidden || (window.W3D && W3D.aiming && W3D.aiming());
 function tyClockHTML(){
   const held=tyClockHeld() && TY_SPEED>0, pct=Math.round((TY.prog||0)*100);
@@ -14375,6 +14475,7 @@ function tyQuarterGo(auto){
 }
 function tyClockTick(){
   const now=performance.now(), dt=TY_CLK_LAST ? Math.min(400, now-TY_CLK_LAST) : 0; TY_CLK_LAST=now;
+  tySkipPaint();                    // 跳過動畫鈕:回合制也要能出現、播完要收起來
   if(!TY || !TY.rt || TY.done) return;
   if(TY_PRESS && now-TY_PRESS_AT>15000) TY_PRESS=false;        // 保險:放開的事件遺失了也不會一直停著
   if(TY_TOASTS.length && TY_TOASTS.some(t=>t.until<Date.now())){ TY_TOASTS=TY_TOASTS.filter(t=>t.until>=Date.now()); tyToastPaint(); }
@@ -14729,7 +14830,7 @@ function tyPickHTML(){
         +`<div class="vz-sec"><span class="vz-note">「身家馬上」= 蓋好那一刻公司值的錢 − 花掉的現金;長條是現金多久收回</span>${tyCmpBtn('open:'+id,'在這裡蓋哪一種最划算')}</div>`
         +opts.map(k=>{
         const d=TY_BIZ[k], cost=tyBizCost(k,id);
-        const cf=d.shell?0:cost*(d.fameCf ? tyBrandRate(1) : d.cf)*tySpecMul(id,'biz',k,'cf')*tyClamp(tyRegIdx(s.reg),.3,2.2);
+        const cf=d.shell?0:cost*tyBizRate(k,1)*tySpecMul(id,'biz',k,'cf')*tyClamp(tyRegIdx(s.reg),.3,2.2);
         const img=PX.img('pk:biz:'+k, k==='shell'?PX.SPR.shell:PX.bizTower(k,.35), { fit:[56,64] });
         const edge=tySpecEdge(id,'biz',k);
         const big = d.shell ? `<b class="pk-big">不賺錢 · 省稅用</b>`
@@ -14753,14 +14854,18 @@ function tyPickHTML(){
             L.top?`(${escH(tyAsset(L.top.k).nm)} ${L.top.d>=0?'+':'−'}${tyM(Math.abs(L.top.d))})`:''}</div>` : '';
       const opts=tyInvestOpts(id).map(a=>({ a, o:tyAssetOutlook(a.k) })).sort((x,y)=>y.o.m-x.o.m);
       body=tyPartnerGate(id)+tyProsConsHTML(id, true)+last
-        +`<div class="vz-sec"><span class="vz-note">▲ 越多越看好,點越多漲跌越大</span>${tyCmpBtn('asset','比較所有資產')}</div>`
+        +`<div class="vz-sec"><span class="vz-note">▲ 越多越看好,點越多漲跌越大 · 看壞就按「放空」:跌了你賺</span>${tyCmpBtn('asset','比較所有資產')}</div>`
+        +tyInvMarketNote(id)
         +tySizeChips('每次下多少現金')+opts.map(({a,o},i)=>{
         const img=PX.img('pk:as:'+a.k, PX.assetSprite(a.k), { fit:[56,64] });
         const p=TY.pos.find(x=>x.k===a.k && x.site===id);
         const pl=p&&p.q>0 ? tyPosVal(p)-p.cb : 0;
         return row(img, `${a.ic} ${escH(a.nm)} <i class="inv-tag ${o.tag.c}">${o.tag.t}</i>${i===0&&o.m>0?' <i class="inv-best">👍 現在最順</i>':''}`,
           `<span class="inv-why" title="預期每季 ${o.m>=0?'+':''}${(o.m*100).toFixed(1)}%,波動 ±${(o.v*100).toFixed(0)}%">${escH(o.why)} · 看好 <b class="${o.m>=0?'up':'down'}">${(o.m>=0?'▲':'▼').repeat(Math.abs(o.m)<.01?1:Math.abs(o.m)<.03?2:3)}</b> · 刺激 ${tyDots(Math.max(1,Math.min(5,Math.round(o.v/.06))))}</span><br>${tyBuySimple(a.k, id)}${tySpecEdge(id,'asset',a.k)?`<br><span class="pk-edge">這座城:${tySpecEdge(id,'asset',a.k)}</span>`:''}`,
-          tyActBtn('buy', null, '買', ` data-k="${a.k}" data-site="${id}"`),
+          `<div class="pk-b2">${tyActBtn('buy', null, '買', ` data-k="${a.k}" data-site="${id}"`)}${
+            !a.short ? '' : TY.pos.some(x=>x.k===a.k && x.q<0)
+              ? `<button type="button" class="ty-b alt" data-ty="cover" data-k="${a.k}" title="把空單買回來結清">回補空單</button>`
+              : `<button type="button" class="ty-b alt" data-ty="short" data-k="${a.k}" data-site="${id}" title="看壞:借來先賣,跌了你賺、漲了你賠(沒有上限)">放空</button>`}</div>`,
           p&&p.q>0?`<em class="pk-d">已持有 ${tyM(tyPosVal(p))} · <b class="${pl>=0?'up':'down'}">${pl>=0?'賺':'賠'} ${tyM(Math.abs(pl))}</b></em>`:'',
           `<em class="pk-d">${escH(a.dsc)}</em>`);
       }).join('');
