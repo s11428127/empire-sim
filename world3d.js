@@ -1269,10 +1269,10 @@ W3D.attach = function(globe){
       G.onCustomLayerClick(d => {
         if(!d) return;
         if(W3D.aiming()) return;
-        if(d._rvf){ try{ tyPickSite(d._rvf.site); }catch(e){ TY_RIVAL = d._r.id; TY_DEAL = null; TY_MODAL = 'rival'; renderPage(); } }   // 點對手駐軍 → 那座城的面板(可以進攻、也有他的名字可以點)
+        if(d._rvf) { TY_RIVAL = d._r.id; TY_DEAL = null; TY_MODAL = 'rival'; renderPage(); }   // 第五十三輪:點對手的駐軍 → 他的對手頁(進攻駐軍的按鈕在那裡)
         else if(d._units){ let c = null; try{ c = G.getScreenCoords(d.lat, d.lng, .002); }catch(e){}
                       unitPop(d, c ? c.x : 100, c ? c.y : 100); }
-        else if(d._threat){ TY_MODAL = 'troop'; renderPage(); }
+        else if(d._threat){ if(d._r) { TY_RIVAL = d._r.id; TY_DEAL = null; TY_MODAL = 'rival'; renderPage(); } else { TY_MODAL = 'troop'; renderPage(); } }   // 打過來的部隊 → 派它的人的頁面(空襲鈕在那裡)
         else if(d._rival){ TY_RIVAL = d._rival.id; TY_DEAL = null; TY_MODAL = 'rival'; renderPage(); }
         else tyPickSite(d.id);
       });
@@ -1466,8 +1466,8 @@ function tagsOn(){
       el.innerHTML = `${tagFlag(TY.home)}<span class="tg-more"><u class="tg-who me">你</u>${ics}${n > 1 ? ` <b>×${n}</b>` : ''}${inc ? ` <i class="inc">+${inc}</i>` : ''}</span>${tag2(d._units)}`;
       el.title = d._units.map(u => TY_UNITS[u.k].nm + (u.to ? ` → ${tySite(u.to).nm}` : '')).join('、');
     }
-    if(d._rvf) el.onclick = () => { try{ tyPickSite(d._rvf.site); }catch(e){ TY_MODAL = 'rival'; TY_RIVAL = d._r.id; renderPage(); } };
-    else if(d._threat) el.onclick = () => { TY_MODAL = 'troop'; renderPage(); };
+    if(d._rvf) el.onclick = () => { TY_RIVAL = d._r.id; TY_DEAL = null; TY_MODAL = 'rival'; renderPage(); };
+    else if(d._threat) el.onclick = () => { if(d._r) { TY_RIVAL = d._r.id; TY_DEAL = null; TY_MODAL = 'rival'; renderPage(); } else { TY_MODAL = 'troop'; renderPage(); } };
     else armTagDrag(el, d);
     el._d = d;
     TAGS.appendChild(el);

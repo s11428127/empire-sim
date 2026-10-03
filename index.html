@@ -5368,6 +5368,19 @@
   .pk-d{ font-size:12px; font-style:normal; color:var(--g-t3); line-height:1.45 }
   .pk-b .ty-b{ min-width:64px }
   .pk-b2{ display:flex; flex-direction:column; gap:6px }
+  .rv-link.rv-inline{ font:inherit; padding:0 1px; margin:0; border:0; background:none; color:inherit; cursor:pointer;
+    text-decoration:underline; text-decoration-color:var(--rc); text-decoration-thickness:2px; text-underline-offset:2px; display:inline }
+  .rvp-h{ display:flex; align-items:center; gap:10px; margin:6px 0 8px } .rvp-h > div{ flex:1; min-width:0 }
+  .rvp-h b{ display:block; font-size:18px } .rvp-h em{ font-style:normal; font-size:12px; color:var(--txt-dim) }
+  .rvp-h .rv-ic{ font-size:28px }
+  .rvp-f i{ display:block; font-style:normal; font-size:12px; margin-top:2px }
+  .rvp-l{ display:flex; flex-wrap:wrap; gap:6px; margin:4px 0 8px }
+  .rvp-city{ font:inherit; font-size:13px; padding:3px 8px; border:1px solid var(--line); background:rgba(255,255,255,.04); color:inherit; cursor:pointer }
+  .cg-r .rvp-city{ border:0; padding:0 2px; background:none; text-decoration:underline }
+  .rvp-lock{ border:2px dashed var(--line); padding:8px 10px; margin:4px 0 10px }
+  .rvp-q{ font-size:13px; color:var(--txt-dim); padding:2px 0 }
+  .rvp-g{ border-left:3px solid var(--line); padding:4px 0 4px 10px; margin:8px 0 }
+  .rvp-g > b{ display:block; font-size:14px; margin-bottom:4px }
   .ty-skip{ position:fixed; top:90px; left:50%; transform:translateX(-50%); z-index:900;
     font:inherit; font-size:15px; padding:8px 18px; color:#fff; background:rgba(10,14,24,.82); border:2px solid #ffd60a; cursor:pointer;
     box-shadow:0 4px 0 rgba(0,0,0,.4) }
@@ -11358,7 +11371,87 @@ function tyRivalLast(r){
   const l=TY.log.slice().reverse().find(x=>x.kind==='rival' && (x.rid===r.id || (!x.rid && x.txt.startsWith(r.nm))));
   return l ? `<div class="rv-last"><em>${tyWhen(l.t)}</em> ${l.txt}</div>` : '';
 }
+/* =========================================================================
+   對手頁(第五十三輪)。使用者:「點一下地圖上的對手、或任何出現他名字的地方,都切到他的頁面:
+   所有公開、我看得到的資料;要偵察才知道的看不到;還要列出可以對他做的所有事,按鈕直接做」。
+   ① 公開資料:身家與排名、關係、大本營與分部、勢力、駐軍、正打過來的部隊、太空、最近動態、你持有他多少股票
+   ② 偵察情報:沒有情報時整塊鎖著,寫出偵察了會看到什麼,旁邊就是「派偵察機」
+   ③ 可以對他做的事:談判(含併吞)、建倉、做空飛彈、輿論空襲、偵察、進攻駐軍、派兵、股權防禦
+   只讀狀態:這支只組畫面,不呼叫會順手寫入的函式(tyRvBldsW、tyToes、tyStrikeLog)。
+   ========================================================================= */
+const tyRivalAny = id => TY.rivals.find(r=>r.id===id) || null;
+function tyRivalPage(r){
+  const back=`<button type="button" class="p-back" data-ty="rvlist">← 所有對手</button>`;
+  if(r.alive===false) return `${back}<div class="rvp-h"><span class="rv-ic">${r.ic||'👤'}</span><div><b>${escH(r.nm)}</b>
+      <em>💀 已經出局 · ${r.deadT!=null?tyWhen(r.deadT):''} ${escH(r.deadHow||'退出富豪榜')}${r.deadBy==='me'?' —— 是你幹的':''}</em></div></div>`;
+  const me=tyShownNW(), all=[...tyRivalsA().map(x=>x.nw), me].sort((a,b)=>b-a), rank=all.indexOf(r.nw)+1;
+  const rel=r.rel||0, H=tySite(r.home), intel=tyIntel(r.id);
+  const sec=(t,sub)=>`<div class="p-sec">${t}${sub?`<span>${sub}</span>`:''}</div>`;
+  const act=(html,need)=>`<div class="ty-act">${html}${need?tyNeedHTML(need,'tight'):''}</div>`;
+  const city=id=>`<button type="button" class="rvp-city" data-ty="gosite" data-k="${id}">${PX.flagHTML?PX.flagHTML(tySite(id).iso):''} ${escH(tySite(id).nm)}</button>`;
+
+  /* ---- ① 公開資料 ---- */
+  const blds=tyRvBlds(r), forces=tyRivalForces().filter(f=>f.r.id===r.id), th=tyThreats().filter(x=>x.rid===r.id);
+  const sp=r.sp||{}, plots=tyPlotsOf(r.id), toe=tyToe(r);
+  const logs=TY.log.slice().reverse().filter(x=>x.rid===r.id || (x.kind==='rival' && !x.rid && x.txt.startsWith(r.nm))).slice(0,5);
+  const pub=`
+    <div class="rvp-h"><span class="rv-ic">${r.ic||'👤'}</span>
+      <div><b>${escH(r.nm)}</b><em>${escH(r.tag)} · ${escH(TY_ARCH[r.arch].nm)}</em></div>
+      <button type="button" class="ty-b alt" data-ty="gohq" data-k="${r.id}">📍 看大本營</button></div>
+    <div class="ty-facts rvp-f">
+      <div><em>身家 · 第 ${rank} 名</em><b>${tyM(r.nw)}</b><i class="${r.nw>me?'down':'up'}">${r.nw>me?'比你多':'比你少'} ${tyM(Math.abs(r.nw-me))}</i></div>
+      <div><em>對你的關係</em><b class="${rel>=20?'up':rel<=-20?'down':''}">${tyRelTxt(rel)} ${rel>=0?'+':''}${rel.toFixed(0)}</b>
+        <span class="rl-b"><u style="width:${((rel+100)/2).toFixed(0)}%"></u></span>${(r.pact||0)>TY.t?`<i>🤝 互不侵犯到 ${tyWhen(r.pact)}</i>`:''}</div>
+      <div><em>大本營</em><b>${city(r.home)}</b><i>${escH(TY_REGIONS[H.reg].nm)}</i></div>
+      <div><em>你持有他的股票</em><b>${(toe.sh*100).toFixed(0)}%</b><i>${toe.pub?'已舉牌':toe.sh?'還沒被發現':'沒有'}</i></div>
+    </div>
+    ${sec('分部', blds.length?`${blds.length} 間 · 那座城的勢力算他一份`:'')}
+    <div class="rvp-l">${blds.length?blds.map(b=>city(b.site)).join(''):'<em class="cg-e">大本營以外沒有分部</em>'}</div>
+    ${sec('勢力範圍','每個地區他有多少影響力')}${tyTurfHTML(r)}
+    ${sec('駐軍與部隊', forces.length||th.length?'':'地圖上看得到的')}
+    <div class="rvp-l">${forces.map(f=>`<span class="cg-r">⚔ 駐軍 ${city(f.site)}<i>勢力 ${f.v.toFixed(0)}</i></span>`).join('')}
+      ${th.map(x=>`<span class="cg-r bad">⚠ 部隊正打向 ${city(x.site)}<i>${Math.max(0,x.eta-TY.t)} 季後到</i></span>`).join('')}
+      ${forces.length||th.length?'':'<em class="cg-e">沒有駐軍,也沒有部隊在路上</em>'}</div>
+    ${sp.moon||sp.mars||plots?`${sec('太空')}<div class="rvp-l"><span class="cg-c">${sp.moon?'🌙 已登月':'🌙 還沒登月'}</span><span class="cg-c">${sp.mars?'🔴 已登火星':'🔴 還沒登火星'}</span><span class="cg-c">建地 ${plots} 塊</span></div>`:''}
+    ${sec('最近動態')}
+    <div class="ty-feed">${logs.length?logs.map(l=>`<div class="fd"><span class="fd-t">${tyWhen(l.t)}</span><span class="fd-x">${l.txt}</span></div>`).join(''):'<div class="fd"><span class="fd-x">還沒有動靜</span></div>'}</div>`;
+
+  /* ---- ② 偵察情報 ---- */
+  const reconBtn=act(tyActBtn('recon', r.home, `🛩 派偵察機到${escH(H.nm)}(${tyM(tyReconCost())})`, ` data-site="${r.home}"`), tyNeeds('recon', r.home));
+  const spy = intel ? tyIntelHTML(r)
+    : `${sec('🔒 偵察情報','要派偵察機才看得到')}
+      <div class="rvp-lock">
+        <div class="rvp-q">？ 他的身家這幾季是漲是跌</div>
+        <div class="rvp-q">？ 他會不會出兵打你(以及條件)</div>
+        <div class="rvp-q">？ 下一季最可能往哪個地區擴張</div>
+        <div class="rvp-q">？ 是不是正在偷偷買你的股票(5% 以下不會公告)</div>
+        <div class="expo-note">情報三季有效,期間打他 +30%、跟他談條件成功率 +8%。</div>
+        ${reconBtn}</div>`;
+
+  /* ---- ③ 可以對他做的事 ---- */
+  const strike=(k,site,lab)=>act(tyActBtn('strike', { k, site }, lab, ` data-k="${k}" data-site="${site}"`), tyNeeds('strike', { k, site }));
+  const airSite=[...th.map(x=>x.site), ...forces.map(f=>f.site), r.home, ...blds.map(b=>b.site)]
+    .find(id=>{ const t=tyStrikeTarget('air', id); return t && t.id===r.id; });
+  const assault=forces.map(f=>{ const o=tyAssaultOdds(r.id, f.site);
+    return act(tyActBtn('assault', { rid:r.id, site:f.site }, `⚔ 進攻他在${escH(tySite(f.site).nm)}的駐軍(勝率 ${(o.p*100).toFixed(0)}%)`, ` data-r="${r.id}" data-site="${f.site}"`, 'warn'),
+      tyNeeds('assault', { rid:r.id, site:f.site })); }).join('');
+  const raid = TY.raid && TY.raid.rid===r.id && tyRaidSeen() ? `${sec('⚠ 他在買你的股票','到 15% 會發動敵意收購')}${tyRaidHTML()}` : '';
+  const acts=`
+    ${sec('可以對他做的事','按鈕直接做;灰色的底下寫著還差什麼')}
+    ${raid}
+    <div class="rvp-g"><b>🚀 打擊</b>
+      ${strike('missile', r.home, `🚀 做空飛彈 → ${escH(H.nm)}(${tyM(tyStrikeCost('missile'))})`)}
+      ${airSite?strike('air', airSite, `✈ 輿論空襲 → ${escH(tySite(airSite).nm)}(${tyM(tyStrikeCost('air'))})`):'<em class="cg-e">✈ 輿論空襲:他在地圖上沒有可以打的地區</em>'}
+      ${intel?'':reconBtn}</div>
+    <div class="rvp-g"><b>⚔ 部隊</b>${assault||'<em class="cg-e">他沒有駐軍可以進攻</em>'}
+      <div class="ty-act"><button type="button" class="ty-b alt" data-ty="modal:troop">派部隊過去(打開指揮中心)</button></div></div>
+    <div class="rvp-g"><b>📈 股權</b>${tyToeHTML(r)}</div>
+    <div class="rvp-g"><b>🤝 談判</b><div class="rv-deals">${Object.keys(TY_DEALS).map(k=>tyDealHTML(k,r)).join('')}</div></div>`;
+
+  return `${back}${pub}${spy}${acts}`;
+}
 function tyRivalTab(){
+  { const sel = TY_RIVAL && tyRivalAny(TY_RIVAL); if(sel) return tyRivalPage(sel); }
   const me={ nm:'你', nw:tyShownNW() };
   const list=[...tyRivalsA()].sort((a,b)=>b.nw-a.nw);
   const dead=TY.rivals.filter(r=>r.alive===false);
@@ -11389,7 +11482,7 @@ function tyRivalTab(){
       ${tyTurfHTML(r)}
       ${open && tyIntel(r.id) ? tyIntelHTML(r) : ''}
       ${open?`<div class="rv-deals">${Object.keys(TY_DEALS).map(k=>tyDealHTML(k,r)).join('')}</div>`
-            :`<div class="rv-more">點一下展開 ${Object.keys(TY_DEALS).length} 種可以跟他談的條件(包括併吞他)</div>`}
+            :`<div class="rv-more">點一下看他的完整資料,和可以對他做的每一件事</div>`}
     </div>`;
   }).join('');
 
@@ -14019,6 +14112,7 @@ function tyModalHTML(){
              : '';
   const nm = k==='site'
     ? (TY_SEL?tySite(TY_SEL).nm : (TY_ISO?tyIsoName(TY_ISO):'你的帝國'))
+    : k==='rival' && TY_RIVAL && tyRivalAny(TY_RIVAL) ? `${tyRivalAny(TY_RIVAL).ic||''} ${tyRivalAny(TY_RIVAL).nm}`
     : (TY_MODAL_NM[k]||'');
   return `<div class="tg-modal" role="dialog" aria-modal="true" aria-label="${escH(nm)}">
       <div class="tg-mt"><b>${escH(nm)}</b>
@@ -15270,8 +15364,7 @@ function bindTycoon(root){
     if(a==='ranktab'){ TY_RANK=b.dataset.k; renderPage(); if(TY_RANK==='real') loadRich(); return; }
     if(a==='rival'){
       // 從別的面板(例如「資料」)點對手 → 直接打開對手面板並展開那一位
-      if(TY_MODAL!=='rival'){ TY_MODAL='rival'; TY_RIVAL=b.dataset.k; }
-      else TY_RIVAL = TY_RIVAL===b.dataset.k ? null : b.dataset.k;
+      TY_MODAL='rival'; TY_RIVAL=b.dataset.k;          // 第五十三輪:一律打開他的對手頁
       TY_DEAL=null; renderPage(); return;
     }
     if(a==='pwr'){ TY_PWR = TY_PWR===b.dataset.k ? null : b.dataset.k; renderPage(); return; }
@@ -15326,6 +15419,8 @@ function bindTycoon(root){
     if(a==='wbmin'||a==='wbmax'){ TY_WB_MIN = a==='wbmin'; try{ localStorage.setItem('ty-wb-min', TY_WB_MIN?'1':'0'); }catch(e){} renderPage(); return; }
     if(a==='plotpick'){ tySpacePlot(b.dataset.w, +b.dataset.i); return; }
     if(a==='rvinfo'){ TY_MODAL='rival'; TY_RIVAL=b.dataset.k; TY_DEAL=null; renderPage(); return; }
+    if(a==='rvlist'){ TY_RIVAL=null; TY_DEAL=null; renderPage(); return; }
+    if(a==='gosite'){ TY_MODAL=null; tyPickSite(b.dataset.k); return; }
     if(a==='gohq'){ const r=TY.rivals.find(x=>x.id===b.dataset.k); if(r){ TY_MODAL=null; tyPickSite(r.home); } return; }
     if(a==='city'){ const r=b.getBoundingClientRect(); tyOpenCity(b.dataset.k, [r.left+r.width/2, r.top+r.height/2]); return; }
     if(a==='endless'){
@@ -15487,6 +15582,55 @@ let PAGE='tycoon';
 function tyScrollKey(e, modal){
   return (modal||'-')+'|'+e.tagName+'.'+[...e.classList].sort().join('.')+(e.id?'#'+e.id:'');
 }
+/* 第五十三輪:畫面上任何一個對手的名字都可以點 —— 新聞跑馬燈、通知、威脅卡、教練、排行榜、動態……
+   不是每個地方各自改模板(漏一個就不一致),而是畫完之後找文字裡的名字,包成「→ 他的對手頁」的連結。
+   跳過:本來就能按的東西(按鈕、連結、下拉、data-ty)、地圖上的名牌(自己有點擊)、手牌。 */
+let TY_RVNAME={ key:'', re:null, map:null };
+function tyRvNameRe(){
+  if(!TY) return null;
+  const rs=TY.rivals.filter(r=>r.nm && [...r.nm].length>=2);
+  const key=rs.map(r=>r.id+':'+r.nm).join('|');
+  if(key!==TY_RVNAME.key){
+    const map=new Map(rs.map(r=>[r.nm, r]));
+    const esc=x=>x.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+    TY_RVNAME={ key, map, re: rs.length ? new RegExp(rs.map(r=>r.nm).sort((a,b)=>b.length-a.length).map(esc).join('|'),'g') : null };
+  }
+  return TY_RVNAME.re;
+}
+const TY_RVLINK_SKIP='button,a,select,option,textarea,input,label,[data-ty],.rv-link,svg,#tyGlobeHost,#tyPlanetHost,.tg-hand,.tyk,.w3d-tag,.tg-mt';
+function tyLinkRivals(node){
+  const re=tyRvNameRe(); if(!re || !node) return;
+  const root=node.nodeType===1 ? node : node.parentElement; if(!root) return;
+  if(!root.closest('#tyRoot') || root.closest(TY_RVLINK_SKIP)) return;
+  const texts=[];
+  if(node.nodeType===3) texts.push(node);
+  else { const w=document.createTreeWalker(node, NodeFilter.SHOW_TEXT, { acceptNode:t=>{
+      const p=t.parentElement; return !p || p.closest(TY_RVLINK_SKIP) ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT; } });
+    for(let t; (t=w.nextNode());) texts.push(t); }
+  for(const t of texts){
+    const v=t.nodeValue; if(!v || v.length<2) continue;
+    re.lastIndex=0; if(!re.test(v)) continue;
+    re.lastIndex=0;
+    const frag=document.createDocumentFragment(); let at=0, m;
+    while((m=re.exec(v))){
+      const r=TY_RVNAME.map.get(m[0]); if(!r) continue;
+      if(m.index>at) frag.appendChild(document.createTextNode(v.slice(at, m.index)));
+      const b=document.createElement('button'); b.type='button'; b.className='rv-link rv-inline';
+      b.dataset.ty='rvinfo'; b.dataset.k=r.id; b.title=`看 ${r.nm} 的資料與可以對他做的事`;
+      b.style.setProperty('--rc', `rgb(${TY_RVCOL[r.id]||'160,160,170'})`); b.textContent=m[0];
+      frag.appendChild(b); at=m.index+m[0].length;
+    }
+    if(at<v.length) frag.appendChild(document.createTextNode(v.slice(at)));
+    if(t.parentNode) t.parentNode.replaceChild(frag, t);
+  }
+}
+let TY_RVOBS=null;
+function tyRvObserve(){
+  const host=document.getElementById('page'); if(!host || TY_RVOBS || typeof MutationObserver!=='function') return;
+  TY_RVOBS=new MutationObserver(list=>{ if(!TY) return;
+    for(const m of list){ if(m.type==='characterData') tyLinkRivals(m.target); else m.addedNodes.forEach(n=>tyLinkRivals(n)); } });
+  TY_RVOBS.observe(host, { childList:true, subtree:true, characterData:true });
+}
 function renderPage(){
   const host=document.getElementById('page');
   if(!host) return;
@@ -15500,6 +15644,7 @@ function renderPage(){
   host.querySelectorAll('details[data-more][open]').forEach(d=>open.add(d.dataset.more));
   tyParkGlobe();                       // 重畫之前先把 WebGL 搬出去(見上面的註解)
   host.innerHTML=`<div class="pg"><div id="pgBody">${tycoonPage()}</div></div>`;
+  tyRvObserve();                       // 第五十三輪:對手名字都可以點(只掛一次,之後每次重畫自動處理)
   open.forEach(k=>{ const d=host.querySelector(`details[data-more="${CSS.escape(k)}"]`); if(d) d.open=true; });
   if(keep.length){
     const m=new Map(keep);

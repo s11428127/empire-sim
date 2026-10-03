@@ -684,9 +684,9 @@ test('帝國:對手會擴張、互相併購、記恨,而且談得動', async (br
     TY_MODAL = 'rival'; TY_RIVAL = tyRivalsA()[0].id; TY_DEAL = 'jv'; renderPage();
     const mb = document.querySelector('.tg-mb');
     return {
-      cards: mb.querySelectorAll('.ty-card.rv').length,
+      cards: mb.querySelectorAll('.ty-card.rv, .rvp-h').length,
       turfBars: mb.querySelectorAll('.rv-turf .tf').length,
-      rel: !!mb.querySelector('.rv-rel .rl-t'),
+      rel: !!mb.querySelector('.rv-rel .rl-t, .rvp-f .rl-b'),
       deals: mb.querySelectorAll('.rv-deal').length,
       odds: [...mb.querySelectorAll('.rv-odds')].map(e => e.textContent.trim()),
       dealBtn: !!mb.querySelector('[data-ty="deal:jv"]'),
@@ -2458,6 +2458,64 @@ test('帝國第二十輪:月球 / 火星建地(登月、火星計畫前置、補
   ok(r.grabbed, `強行收購:建地換手、對手記恨 −25(${r.grab})`);
   ok(r.pick, '建地面板畫得出來');
   ok(r.race, '對手會登月、搶建地');
+  ok(page.__errors.length === 0, `有 JS 錯誤:\n      ${page.__errors.join('\n      ')}`);
+  await page.__ctx.close();
+});
+
+test('帝國第五十三輪:對手頁 —— 公開資料、偵察才看得到的鎖起來、可以對他做的事都有按鈕、名字到處都能點', async (browser) => {
+  const page = await freshPage(browser, { seed: SEED, hash: '#/tycoon' });
+  const r = await page.evaluate(async () => {
+    const out = {};
+    const tick = () => new Promise(x => setTimeout(x, 30));
+    tyStart('raider', 11); TY.rt = true; TY_SPEED = 0; TY.t = 4; TY_NEWCARD.length = 0; TY.cash += 200e8; TY_MODAL = null; renderPage();
+    const rv = tyRivalsA()[0];
+    // 名字:畫面上的文字裡出現對手的名字 → 變成可以點的連結(按鈕裡面的不動)
+    document.querySelector('#tyRoot').insertAdjacentHTML('beforeend', `<div class="t-test">⚠ ${rv.nm}把分部開在你的台北 <button type="button">${rv.nm}</button></div>`); await tick();
+    const links = [...document.querySelectorAll('#tyRoot .rv-inline')];
+    out.linked = links.some(b => b.dataset.k === rv.id && b.textContent === rv.nm);
+    out.notInButtons = !document.querySelector('#tyRoot button .rv-inline');
+    const snap = JSON.stringify(TY);
+    links.find(b => b.dataset.k === rv.id).click(); await tick();
+    out.opened = TY_MODAL === 'rival' && TY_RIVAL === rv.id;
+    const mb = () => document.querySelector('.tg-mb');
+    out.title = document.querySelector('.tg-mt b').textContent.includes(rv.nm);
+    out.public = /身家/.test(mb().textContent) && /對你的關係/.test(mb().textContent) && /勢力範圍/.test(mb().textContent) && /大本營/.test(mb().textContent);
+    out.locked = !!mb().querySelector('.rvp-lock') && /派偵察機/.test(mb().querySelector('.rvp-lock').textContent) && !mb().querySelector('.ty-intel');
+    out.acts = !!mb().querySelector(`[data-ty="strike"][data-k="missile"][data-site="${rv.home}"]`)
+      && !!mb().querySelector(`[data-ty="recon"][data-site="${rv.home}"]`)
+      && !!mb().querySelector(`[data-ty="toe"][data-r="${rv.id}"]`)
+      && mb().querySelectorAll('.rv-deal').length === Object.keys(TY_DEALS).length
+      && !!mb().querySelector('[data-ty="modal:troop"]');
+    out.pure = JSON.stringify(TY) === snap;
+    // 按鈕直接做:建倉
+    TY.ap = tyApMax(); const sh0 = tyToe(rv).sh;
+    mb().querySelector(`[data-ty="toe"][data-r="${rv.id}"]`).click(); await tick();
+    out.did = tyToe(rv).sh > sh0 && TY_MODAL === 'rival';
+    // 偵察之後:情報出現、鎖不見
+    TY.intel = { [rv.id]: TY.t + 3 }; renderPage(); await tick();
+    out.intel = !!mb().querySelector('.ty-intel') && !mb().querySelector('.rvp-lock');
+    // 回到全部對手;清單點任何一位 → 他的頁面
+    mb().querySelector('[data-ty="rvlist"]').click(); await tick();
+    out.list = TY_RIVAL === null && !!mb().querySelector('.ty-cards');
+    const rv2 = tyRivalsA()[1];
+    mb().querySelector(`.rv-h[data-k="${rv2.id}"]`).click(); await tick();
+    out.list2 = TY_RIVAL === rv2.id && !!mb().querySelector('.rvp-h');
+    // 出局的對手也打得開(寫出局經過)
+    tyRivalDown(rv2, 'me', '測試'); TY_FALLQ.length = 0; renderPage(); await tick();
+    out.dead = /已經出局/.test(mb().textContent);
+    return out;
+  });
+  ok(r.linked, '畫面文字裡的對手名字變成連結');
+  ok(r.notInButtons, '按鈕裡面的名字不重複包連結');
+  ok(r.opened && r.title, '點名字 → 他的對手頁(標題是他的名字)');
+  ok(r.public, '公開資料:身家、關係、勢力、大本營');
+  ok(r.locked, '沒有情報:偵察資料鎖起來,旁邊就是派偵察機');
+  ok(r.acts, '可以對他做的事:飛彈、偵察、建倉、全部談判條件、派兵');
+  ok(r.pure, '打開對手頁不改存檔');
+  ok(r.did, '在對手頁上直接按按鈕就會做(建倉)');
+  ok(r.intel, '有情報之後:情報報告出現、鎖不見');
+  ok(r.list && r.list2, '回到全部對手;清單點任何一位都進他的頁面');
+  ok(r.dead, '出局的對手也打得開');
   ok(page.__errors.length === 0, `有 JS 錯誤:\n      ${page.__errors.join('\n      ')}`);
   await page.__ctx.close();
 });
