@@ -9587,8 +9587,16 @@ const tyBuyPts = (amt, base, unit, cap) =>
 
 /* ---- 門檻表 ---- */
 /* 條件清單 + 行動點(卡牌):畫面上的每一顆按鈕都會多一條「行動點 N」 */
+/* 第五十六輪:使用者「我明明還沒有空襲、做空的牌,對手頁下面卻可以按」。
+   對手頁、城市頁、威脅卡這些「側門」按鈕跟手牌走同一道門:牌還沒解鎖就不能做,灰掉並寫出怎麼解鎖。 */
+function tyActCard(act, arg){
+  if(act==='strike') return arg && (arg.k==='air' || arg.k==='missile') ? arg.k : null;
+  return { recon:'recon', launch:'star', moonland:'moon', mars:'mars' }[act] || null;   // 移居、控股層、夥伴、慈善在金庫 / 城市頁本來就有入口,不鎖
+}
 function tyNeeds(act, arg){
   const list=tyNeeds0(act, arg);
+  const ck=TY && tyActCard(act, arg);
+  if(ck && !tyHasCard(ck)){ const c=tyCard(ck); list.unshift(tyNb(`還沒有「${c.nm}」牌 · ${c.why}解鎖`, false, `還沒拿到「${c.nm}」牌(${c.why} 解鎖)`)); }
   const c=tyApCost(act);
   if(c>0 && TY) list.push(tyNd('行動點', tyApNow(), c, v=>String(Math.round(v))));
   return list;
