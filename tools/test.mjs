@@ -2463,6 +2463,29 @@ test('帝國第二十輪:月球 / 火星建地(登月、火星計畫前置、補
   await page.__ctx.close();
 });
 
+test('帝國第五十七輪:右側按鈕不蓋手牌(iPad 橫放)、發牌動畫一定收尾', async (browser) => {
+  for (const [width, height] of [[1000, 695], [1180, 820], [320, 568]]) {
+    const page = await freshPage(browser, { width, height, seed: SEED, hash: '#/tycoon' });
+    const r = await page.evaluate(async () => {
+      const tick = ms => new Promise(x => setTimeout(x, ms));
+      tyStart('tester', 31); TY.rt = true; TY_SPEED = 0; TY_NEWCARD.length = 0; TY_MODAL = null; TY_TOOLS_OPEN = true; renderPage(); await tick(60);
+      const hand = document.querySelector('.tg-hand').getBoundingClientRect();
+      const sb = [...document.querySelectorAll('.tg-sb')].filter(e => e.offsetParent).map(e => e.getBoundingClientRect());
+      const out = { all: sb.length >= 10, clear: sb.every(x => x.bottom <= hand.top + 1) };
+      TY.t++; renderPage(); out.dealt = !!document.querySelector('.hd-cards.deal');
+      await tick(1700);
+      out.done = !document.querySelector('.hd-cards.deal')
+        && [...document.querySelectorAll('.hd-cards .pc')].every(c => ['none', 'matrix(1, 0, 0, 1, 0, 0)'].includes(getComputedStyle(c).transform) && getComputedStyle(c).opacity !== '0');
+      // 一碰手牌就直接到位
+      TY.t++; renderPage(); document.querySelector('.hd-cards').dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+      out.touch = !document.querySelector('.hd-cards.deal');
+      return out;
+    });
+    for (const [k, v] of Object.entries(r)) ok(v, `第五十七輪 ${width}×${height} ${k}`);
+    await page.close();
+  }
+});
+
 test('帝國第五十六輪:還沒拿到的牌,對手頁 / 威脅卡這些側門按鈕也不能按', async (browser) => {
   const page = await freshPage(browser, { seed: SEED, hash: '#/tycoon' });
   const r = await page.evaluate(async () => {
