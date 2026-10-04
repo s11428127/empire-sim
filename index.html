@@ -4647,6 +4647,8 @@
     text-shadow:0 1px 2px rgba(0,0,0,.7);will-change:transform,opacity}
   .w3d-float.up{color:var(--up,#ff453a)} .w3d-float.dn{color:var(--down,#30d158)}
   .w3d-float.rv{color:#ffd27a;font-weight:600;font-size:11px}
+  .w3d-float.reg{font-size:14px;text-align:center;background:rgba(8,12,20,.72);padding:3px 8px;border:1px solid currentColor}
+  .w3d-float.reg i{display:block;font-style:normal;font-weight:600;font-size:11px;color:#dfe6f2}
   /* 資源列的數字變動時閃一下:漲紅跌綠,跟站上的漲跌色一致 */
   .w3d-up{animation:w3dUp 1.4s ease-out}
   .w3d-dn{animation:w3dDn 1.4s ease-out}
@@ -5401,12 +5403,11 @@
   }
 
   /* ---- 新牌解鎖 ---- */
-  .tg-newcard{ position:absolute; inset:0; z-index:420; display:flex; align-items:center; justify-content:center;
-    background:rgba(4,10,16,.72) }
-  .nc-in{ display:flex; flex-direction:column; align-items:center; gap:10px; padding:18px 18px 16px; max-width:min(320px,calc(100% - 32px));
+  .tg-newcard{ position:absolute; top:64px; right:8px; z-index:420; pointer-events:none }
+  .nc-in{ pointer-events:auto; display:flex; flex-direction:column; align-items:center; gap:6px; padding:10px 12px 10px; width:min(220px,calc(100vw - 32px));
     background:#132231; border:3px solid #ffd84a; box-shadow:0 6px 0 #000; text-align:center; animation:ncIn .6s steps(6) both }
-  .nc-in > em{ font-style:normal; font-size:18px; color:#ffd84a }
-  .nc-in p{ margin:0; font-size:13.5px; line-height:1.5; color:var(--g-t2) }
+  .nc-in > em{ font-style:normal; font-size:15px; color:#ffd84a } .nc-in > em i{ font-style:normal; font-size:11px; color:var(--g-t2) }
+  .nc-in p{ margin:0; font-size:12px; line-height:1.45; color:var(--g-t2); display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden }
   @keyframes ncIn{ from{ transform:scale(.3) rotateY(90deg); opacity:0 } to{ transform:none; opacity:1 } }
 
   /* ---- 總覽清單 ---- */
@@ -5754,7 +5755,7 @@ const midnight = () => { const d=new Date(); d.setHours(0,0,0,0); return d; };
    ========================================================================= */
 const TY_KEY='orbit.tycoon.v1';
 /* 劇本能力的幾個旋鈕(第四十八輪重新校準,見 README) */
-const TY_FLOAT_K=5.5, TY_LBO=.4, TY_RAID_P=.45;
+const TY_FLOAT_K=5.5, TY_LBO=.4, TY_RAID_P=.45, TY_LBO_DEBT={ k:.3 };
 const TY_TOP0=1.25;                   // 開局時榜首至少是你的幾倍(第四十八輪)
 const TY_QN=40;                       // 一局 40 季 = 10 年
 const TY_Y0=2026;                     // 開局年份
@@ -6010,7 +6011,7 @@ const TY_SCN = [
     perk:'科技事業估值倍數 +50%;上市門檻減半;上市後名氣加倍成長。' },
   { k:'raider', home:'nyc', rivals:.25, top0:1.1, nm:'掠奪者', sub:'一家石油公司,和你借來的錢',
     cash:12e8, debt:6e8, credit:62, fame:14, infl:20, biz:'energy',
-    like:['伊坎(Icahn)','KKR(Kravis 與 Roberts)','布恩·皮肯斯(Boone Pickens)'], diff:5, win:'約 30%',
+    like:['伊坎(Icahn)','KKR(Kravis 與 Roberts)','布恩·皮肯斯(Boone Pickens)'], diff:5, win:'約 26%',
     fun:'互動最多:建倉、敵意收購、併吞,一路吃掉對手。仇家多、關注度高,收購失敗會掉名氣。',
     dsc:'你不創造公司,你買下它們 —— 用它們自己的資產做抵押,然後把值錢的部分拆出來賣掉。',
     perk:'敵意收購與併吞只要付 40% 的價款(其餘用對方的資產借)、敵意收購成功率 +45%、淨值有對方三成就能出手;開設事業成本 −25%;可以拆賣事業;借款上限更高。' },
@@ -7463,6 +7464,13 @@ function tyRvLoseMinor(id){
   if(r){ r.blds=tyRvBldsW(r).filter(b=>b.site!==id); r.turf[L.s.reg]=tyClamp(tyTurf(r,L.s.reg)-6,0,100); r.rel=tyClamp((r.rel||0)-10,-100,100); }
 }
 /* 對手派兵(tyRivalTurn 呼叫)。目標是你在那個地區最值錢的城市。 */
+/* 第五十四輪:使用者「對手派兵來,我都來不及招募防守部隊,這合理嗎」—— 不合理。即時制原本一律「這一季結束時到」,
+   他在季末才出兵就只剩幾秒,從大本營招一支步兵過去(要 0.15~0.5 季)根本來不及。
+   現在至少留「招步兵趕過去的時間 × 1.3」(最少半季);這一季剩下的不夠,就延到下一季結束才到。 */
+function tyMarchQ(site){
+  const need=Math.max(.5, tyMoveQ(TY.home, site)*1.3+.1);
+  return 1-(TY.prog||0) >= need ? 1 : 2;
+}
 function tyRivalMarch(r, reg){
   const mine=tyMySites().filter(s=>s.reg===reg)
     .sort((a,b)=>tySiteStuff(b.id).val-tySiteStuff(a.id).val);
@@ -7471,7 +7479,7 @@ function tyRivalMarch(r, reg){
   const pow=1 + (r.agg||0) + (r.nw>tyShownNW()*1.5 ? .5 : 0);
   TY.unitId=TY.unitId||1;
   tyThreats().push({ id:TY.unitId++, rid:r.id, reg:tySite(site).reg,
-                     site, from:r.home, dep:TY.rt?TY.t+(TY.prog||0):TY.t, eta:TY.t+(TY.rt?1:n), pow });   // 即時制:下一季結算時到(畫面上一路走過去)
+                     site, from:r.home, dep:TY.rt?TY.t+(TY.prog||0):TY.t, eta:TY.t+(TY.rt?tyMarchQ(site):n), pow });   // 即時制:季末結算時到(畫面上一路走過去)
   const when=TY.rt ? '這一季結束時抵達' : `${n} 季後抵達`;
   tyNews('bad', `⚠ ${r.nm}出兵`, `他的併購小組往${tySite(site).nm}出發,${when}。把律師團調過去。`);
   tyLog('rival', `⚠ ${r.nm}派出併購小組往${tySite(site).nm},${when}。`, r.id);
@@ -7793,6 +7801,9 @@ function tyDeal(k, rid){
                          :'關係差了一點,下次更難談。加價、或先把關係做起來。');
   }
 
+  /* 第五十四輪:槓桿收購的債要跟著進來。掠奪者只先出四成現金,另外六成是借來的 —— 原本那六成憑空消失,
+     等於出 0.16 倍他的身家、換回 0.45 倍(使用者:「出 5 億換 11 億,會不會太容易」)。現在那六成裡的三成(TY_LBO_DEBT)變成你的負債,其餘算被收購公司自己扛。量測:全部變負債 → 掠奪者 50 局只贏 4;三成 → 26%。 */
+  const lboDebt = TY.scn==='raider' && (k==='hostile'||k==='merge') ? tyDealPrice(k, r)/TY_LBO*(1-TY_LBO)*TY_LBO_DEBT.k : 0;
   /* ⚠ 先把「談成之後還要花的錢」算完再動任何狀態。
      原本是先扣款、關係先加,合資的自有資本不夠才退錢 —— 錢退得回來,
      關係加過的那一下退不回來。 */
@@ -7899,6 +7910,7 @@ function tyDeal(k, rid){
       break;
     }
   }
+  if(lboDebt>0){ TY.debt+=lboDebt; extra+=` 槓桿收購:另外 ${tyM(lboDebt)} 是借來的,算進你的負債。`; }
   tyLog('rival', `跟${r.nm}談成「${d.nm}」${amt>0?`(${tyM(amt)})`:''}`);
   tySave();
   return `<b>${r.nm}答應了。</b>${amt>0?`付出 ${tyM(amt)}。`:''}${extra}`
@@ -9891,7 +9903,7 @@ function tyAmtPreview(act, arg, key){
              + `自有資本還要 ${tyM(tyBizCost(kind,site)*.8)}`;
       }
       if(key==='buy')     return base + ` · 談成後多一家投入資本 ${tyM(amt*.85)} 的事業`;
-      if(key==='hostile') return base + ` · 談成後吃下他 ${tyM(r.nw*.45)}${tyToe(r).sh?`(加上你手上的 ${(tyToe(r).sh*100).toFixed(0)}% 持股)`:''}、關注 +14`;
+      if(key==='hostile') return base + ` · 談成後吃下他 ${tyM(r.nw*.45)}${tyToe(r).sh?`(加上你手上的 ${(tyToe(r).sh*100).toFixed(0)}% 持股)`:''}${TY.scn==='raider'?` · 另外借 ${tyM(tyDealPrice('hostile', r)/TY_LBO*(1-TY_LBO)*TY_LBO_DEBT.k)}(槓桿收購,算負債)`:''}、關注 +14`;
       if(key==='merge')   return base + ` · 談成後他出局、你多一家值 ${tyM(r.nw*.85)} 的公司、關注 +20`;
       if(key==='lobby')   return base + ` · 人脈 +${tyBuyPts(amt, TY_DEALS.lobby.base(), 10, 22).toFixed(0)}`;
       return base;
@@ -11414,7 +11426,7 @@ function tyRivalPage(r){
       ${forces.length||th.length?'':'<em class="cg-e">沒有駐軍,也沒有部隊在路上</em>'}</div>
     ${sp.moon||sp.mars||plots?`${sec('太空')}<div class="rvp-l"><span class="cg-c">${sp.moon?'🌙 已登月':'🌙 還沒登月'}</span><span class="cg-c">${sp.mars?'🔴 已登火星':'🔴 還沒登火星'}</span><span class="cg-c">建地 ${plots} 塊</span></div>`:''}
     ${sec('最近動態')}
-    <div class="ty-feed">${logs.length?logs.map(l=>`<div class="fd"><span class="fd-t">${tyWhen(l.t)}</span><span class="fd-x">${l.txt}</span></div>`).join(''):'<div class="fd"><span class="fd-x">還沒有動靜</span></div>'}</div>`;
+    <div class="ty-feed">${logs.length?logs.map(l=>`<div class="fd"><span class="fd-t">${tyWhen(l.t)}</span><i class="fd-ic">•</i><span class="fd-x">${l.txt}</span></div>`).join(''):'<div class="fd"><span class="fd-t">—</span><i class="fd-ic">•</i><span class="fd-x">還沒有動靜</span></div>'}</div>`;
 
   /* ---- ② 偵察情報 ---- */
   const reconBtn=act(tyActBtn('recon', r.home, `🛩 派偵察機到${escH(H.nm)}(${tyM(tyReconCost())})`, ` data-site="${r.home}"`), tyNeeds('recon', r.home));
@@ -14239,7 +14251,7 @@ function tyDo(act, fn){
   const msg = fn();
   if(TY_SAVES > s0){
     if(c && !tyTester()){ TY.ap = Math.max(0, TY.ap - c); }       // 測試人員:行動點用不完
-    tyCardsSync(); tySave();
+    tyCardsSync(false); tySave();
   }
   return msg;
 }
@@ -14313,9 +14325,12 @@ const TY_CARDS = [
 const tyCard = k => TY_CARDS.find(c=>c.k===k);
 /* 解鎖:有 unlock 的牌要達成條件;達成過一次就永遠在手上 */
 let TY_NEWCARD = [];              // 剛解鎖、還沒翻給玩家看的牌(畫面狀態,不存檔)
-function tyCardsSync(){
+/* 第五十四輪:使用者「新的牌跑出來會擋住我正在做的事,新牌一律下一季才出來」。
+   出牌後(tyDo)、重畫手牌(tyHand)只確保手牌存在,不翻新牌(unlock=false);換季(tyNext)才翻。 */
+function tyCardsSync(unlock=true){
   if(!TY) return;
   TY.cards = TY.cards || TY_CARDS.filter(c=>!c.unlock).map(c=>c.k);
+  if(!unlock) return;
   for(const c of TY_CARDS){
     if(TY.cards.includes(c.k) || !c.unlock) continue;
     let ok=false; try{ ok=!!c.unlock(); }catch(e){}
@@ -14381,7 +14396,7 @@ function tyCardHTML(c, opt){
 /* 底部:總覽 + 行動點 + 一手牌(鎖著的排最後,讓你知道還有什麼牌可以拿) */
 let TY_AP_SHOWN=null, TY_HAND_T=null;   // 上一次畫出來的行動點 / 季別(用來決定要不要播「燒掉」「發牌」)
 function tyHand(){
-  tyCardsSync();
+  tyCardsSync(false);
   const ap=tyApNow(), mx=tyApMax();
   const prev=TY_AP_SHOWN==null ? ap : TY_AP_SHOWN;
   const deal=TY_HAND_T!==TY.t && TY_HAND_T!=null;     // 新的一季:牌重新發一次
@@ -14418,12 +14433,15 @@ function tyFallHTML(){
     ${TY_FALLQ.length>1?`<div class="fl-m">還有 ${TY_FALLQ.length-1} 個人這一季出局</div>`:''}
     <button type="button" class="ty-b big" data-ty="fallok">知道了</button></div></div>`;
 }
+let TY_NC_T=0;                    // 這張新牌出現的時間(自動收進手牌用)
 function tyNewCardHTML(){
   if(!TY_NEWCARD.length) return '';
   const c=tyCard(TY_NEWCARD[0]);
   if(TY_NC_PLAYED!==c.k){ TY_NC_PLAYED=c.k; setTimeout(()=>tySfx('unlock','next'), 120); }
-  return `<div class="tg-newcard" data-ty="newcard-ok">
-      <div class="nc-in"><em>🎉 新牌解鎖</em>${tyCardHTML(c,{big:true})}
+  /* 第五十四輪:不再整個畫面蓋住(會擋操作、擋住換季的賺賠)—— 右上角一張小卡,不停時間,幾秒後自動收進手牌 */
+  if(!TY_NC_T) TY_NC_T=performance.now();
+  return `<div class="tg-newcard">
+      <div class="nc-in"><em>🎉 新牌${TY_NEWCARD.length>1?` <i>還有 ${TY_NEWCARD.length-1} 張</i>`:''}</em>${tyCardHTML(c,{big:false})}
         <p>${escH(c.dsc)}</p><button type="button" class="ty-b" data-ty="newcard-ok">收進手牌</button></div>
     </div>`;
 }
@@ -14496,7 +14514,7 @@ function tySkipPaint(){
   TY_SKIP_EL.style.top=(r && r.height ? Math.max(8, r.top+12) : 90)+'px';
   TY_SKIP_EL.hidden=false;
 }
-const tyClockHeld = () => !TY || !TY.rt || !!TY.done || TY_PRESS || TY_DRAG || (!!TY_MODAL && !tySideModal()) || TY_FALLQ.length>0 || TY_NEWCARD.length>0 || tyAnimHeld()
+const tyClockHeld = () => !TY || !TY.rt || !!TY.done || TY_PRESS || TY_DRAG || (!!TY_MODAL && !tySideModal()) || TY_FALLQ.length>0 || tyAnimHeld()
                          || document.hidden || (window.W3D && W3D.aiming && W3D.aiming());
 function tyClockHTML(){
   const held=tyClockHeld() && TY_SPEED>0, pct=Math.round((TY.prog||0)*100);
@@ -14575,6 +14593,7 @@ function tyQuarterGo(auto){
 function tyClockTick(){
   const now=performance.now(), dt=TY_CLK_LAST ? Math.min(400, now-TY_CLK_LAST) : 0; TY_CLK_LAST=now;
   tySkipPaint();                    // 跳過動畫鈕:回合制也要能出現、播完要收起來
+  if(TY && TY_NEWCARD.length && TY_NC_T && now-TY_NC_T>6000 && !TY_DRAG){ TY_NEWCARD.shift(); TY_NC_T=0; renderPage(); }   // 新牌 6 秒後自動收進手牌
   if(!TY || !TY.rt || TY.done) return;
   if(TY_PRESS && now-TY_PRESS_AT>15000) TY_PRESS=false;        // 保險:放開的事件遺失了也不會一直停著
   if(TY_TOASTS.length && TY_TOASTS.some(t=>t.until<Date.now())){ TY_TOASTS=TY_TOASTS.filter(t=>t.until>=Date.now()); tyToastPaint(); }
@@ -14730,6 +14749,7 @@ function tyBattlesPaint(){
   if(window.W3D && W3D.attackAt && now-TY_BATTLE_FX>2600 && TY_SPEED>0 && !tyClockHeld()){ TY_BATTLE_FX=now; for(const b of B) W3D.attackAt(b.site, 'raid', { noCam:true }); }
 }
 /* 行軍標記(即時制):路上的部隊與來襲的併購小組,一格一格沿著大圓走過去,虛線連到目的地 */
+const TY_MV_ANIM=new Set();         // 已經播過出發動畫的部隊(畫面狀態)
 function tyMovesPaint(){
   const svg=document.getElementById('tyMoves'), box=document.getElementById('tyMoveChips');
   if(!svg || !box) return;
@@ -14740,7 +14760,14 @@ function tyMovesPaint(){
   const grp={};
   for(const u of tyUnits()) if(u.to){ const key=(u.from||u.site)+'>'+u.to+'@'+Math.round((u.dep||0)*20);
     const g=grp[key]=grp[key]||{ u, n:0, ics:new Set() }; g.n++; g.ics.add(TY_UNITS[u.k].ic); }
+  /* 第五十四輪:使用者「部隊移動的動畫不見了(陸地、坐船、搭飛機)」—— 即時制原本只畫一個小標記沿虛線走。
+     每一群剛出發的部隊播一次 3D 動畫(長度 = 到抵達還剩幾毫秒),播的時候小標記先收起來 */
+  if(W3D.animMove) for(const g of Object.values(grp)){ const u=g.u, key=u.id+'@'+(u.dep||0);
+    if(TY_MV_ANIM.has(key)) continue; TY_MV_ANIM.add(key);
+    const ms=((u.eta||0)-now)*TY_QMS[TY_SPEED||1];
+    if(ms>800) W3D.animMove({ id:u.id, k:u.k, from:u.from||u.site, to:u.to, dur:ms, rt:true }); }
   for(const g of Object.values(grp)){ const u=g.u, a=tySite(u.from||u.site), b=tySite(u.to);
+    if(W3D.flying && W3D.flying(u.id)) continue;
     const f=tyClamp((now-(u.dep||0))/Math.max(.01,(u.eta||0)-(u.dep||0)),0,1);
     items.push({ a, b, f, me:true, ic:[...g.ics].slice(0,2).join('')+(g.n>1?`×${g.n}`:''), col:'47,143,224', left:Math.max(0,Math.ceil(((u.eta||0)-now)*TY_QMS[TY_SPEED||1]/1000)), ord:u.ord }); }
   for(const th of tyThreats()){ const r=tyRival(th.rid); if(!r) continue; const a=tySite(th.from), b=tySite(th.site);
@@ -15368,7 +15395,7 @@ function bindTycoon(root){
       TY_DEAL=null; renderPage(); return;
     }
     if(a==='pwr'){ TY_PWR = TY_PWR===b.dataset.k ? null : b.dataset.k; renderPage(); return; }
-    if(a==='newcard-ok'){ TY_NEWCARD.shift(); renderPage(); return; }
+    if(a==='newcard-ok'){ TY_NEWCARD.shift(); TY_NC_T=0; renderPage(); return; }
     if(a==='pickcity'){ if(TY_PICK) TY_PICK.site=b.dataset.site; renderPage(); return; }
     if(a==='dealx'){ TY_DEAL = TY_DEAL===b.dataset.k ? null : b.dataset.k; renderPage(); return; }
     if(a==='iso'){ tyPickIso(b.dataset.k || (TY_ISO||'')); return; }

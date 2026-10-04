@@ -2462,6 +2462,53 @@ test('帝國第二十輪:月球 / 火星建地(登月、火星計畫前置、補
   await page.__ctx.close();
 });
 
+test('帝國第五十四輪:槓桿收購有債、新牌換季才出且不擋操作、對手出兵留足防守時間、對手頁動態橫排', async (browser) => {
+  const page = await freshPage(browser, { seed: SEED, hash: '#/tycoon' });
+  const r = await page.evaluate(async () => {
+    const out = {};
+    // ① 掠奪者敵意收購成功:六成借來的錢裡三成變成負債
+    tyStart('raider', 11); TY.rt = true; TY_SPEED = 0; TY.cash += 500e8; TY_NEWCARD.length = 0;
+    const rv = tyRivalsA().slice().sort((a, b) => a.nw - b.nw)[0];
+    const want = tyDealPrice('hostile', rv), debt0 = TY.debt;
+    TY_PAMT[`deal:hostile:${rv.id}`] = want * 3; TY.ap = 99;
+    let tries = 0; while (tyRivalsA().includes(rv) && TY.debt === debt0 && tries++ < 40) { rv.rel = 100; tyDeal('hostile', rv.id); }
+    out.lbo = Math.abs((TY.debt - debt0) - want / TY_LBO * (1 - TY_LBO) * TY_LBO_DEBT.k) < 1;
+    // ② 新牌:出牌當下不翻,換季才翻;翻出來也不停時間
+    tyStart('heir', 11); TY.rt = true; TY_SPEED = 1; TY_NEWCARD.length = 0; TY.cards = null; tyCardsSync(); TY_NEWCARD.length = 0;
+    TY.t = 3; TY.cash += 50e8; TY.ap = 99;
+    tyDo('media', () => tyPlayMedia());
+    out.noMidQuarter = !TY_NEWCARD.length && !tyHasCard('moon');
+    tyNext();
+    out.atQuarter = TY_NEWCARD.length > 0 && tyHasCard('moon');
+    TY_MODAL = null; renderPage();
+    out.notHeld = !tyClockHeld();
+    const nc = document.querySelector('.tg-newcard');
+    out.small = !!nc && getComputedStyle(nc).pointerEvents === 'none' && !nc.dataset.ty;
+    // ③ 對手出兵:季末才出兵就延到下一季,留得出招步兵的時間
+    tyStart('heir', 11); TY.rt = true; TY.prog = .95;
+    tyRivalMarch(tyRivalsA()[0], tySite(TY.home).reg);
+    const th = tyThreats().slice(-1)[0];
+    out.march = th.eta - (TY.t + TY.prog) >= Math.max(.5, tyMoveQ(TY.home, th.site) * 1.3 + .1);
+    TY.prog = .1; tyRivalMarch(tyRivalsA()[1] || tyRivalsA()[0], tySite(TY.home).reg);
+    out.marchEarly = tyThreats().slice(-1)[0].eta === TY.t + 1;
+    // ④ 對手頁最近動態:三欄(時間、圖示、文字)
+    const r0 = tyRivalsA()[0]; tyLog('rival', `${r0.nm}往測試擴張。`, r0.id);
+    TY_MODAL = 'rival'; TY_RIVAL = r0.id; renderPage();
+    const fd = [...document.querySelectorAll('.tg-mb .ty-feed .fd')].find(x => /往測試擴張/.test(x.textContent));
+    out.feed = !!fd && !!fd.querySelector('.fd-ic') && fd.querySelector('.fd-x').getBoundingClientRect().width > 120;
+    return out;
+  });
+  ok(r.lbo, '掠奪者敵意收購:借來那部分的三成變成負債');
+  ok(r.noMidQuarter, '出牌當下不翻新牌');
+  ok(r.atQuarter, '換季才翻新牌');
+  ok(r.notHeld && r.small, '新牌是右上角的小卡:不停時間、不擋點擊');
+  ok(r.march, '季末才出兵:延到下一季,至少留招步兵趕過去的時間');
+  ok(r.marchEarly, '季初出兵:照舊這一季結束時到');
+  ok(r.feed, '對手頁的最近動態是橫的(三欄)');
+  ok(page.__errors.length === 0, `有 JS 錯誤:\n      ${page.__errors.join('\n      ')}`);
+  await page.__ctx.close();
+});
+
 test('帝國第五十三輪:對手頁 —— 公開資料、偵察才看得到的鎖起來、可以對他做的事都有按鈕、名字到處都能點', async (browser) => {
   const page = await freshPage(browser, { seed: SEED, hash: '#/tycoon' });
   const r = await page.evaluate(async () => {
@@ -2553,7 +2600,7 @@ test('帝國第五十二輪:平衡 —— 品牌不再無限複製、基金預�
     out.warEarly = !TY.done && /第 10 季起才算/.test(tyWinProg().war.txt);
     // 開局卡片照量出來的勝率
     const W = Object.fromEntries(TY_SCN.map(x => [x.k, x.win]));
-    out.cards = W.heir === '約 66%' && W.float === '約 80%' && W.macro === '約 38%' && W.founder === '約 62%' && W.raider === '約 30%' && W.self === '約 38%';
+    out.cards = W.heir === '約 66%' && W.float === '約 80%' && W.macro === '約 38%' && W.founder === '約 62%' && W.raider === '約 26%' && W.self === '約 38%';
     return out;
   });
   ok(r.brand, '品牌授權:第一家照名氣賺、越多家掉越快、估值倍數 12');
