@@ -2587,7 +2587,7 @@ W3D.play = function(snap){
   const fx = fxLayer();
 
   /* ① 資源列：數字跳過去，漲的閃綠、跌的閃紅 */
-  const res = document.querySelectorAll('.tg-res .r b');
+  const res = document.querySelectorAll('.tg-res .r:not(.pl):not(.st4) b');   // 第五十五輪:第一格是上季賺賠
   countUp(res[0], snap.cash, TY.cash, tyM, 1100);
   countUp(res[1], snap.debt, TY.debt, tyM, 1100);
   const nwEl = document.querySelector('.tg-nwp b');

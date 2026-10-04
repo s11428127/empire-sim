@@ -2366,6 +2366,19 @@
   .tg-res .r .rb u{display:block;height:100%;text-decoration:none;background:var(--g-ac)}
   .tg-res .r.hot b{color:var(--g-red)} .tg-res .r.hot .rb u{background:var(--g-red)}
   .tg-res .r.bad b{color:var(--g-red)}
+  .tg-res .r.pl{flex:2.2 1 0;cursor:pointer} .tg-res .r.st4{flex:1.6 1 0}
+  .tg-res .r.pl em,.tg-res .r.st4 em{max-width:100%;overflow:hidden;text-overflow:ellipsis;display:block;text-align:center}
+  @media (max-width:560px){ .pl-lg{display:none} .tg-res .r.st4 em{display:none} .st4-b{gap:3px} }
+  .tg-res .r.pl b.up{color:var(--up,#ff453a)} .tg-res .r.pl b.down{color:var(--down,#30d158)}
+  .pl-bar{display:flex;width:92%;height:7px;margin:2px 0 1px;background:#0a1a27;position:relative}
+  .pl-bar::after{content:'';position:absolute;left:50%;top:-2px;bottom:-2px;width:1px;background:#cfd8e6}
+  .pl-l,.pl-r{flex:1;display:flex;min-width:0} .pl-l{justify-content:flex-end}
+  .pl-l u,.pl-r u{display:block;height:100%;text-decoration:none;min-width:2px}
+  .pl-lg{font-style:normal} .pl-lg s{display:inline-block;width:6px;height:6px;margin:0 2px 0 4px;text-decoration:none;vertical-align:middle}
+  .st4-b{display:flex;gap:8px;align-items:flex-end;height:26px}
+  .s4{display:flex;flex-direction:column;align-items:center;gap:1px} .s4 i{font-size:9px}
+  .s4 u{display:flex;align-items:flex-end;width:9px;height:16px;background:#0a1a27;border:1px solid #2a3f55;text-decoration:none}
+  .s4 u b{display:block;width:100%;background:var(--g-ac)} .s4.hot u b{background:var(--g-red)}
 
   /* ---- 地圖(佔滿剩下的高度) ---- */
   .tg-map{flex:1;min-height:0;position:relative;
@@ -2534,6 +2547,35 @@
   .co-host>*{pointer-events:auto}
   .tycon[data-modal]:not([data-side]) .co-host{display:none}
   .co-card{background:rgba(11,22,32,.94);border:2px solid #ffd84a;box-shadow:0 3px 0 #000;padding:8px 10px;font-size:12.5px}
+  .nclamp{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;cursor:pointer;position:relative}
+  .nclamp:not(.open)::after{content:'ⓘ 看更多';position:absolute;right:0;bottom:0;padding-left:18px;font-size:11px;color:#4fc3f7;
+    background:linear-gradient(90deg,transparent,#132231 14px)}
+  .nclamp.open{display:block;-webkit-line-clamp:unset}
+  .fx-l{display:inline-flex;flex-wrap:wrap;gap:4px;margin-left:8px;vertical-align:middle}
+  .fx-pop{position:absolute;left:50%;bottom:12px;transform:translateX(-50%);z-index:300;pointer-events:none;
+    background:rgba(8,14,24,.92);border:2px solid #ffd84a;padding:5px 10px;display:flex;align-items:center;gap:6px;
+    max-width:calc(100% - 24px);animation:fxPop 3.5s ease-out both}
+  .fx-pop em{font-style:normal;color:#ffd84a;font-size:12px} .fx-pop .fx-l{margin:0}
+  @keyframes fxPop{0%{opacity:0;transform:translate(-50%,8px)}8%{opacity:1;transform:translate(-50%,0)}80%{opacity:1}100%{opacity:0}}
+  .fx-c{font-size:11.5px;padding:1px 6px;border:1px solid currentColor;white-space:nowrap}
+  .fx-c.up{color:var(--up,#ff453a)} .fx-c.down{color:var(--down,#30d158)} .fx-c b{font-weight:700}
+  .lk-list{display:flex;flex-direction:column;gap:6px;margin:0 0 14px}
+  .lk{display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:6px 8px;border:1px solid var(--line);background:rgba(255,255,255,.03)}
+  .lk.warn{border-color:var(--g-red,#ff453a)}
+  .lk-go{padding:3px 10px;font-size:13px;min-height:0} .lk-ar{font-style:normal;color:#ffd84a;font-weight:700}
+  .lk-b{font-size:13px;font-weight:600} .lk-c{display:flex;flex-wrap:wrap;gap:4px}
+  .lk-c span{font-size:12px;padding:1px 6px;border:1px solid var(--line);color:var(--g-t2)}
+  .tq{background:rgba(11,22,32,.94);border:2px solid #4fc3f7;box-shadow:0 3px 0 #000;padding:6px 8px 4px;font-size:12.5px;margin-bottom:6px}
+  .tq-h{display:flex;align-items:center;gap:6px;margin-bottom:3px} .tq-h b{color:#4fc3f7;font-size:13px}
+  .tq-n{font-weight:700} .tq-rw{flex:1;min-width:0;font-size:10.5px;color:var(--g-t3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .tq-r{display:flex;align-items:center;gap:6px;padding:3px 0;border-top:1px solid rgba(255,255,255,.06)}
+  .tq-r>i{font-style:normal;width:18px;text-align:center} .tq-r>span{flex:1;min-width:0}
+  .tq-r>span em{font-style:normal;font-size:10.5px;color:var(--g-t3)}
+  .tq-r.ok>span{color:var(--g-t3);text-decoration:line-through}
+  .tq-bar{display:block;height:5px;background:rgba(255,255,255,.1);margin-top:3px} .tq-bar u{display:block;height:100%;background:#4fc3f7}
+  .tq-go{padding:2px 10px;font-size:12px;min-height:0}
+  .tq-mini{font:inherit;font-size:13px;padding:4px 10px;margin-bottom:6px;background:rgba(11,22,32,.94);color:#4fc3f7;border:2px solid #4fc3f7;cursor:pointer}
+  .tq-mini.all{color:#ffd84a;border-color:#ffd84a}
   .co-card.hot{border-color:#ff453a;animation:co-pulse 1.2s ease-in-out infinite}
   @keyframes co-pulse{50%{box-shadow:0 0 0 3px rgba(255,69,58,.35),0 3px 0 #000}}
   .co-h{display:flex;align-items:center;gap:8px;margin-bottom:4px}
@@ -5987,37 +6029,37 @@ const TY_SCN = [
      rivals = 對手的起點倍數:同一個「兩倍於榜首」的目標,從三千萬起家的人面對的是同一代還沒長大的對手。 */
   { k:'heir', home:'tpe', rivals:.7, nm:'繼承者', sub:'父親的地產帝國,和一大筆貸款',
     cash:30e8, debt:25e8, credit:78, fame:22, infl:38, biz:'dev',
-    like:['川普','庫許納(Kushner 家族)','許家印(恆大,借太多的反面教材)'], diff:2, win:'約 66%',
+    like:['川普','庫許納(Kushner 家族)','許家印(恆大,借太多的反面教材)'], diff:2, win:'約 75%',
     fun:'節奏最快:開局就能大舉借錢蓋樓、上媒體、掛名授權。爛掉的公司用破產保護切掉 —— 但借太滿會爆。',
     dsc:'你不是從零開始 —— 你從「別人願意借你錢」開始。房地產、名字、還有出事時能重來的本事。',
     perk:'借款利率 −0.6%;房地產交易成本減半;破產保護只扣一半名氣。' },
   { k:'macro', home:'lon', rivals:.6, top0:1.1, nm:'狙擊手', sub:'一支小基金,和對央行下注的膽量',
     cash:9e8, debt:0, credit:58, fame:22, infl:6, biz:'fund',
-    like:['索羅斯','德魯肯米勒(Druckenmiller)','保羅·都鐸·瓊斯'], diff:4, win:'約 38%',
+    like:['索羅斯','德魯肯米勒(Druckenmiller)','保羅·都鐸·瓊斯'], diff:4, win:'約 44%',
     fun:'看景氣燈號下注:衰退、泡沫放空,緊縮時放空外匯等央行棄守。賺得快也賠得快,要留現金。',
     dsc:'你相信價格會回到基本面,而且你知道政府撐不住的那一天長什麼樣子。',
     perk:'放空額度加倍;外匯與放空的交易成本減半;央行棄守時你賺的是別人的兩倍。' },
   { k:'float', home:'nyc', rivals:.2, top0:1.1, nm:'複利者', sub:'一家小保險公司,和四十年的耐心',
     cash:6e8, debt:0, credit:70, fame:10, infl:12, biz:'bank',
-    like:['巴菲特','蒙格','普雷姆·瓦察(Fairfax,「加拿大巴菲特」)'], diff:1, win:'約 80%',
+    like:['巴菲特','蒙格','普雷姆·瓦察(Fairfax,「加拿大巴菲特」)'], diff:1, win:'約 90%',
     fun:'最穩但前期最平淡:用保險的浮存金(零利率)買會賺錢的公司,別人恐慌時加碼,然後等。',
     dsc:'你不追求任何一季的最高分。你只要每一季都不出局,然後讓時間去做剩下的事。',
     perk:'浮存金放大 4.5 倍,而且浮存金額度內的借款零利率;所有交易成本減半;信用永遠不會掉到 45 以下。' },
   { k:'founder', home:'sfo', nm:'創辦人', sub:'一份簡報,和一個還沒被證明的東西',
     cash:2e8, debt:0, credit:45, fame:6, infl:4, biz:'tech',
-    like:['馬斯克','貝佐斯','祖克柏'], diff:3, win:'約 62%',
+    like:['馬斯克','貝佐斯','祖克柏'], diff:3, win:'約 72%',
     fun:'用到最多系統:科技公司燒錢、上市、星鏈、月球、火星。前幾季在虧錢,上市那一刻身家翻好幾倍。',
     dsc:'你手上沒有資產,只有一個故事。而這個世界會為好故事付出非常荒謬的倍數。',
     perk:'科技事業估值倍數 +50%;上市門檻減半;上市後名氣加倍成長。' },
   { k:'raider', home:'nyc', rivals:.25, top0:1.1, nm:'掠奪者', sub:'一家石油公司,和你借來的錢',
     cash:12e8, debt:6e8, credit:62, fame:14, infl:20, biz:'energy',
-    like:['伊坎(Icahn)','KKR(Kravis 與 Roberts)','布恩·皮肯斯(Boone Pickens)'], diff:5, win:'約 26%',
+    like:['伊坎(Icahn)','KKR(Kravis 與 Roberts)','布恩·皮肯斯(Boone Pickens)'], diff:5, win:'約 36%',
     fun:'互動最多:建倉、敵意收購、併吞,一路吃掉對手。仇家多、關注度高,收購失敗會掉名氣。',
     dsc:'你不創造公司,你買下它們 —— 用它們自己的資產做抵押,然後把值錢的部分拆出來賣掉。',
     perk:'敵意收購與併吞只要付 40% 的價款(其餘用對方的資產借)、敵意收購成功率 +45%、淨值有對方三成就能出手;開設事業成本 −25%;可以拆賣事業;借款上限更高。' },
   { k:'self', home:'tpe', rivals:.2, nm:'白手起家', sub:'三千萬、一間小建設行,和沒有人接你電話的事實',
     cash:.3e8, debt:0, credit:40, fame:2, infl:2, biz:'dev', bizCap:3e8,
-    like:['王永慶(台塑)','郭台銘(鴻海)','李嘉誠(長實)'], diff:4, win:'約 38%',
+    like:['王永慶(台塑)','郭台銘(鴻海)','李嘉誠(長實)'], diff:4, win:'約 52%',
     fun:'前三年最苦:錢少、借不到。先買曝光把名氣做起來,名氣夠了掛名授權,再滾大。逆轉感最強。',
     dsc:'很難的一局。沒有信用、沒有人脈、沒有安全網 —— 前三年你只有一件事可做:活著。',
     perk:'所有事業現金流 +50%(你自己下去做);名氣成長加倍;沒有任何人盯著你(關注度成長減半)。' },
@@ -8569,6 +8611,7 @@ function tyStart(scnK, seed){
         + (TY.debt? `,以及 ${tyM(TY.debt)} 的負債。` : '。'));
   TY.ap=tyApMax();
   TY.cards=null; tyCardsSync(); TY_NEWCARD=[];   // 開局的牌不用翻給你看
+  tyQuestNew();                         // 第五十五輪:第一季的三個任務
   tySave();
 }
 
@@ -8707,8 +8750,17 @@ const tyWhen = t => `${tyYear(t)} Q${tyQ(t)}`;
      6. 事件發生
      7. 追繳保證金 → 破產判定(這一步在最後,前面每一項都可能是壓垮你的那一根)
    ========================================================================= */
+/* 第五十五輪:這一季的賺賠拆成四塊(給頂欄那一條)。使用者:「很難一眼看到賺賠」。
+   公司 = 這季的現金流 + 估值變動 · 投資 = 部位市值變動 · 開銷 = 利息、稅、維持費、租金配息等現金進出 · 其他 = 太空、建倉… */
+const tyPlSnap = () => ({ nw:tyNW(), pos:tyAssetVal(), biz:tyBizTotal(), net:TY.cash-TY.debt });
+function tyPlDiff(P0){
+  const P1=tyPlSnap(), cf=TY.biz.reduce((a,b)=>a+(b.cf||0)*b.own,0);
+  const biz=(P1.biz-P0.biz)+cf, inv=P1.pos-P0.pos, cost=(P1.net-P0.net)-cf, tot=P1.nw-P0.nw;
+  return { t:TY.t, tot, biz, inv, cost, misc:tot-biz-inv-cost };
+}
 function tyNext(){
   if(!TY || TY.done) return;
+  const PL0=tyPlSnap();
   TY.t++;
   TY.news=[];
   const M=TY.macro, prevRate=M.rate;
@@ -8886,8 +8938,10 @@ function tyNext(){
      寫成 >=TY_QN 的話畫面上會出現「第 41 / 40 季 · 2036 Q1」,多跑了一季。 */
   if(!TY.done && !TY.endless && TY.t>=TY_QN-1) tyEnd('done','');      // 無盡模式(十年結算後選「繼續玩」)不再到期
   if(!TY.rt) TY.ap=tyApMax();          // 新的一季:行動點補滿(即時制改成隨時間慢慢回復,見 tyClockTick)
+  TY.pl=tyPlDiff(PL0);                 // 第五十五輪:頂欄的「上季賺賠」
   tyVictoryCheck();
   tyCardsSync();
+  tyQuestTurn();                       // 第五十五輪:季末判定「身家長多少」、發這一季的三個任務
   tySave();
 }
 
@@ -13400,6 +13454,29 @@ const TY_PLAYBOOKS = [
     ] },
 ];
 
+/* 第五十五輪:東西之間的關係。使用者:「很多操作的作用都不知道有沒有用,也不知道關聯性」。
+   每一列:第一格是按鈕(直接去做)→ 它改變的東西 → 那個東西又打開 / 影響什麼。 */
+const TY_LINKS = [
+  { go:['coachcard','build'],  a:'🏗 蓋公司',     b:'每季現金流 + 身家',   c:['🏆 經濟霸權:身家到榜首 2 倍(第 10 季起)'] },
+  { go:['coachcard','media'],  a:'📺 媒體曝光',   b:'✦ 名氣',             c:['👑 品牌授權(名氣 35 起)','📊 避險基金(名氣 20 起)','📈 上市估值更高'] },
+  { go:['coachcard','lobby'],  a:'🤝 遊說',       b:'🤝 人脈',             c:['每季指揮點變多','🚧 基建(人脈 30 起)','被查時擋得住'] },
+  { go:['modal:vault',''],     a:'🏦 金庫借錢',   b:'💵 現金',             c:['蓋更多、升級更快','⚠ 利息吃掉現金流,借太滿會破產'] },
+  { go:['coachcard','invest'], a:'📈 做多 / 📉 放空', b:'部位方向對不對',   c:['📊 避險基金的績效費 ×1.4(錯了 ×0.7)','景氣差時放空賺錢'] },
+  { go:['coachcard','deal'],   a:'📊 建倉',       b:'持有他的股票',         c:['⚔ 敵意收購更便宜、成功率更高','👑 全面併吞','⚔ 征服勝利:親手讓 3 人出局'] },
+  { go:['coachcard','recon'],  a:'🛩 偵察機',     b:'情報 3 季',           c:['打擊效果 +30%','談判成功率 +8%','看到他下一步往哪走'] },
+  { go:['coachcard','troop'],  a:'🪖 部隊',       b:'⚔ 勢力',             c:['守住你的城市','進攻他的駐軍:他勢力 −18、身家 −3%'] },
+  { go:['coachcard','star'],   a:'🛰 星鏈',       b:'那一區現金流 +10%',   c:['🌙 登月(要先有星鏈)','月球蓋 2 棟 → 🔴 火星計畫','🔴 火星殖民勝利'] },
+  { go:['coachcard','charity'],a:'🎁 慈善',       b:'👁 關注下降',         c:['不會被調查、起訴'] },
+];
+function tyLinksHTML(){
+  return `<div class="p-sec">東西之間的關係<span>按左邊的按鈕直接去做;箭頭後面是它會影響的東西</span></div>
+    <div class="lk-list">${TY_LINKS.map(l=>`<div class="lk">
+      <button type="button" class="ty-b lk-go" data-ty="${l.go[0]}"${l.go[1]?` data-k="${l.go[1]}"`:''}>${l.a}</button>
+      <i class="lk-ar">→</i><span class="lk-b">${l.b}</span><i class="lk-ar">→</i>
+      <span class="lk-c">${l.c.map(x=>`<span>${x}</span>`).join('')}</span></div>`).join('')}
+      <div class="lk warn"><span class="lk-b">蓋公司、打擊、併吞、建倉</span><i class="lk-ar">→</i><span class="lk-b">👁 關注上升</span><i class="lk-ar">→</i>
+        <span class="lk-c"><span>超過 60 開始被查 → 罰款、起訴(遊戲結束)</span></span></div></div>`;
+}
 function tyLearnTab(){
   const paths=TY_PATHS.map(p=>`<button type="button" class="ty-path" data-ty="tab" data-k="${p.go}">
       <span class="p-ic">${p.ic}</span>
@@ -13437,6 +13514,7 @@ function tyLearnTab(){
         <div class="qs-s"><i>2</i><b>讓時間跑,每季收錢</b><span>公司每季賺錢進你的現金;錢夠了再蓋、或用「⬆ 升級」讓它賺更多。</span></div>
         <div class="qs-s"><i>3</i><b>身家到榜首的兩倍就贏</b><span>右上角 🏆 看進度。小心:<em>景氣變差時公司會變不值錢</em>,借太多錢會破產。</span></div>
       </div>
+      ${tyLinksHTML()}
       <div class="p-sec">三十秒看懂<span>錢在這裡只有三條路可以走</span></div>
       <div class="ty-paths">${paths}</div>
 
@@ -13478,6 +13556,35 @@ function tyLearnTab(){
 
 /* 資源列上的每一格。跟參考畫面一樣:圖示 + 數字 + 一行小字,
    最右邊那一格是「分數」(在他們是金幣,在這裡是淨值),用金色標出來。 */
+/* ---- 頂欄第一格:上季賺賠(第五十五輪)----
+   一條「從中間往兩邊長」的條:右邊是賺的、左邊是賠的,顏色分公司 / 投資 / 開銷 / 其他。
+   數字只留一個(合計),四塊各多少寫在長按 / 滑過的提示裡。還沒過第一季時顯示「每季現金流預估」。 */
+const TY_PL_COL = { biz:'#bf5af2', inv:'#2997ff', cost:'#8e9aaf', misc:'#ffd84a' };
+const TY_PL_NM  = { biz:'公司', inv:'投資', cost:'利息稅與開銷', misc:'其他' };
+function tyPlCell(){
+  const L=TY.pl;
+  if(!L || L.t!==TY.t){
+    const est=TY.biz.reduce((a,b)=>a+tyBizCfEst(b)*b.own,0);
+    return `<div class="r pl" title="還沒過完一季 —— 先看你的公司每季大概幫你賺多少">
+      <span class="rv"><i>📊</i><b class="${est>=0?'up':'down'}">${tySgn(est)}</b></span><em>每季現金流(預估)</em></div>`;
+  }
+  const parts=['biz','inv','cost','misc'].map(k=>({ k, v:L[k] })).filter(x=>Math.abs(x.v)>1e6);
+  const sum=parts.reduce((a,x)=>a+Math.abs(x.v),0)||1;
+  const seg=side=>parts.filter(x=>side>0?x.v>0:x.v<0).map(x=>`<u style="width:${(Math.abs(x.v)/sum*100).toFixed(1)}%;background:${TY_PL_COL[x.k]}"></u>`).join('');
+  const tip=`上一季賺賠 ${tySgn(L.tot)}:`+['biz','inv','cost','misc'].map(k=>`${TY_PL_NM[k]} ${tySgn(L[k])}`).join(' · ');
+  return `<div class="r pl" title="${escH(tip)}" data-ty="modal:goal" role="button">
+    <span class="rv"><i>📊</i><b class="${L.tot>=0?'up':'down'}">${tySgn(L.tot)}</b></span>
+    <span class="pl-bar"><span class="pl-l">${seg(-1)}</span><span class="pl-r">${seg(1)}</span></span>
+    <em>上季賺賠 <i class="pl-lg">${parts.map(x=>`<s style="background:${TY_PL_COL[x.k]}"></s>${TY_PL_NM[x.k].slice(0,2)}`).join(' ')}</i></em></div>`;
+}
+/* 信用、名氣、人脈、關注 收成一格:四根小條,不放數字(數字在提示裡) */
+function tyStatCell(){
+  const S=[['★','信用',TY.credit,0],['✦','名氣',TY.fame,0],['🤝','人脈',TY.infl,0],['👁','關注',TY.heat,60]];
+  const tip=S.map(([,n,v])=>`${n} ${v.toFixed(0)}`).join(' · ')+' —— 信用:借得到多少 · 名氣:上市與品牌 · 人脈:指揮點與擋調查 · 關注:超過 60 有人查你';
+  return `<div class="r st4${TY.heat>=60?' hot':''}" title="${escH(tip)}">
+    <span class="st4-b">${S.map(([ic,n,v,d])=>`<span class="s4${d&&v>=d?' hot':''}"><i>${ic}</i><u><b style="height:${Math.max(4,Math.min(100,v)).toFixed(0)}%"></b></u></span>`).join('')}</span>
+    <em>信用 · 名氣 · 人脈 · 關注</em></div>`;
+}
 function tyResBar(){
   const M=TY.macro;
   const cell=(ic,val,lab,cls,tip)=>`<div class="r ${cls||''}" title="${escH(tip||lab)}">
@@ -13487,6 +13594,7 @@ function tyResBar(){
       <span class="rb"><u style="width:${Math.max(2,Math.min(100,v))}%"></u></span>
       <em>${lab}</em></div>`;
   return `<div class="tg-res">
+      ${tyPlCell()}
       ${cell('💵', tyM(TY.cash), '現金', TY.cash<0?'bad':'', '可以立刻動用的錢')}
       ${cell('🏦', tyM(TY.debt), '負債', TY.debt>tyBorrowMax()*.9?'bad':'',
              `年利率 ${tyRate().toFixed(2)}% · 上限 ${tyM(tyBorrowMax())}`)}
@@ -13494,10 +13602,7 @@ function tyResBar(){
         const W={ expand:['☀','擴張'], boom:['🔥','過熱'], tight:['🌥','升息'], recess:['🌧','衰退'], crisis:['⛈','危機'], recover:['🌤','復甦'] }[M.reg]||['☀','景氣'];
         return cell(W[0], W[1], '景氣', M.reg==='crisis'||M.reg==='recess'?'bad':'',
           `${TY_REGIME[M.reg].nm}:${TY_REGIME[M.reg].dsc} · 央行利率 ${M.rate.toFixed(1)}% · 通膨 ${M.inf.toFixed(1)}%`); })()}
-      ${meter('★', TY.credit, '信用', 0, '銀行願意借你多少的底')}
-      ${meter('✦', TY.fame, '名氣', 0, '上市、募資、找合夥人都看它')}
-      ${meter('🤝', TY.infl, '人脈', 0, '被查到的時候擋得住多少')}
-      ${meter('👁', TY.heat, '關注', 60, '超過 60 就有人開始查你')}
+      ${tyStatCell()}
     </div>`;
 }
 
@@ -14095,10 +14200,40 @@ function tyCoachHTML(){
     <div class="co-f">電腦判斷,不一定是最好的走法 · <button type="button" class="co-off" data-ty="coachtog">關掉教練</button></div>
   </div>`;
 }
+/* ---- 本季任務的面板(只讀)—— 放在教練卡上面,可以縮成一顆 🎯 1/3 ---- */
+let TY_QMIN=false;
+function tyQuestHTML(){
+  if(!TY || TY.done || !TY.quests || TY_PLANET) return '';
+  const Q=TY.quests, n=Q.list.filter(q=>q.done).length, R=tyQReward();
+  if(TY_QMIN) return `<button type="button" class="tq-mini${n===Q.list.length?' all':''}" data-ty="qmin" title="打開本季任務">🎯 ${n}/${Q.list.length}</button>`;
+  const rows=Q.list.map(q=>{
+    const d=q.k==='grow' ? { ic:'📈' } : TY_QUESTS[q.k];
+    let extra='', btn='';
+    if(q.k==='grow'){
+      const f=tyClamp((tyNW()-Q.nw0)/Math.max(1,Q.nw0*q.g),0,1);
+      extra=`<span class="tq-bar"><u style="width:${(q.done?100:f*100).toFixed(0)}%"></u></span>`;
+    }else if(!q.done){
+      const card=q.k==='strike' ? (tyHasCard('missile')?'missile':'air') : d.card;
+      btn=`<button type="button" class="ty-b tq-go" data-ty="coachcard" data-k="${card}">去做</button>`;
+    }
+    return `<div class="tq-r${q.done?' ok':''}"><i>${q.done?'✅':d.ic}</i><span>${escH(tyQuestName(q))}${q.k==='grow'&&!q.done?' <em>季末算</em>':''}${extra}</span>${btn}</div>`;
+  }).join('');
+  return `<div class="tq">
+    <div class="tq-h"><b>🎯 本季任務</b><span class="tq-n">${n}/${Q.list.length}</span>
+      <span class="tq-rw" title="每完成一個">每個 +${R.ap} 指揮點 · +${tyM(R.cash)} · 名氣 +${R.fame}</span>
+      <button type="button" class="co-x" data-ty="qmin" title="縮小">—</button></div>
+    ${rows}</div>`;
+}
+const tyLeftHTML = () => tyQuestHTML() + tyCoachHTML();
+/* 剛完成的任務:跳一則通知(畫面層) */
+function tyQuestFlush(){
+  while(TY_QDONE.length){ const d=TY_QDONE.shift(); tyToast(d.txt, null, 5000); try{ tySfx('unlock','next'); }catch(e){} }
+}
 function tyCoachLive(force){
   const el=document.getElementById('tyCoach'); if(!el) return;
   const now=performance.now(); if(!force && now-TY_COACH_AT<800) return; TY_COACH_AT=now;
-  const h=tyCoachHTML(); if(h!==el._sig){ el._sig=h; el.innerHTML=h; }
+  tyQuestFlush();
+  const h=tyLeftHTML(); if(h!==el._sig){ el._sig=h; el.innerHTML=h; }
 }
 
 function tyModalHTML(){
@@ -14192,7 +14327,8 @@ function tycoonPage(){
       ${tySideBtns()}
       ${TY_PLANET?tyWorldBadge():''}
       <div class="tg-toasts" id="tyToasts">${tyToastsHTML()}</div>
-      <div class="co-host" id="tyCoach">${tyCoachHTML()}</div>
+      <div class="co-host" id="tyCoach">${tyLeftHTML()}</div>
+      ${TY_FXPOP && performance.now()-TY_FXPOP_T<3500 ? `<div class="fx-pop" style="animation-delay:-${((performance.now()-TY_FXPOP_T)/1000).toFixed(2)}s"><em>效果</em>${TY_FXPOP}</div>` : ''}
       <div class="tg-battles" id="tyBattles"></div>
       <svg class="tg-moves" id="tyMoves"></svg><div class="tg-movechips" id="tyMoveChips"></div>
       <div class="tg-lay${TY_LAY_OPEN?' open':''}">
@@ -14244,14 +14380,105 @@ const tyApMax  = () => tyTester() ? 99 : Math.min(9, 6 + Math.floor((TY && TY.in
 function tyApNow(){ if(tyTester()) TY.ap = 99; if(TY && typeof TY.ap !== 'number') TY.ap = tyApMax(); return TY ? TY.ap : 0; }
 let TY_SAVES = 0;                 // tySave 被呼叫的次數:動作有沒有真的做成,看它有沒有存檔
 /* 經由畫面做一個動作:點數夠才做,做成了才扣 */
+/* =========================================================================
+   每季三個小任務(第五十五輪)。使用者:「很長時間不知道要幹嘛」。
+   每一季開始給三個任務:一個「身家長多少」+ 兩個「做一件事」(從你手上有、而且這一季做得到的牌裡挑,
+   最近做過的往後排)。完成當下就給獎勵:指揮點 +1、現金(身家 1%)、名氣 +2;三個全做完再加碼。
+   · 挑哪三個只用雜湊(種子 + 季別),不吃遊戲的亂數 —— 不改變景氣、對手的任何結果
+   · 「做一件事」靠 tyDo 記這一季做過什麼(TY.qc);「身家長多少」在季末結算後判定
+   · 畫面只讀(tyQuestHTML),發獎勵只在 tyDo / tyNext(規則層)
+   ========================================================================= */
+const TY_QUESTS = {
+  found:  { ic:'🏗', nm:'蓋一家新公司',       acts:['found'],                 card:'build',   ok:()=>true },
+  upgrade:{ ic:'⬆',  nm:'升級一家公司',       acts:['upgrade','expand','ipo'], card:'upgrade', ok:()=>TY.biz.some(b=>!TY_BIZ[b.k].shell) },
+  buy:    { ic:'📈', nm:'投資一筆資產',       acts:['buy'],                   card:'invest',  ok:()=>true },
+  short:  { ic:'📉', nm:'景氣不好:放空一次',  acts:['short'],                 card:'invest',  ok:()=>tyFundBear() && TY.credit>=45 },
+  media:  { ic:'📺', nm:'買一波媒體曝光',     acts:['media'],                 card:'media',   ok:()=>TY.fame<80 },
+  lobby:  { ic:'🤝', nm:'遊說一次(人脈)',     acts:['lobby'],                 card:'lobby',   ok:()=>TY.infl<80 },
+  recon:  { ic:'🛩', nm:'派偵察機看一個對手', acts:['recon'],                 card:'recon',   ok:()=>tyHasCard('recon') },
+  strike: { ic:'🚀', nm:'空襲或飛彈打一次',   acts:['strike'],                card:'missile', ok:()=>tyHasCard('missile') || tyHasCard('air') },
+  toe:    { ic:'📊', nm:'建倉一位對手',       acts:['toe'],                   card:'deal',    ok:()=>tyRivalsA().length>0 && tyHasCard('deal') },
+  deal:   { ic:'🤝', nm:'跟對手談一次條件',   acts:['deal:'],                 card:'deal',    ok:()=>tyRivalsA().length>0 && tyHasCard('deal') },
+  troop:  { ic:'🪖', nm:'招一支部隊或派兵',   acts:['recruit','recruitTo','deploy','march'], card:'troop', ok:()=>tyHasCard('troop') },
+  star:   { ic:'🛰', nm:'發射一批星鏈',       acts:['launch'],                card:'star',    ok:()=>tyHasCard('star') },
+  space:  { ic:'🌙', nm:'登月或推進火星計畫', acts:['moonland','mars'],       card:'moon',    ok:()=>tyHasCard('moon') && !(TY.space&&TY.space.moon) || tyHasCard('mars') && !!(TY.space&&TY.space.moon) },
+};
+const TY_Q_GROW = [.03, .05, .08];                     // 身家長多少(季初 → 季末結算後)
+const tyQReward = () => ({ ap:1, cash:Math.max(0, tyNW()*.0025), fame:1 });   // 現金 = 身家的 0.25%(身家是負的就不給:任務不能變成救命錢;給太多會變成「照著任務做就贏」,實測 1% 讓勝率整體 +20 點)
+function tyQuestNew(){
+  if(!TY) return;
+  const recent=new Set((TY.qhist||[]).slice(-4).flat());
+  const pool=Object.keys(TY_QUESTS).filter(k=>{ try{ return TY_QUESTS[k].ok(); }catch(e){ return false; } });
+  const h=k=>tyHash(`${TY.seed0||0}:${TY.t}:${k}`) / 4294967296 + (recent.has(k) ? 1 : 0);   // 最近做過的往後排
+  const pick=pool.sort((a,b)=>h(a)-h(b)).slice(0,2);
+  const g=TY_Q_GROW[tyHash(`${TY.seed0||0}:${TY.t}:g`)%TY_Q_GROW.length];
+  TY.quests={ t:TY.t, nw0:tyNW(), list:[{ k:'grow', g, done:false }, ...pick.map(k=>({ k, done:false }))] };
+  TY.qc={ t:TY.t, acts:{} };
+}
+function tyQuestGive(q){
+  const R=tyQReward();
+  if(q.k==='grow') R.ap=0;                  // 季末才判定的那一個:指揮點剛補滿,不再多給
+  q.done=true;
+  TY.ap=Math.min(tyApMax()+2, (TY.ap||0)+R.ap); TY.cash+=R.cash; TY.fame=tyClamp(TY.fame+R.fame,0,100);
+  let all='';
+  if(TY.quests.list.every(x=>x.done)){ const b=Math.max(0, tyNW()*.005); TY.cash+=b; all=` · 三個全做完 +${tyM(b)}`; }
+  tyLog('biz', `🎯 任務完成:${tyQuestName(q)}(指揮點 +${R.ap}、現金 +${tyM(R.cash)}、名氣 +${R.fame}${all})`);
+  TY_QDONE.push({ q, txt:`🎯 任務完成:<b>${tyQuestName(q)}</b> · 指揮點 +${R.ap} · 現金 +${tyM(R.cash)} · 名氣 +${R.fame}${all}` });
+}
+const TY_QDONE=[];                                     // 剛完成、等畫面跳通知的任務(畫面狀態)
+const tyQuestName = q => q.k==='grow' ? `身家比季初多 ${Math.round(q.g*100)}%` : TY_QUESTS[q.k].nm;
+/* 做了一件事(tyDo 成功之後):記下來、看有沒有任務完成 */
+function tyQuestAct(act){
+  if(!TY || !TY.quests) return;
+  if(!TY.qc || TY.qc.t!==TY.t) TY.qc={ t:TY.t, acts:{} };
+  TY.qc.acts[act]=(TY.qc.acts[act]||0)+1;
+  for(const q of TY.quests.list){
+    if(q.done || q.k==='grow') continue;
+    const d=TY_QUESTS[q.k]; if(d && d.acts.some(a=>a.endsWith(':') ? act.startsWith(a) : act===a)) tyQuestGive(q);
+  }
+}
+/* 換季(tyNext 結算之後):「身家長多少」判定一次,然後發新的三個 */
+function tyQuestTurn(){
+  if(!TY) return;
+  const Q=TY.quests;
+  if(Q && Q.t===TY.t-1){
+    const g=Q.list.find(q=>q.k==='grow' && !q.done);
+    if(g && tyNW() >= Q.nw0*(1+g.g)) tyQuestGive(g);
+    TY.qhist=[...(TY.qhist||[]), Q.list.filter(q=>q.done && q.k!=='grow').map(q=>q.k)].slice(-6);
+  }
+  tyQuestNew();
+}
+
+/* 第五十五輪:每個操作「做之前 → 做之後」。使用者:「很多操作不知道有沒有用、不知道關聯性」。
+   做完立刻在回覆下面列出真的變了的東西:身家、每季現金流、勝利進度、名氣、關注(只讀,算完就丟) */
+let TY_FXPOP='', TY_FXPOP_T=0;        // 剛做完的「做之前 → 做之後」:手牌上方浮 3.5 秒(畫面狀態)
+function tyFxSnap(){
+  const W=tyWinProg();
+  return { nw:tyShownNW(), cf:TY.biz.reduce((a,b)=>a+tyBizCfEst(b)*b.own,0),
+           win:Math.max(W.econ.v, W.war.v, W.mars.v), fame:TY.fame, heat:TY.heat };
+}
+function tyFxLine(A){
+  if(!A || !TY) return '';
+  const B=tyFxSnap(), out=[], th=Math.max(5e6, Math.abs(A.nw)*.002);
+  const chip=(lab,a,b,fmt,good)=>`<span class="fx-c ${good?'up':'down'}">${lab} ${fmt(a)} → <b>${fmt(b)}</b></span>`;
+  if(Math.abs(B.nw-A.nw)>=th) out.push(chip('身家', A.nw, B.nw, tyM, B.nw>A.nw));
+  if(Math.abs(B.cf-A.cf)>=Math.max(1e6, Math.abs(A.cf)*.01)) out.push(chip('每季現金流', A.cf, B.cf, tySgn, B.cf>A.cf));
+  if(Math.abs(B.win-A.win)>=.005) out.push(chip('勝利進度', A.win, B.win, v=>Math.round(v*100)+'%', B.win>A.win));
+  if(Math.abs(B.fame-A.fame)>=1) out.push(chip('名氣', A.fame, B.fame, v=>v.toFixed(0), B.fame>A.fame));
+  if(Math.abs(B.heat-A.heat)>=1) out.push(chip('關注', A.heat, B.heat, v=>v.toFixed(0), B.heat<A.heat));
+  return out.length ? `<span class="fx-l">${out.join('')}</span>` : '';
+}
 function tyDo(act, fn){
   const c = tyApCost(act), have = tyApNow();
   if(c > have) return `<b>行動點不夠</b> —— 這個動作要 ${c} 點,這一季只剩 ${have} 點。按「下一季」就會補滿。`;
   const s0 = TY_SAVES;
-  const msg = fn();
+  const fx0 = TY ? tyFxSnap() : null;
+  let msg = fn();
   if(TY_SAVES > s0){
     if(c && !tyTester()){ TY.ap = Math.max(0, TY.ap - c); }       // 測試人員:行動點用不完
+    tyQuestAct(act);                                                 // 第五十五輪:每季任務
     tyCardsSync(false); tySave();
+    if(typeof msg==='string'){ const fx=tyFxLine(fx0); msg += fx; if(fx){ TY_FXPOP=fx; TY_FXPOP_T=performance.now(); } }   // 第五十五輪:做之前 → 做之後
   }
   return msg;
 }
@@ -15337,6 +15564,7 @@ function bindTycoon(root){
     if(a==='coachmore'){ TY_COACH_MORE=!TY_COACH_MORE; tyCoachLive(true); return; }
     if(a==='coachpick'){ TY_PICK={ k:b.dataset.k, site:b.dataset.site }; TY_MODAL='pick'; tySfx('pick','tap'); renderPage(); return; }
     if(a==='coachcard'){ tyCardGo(b.dataset.k); return; }
+    if(a==='qmin'){ TY_QMIN=!TY_QMIN; tyCoachLive(true); return; }
     /* 面板:modal:asset / modal:log / … 。同一顆再按一次就關掉。 */
     if(a.startsWith('modal:')){
       const k=a.slice(6);
@@ -15651,11 +15879,31 @@ function tyLinkRivals(node){
     if(t.parentNode) t.parentNode.replaceChild(frag, t);
   }
 }
+/* 第五十五輪:字太多就收起來。使用者:「數字跟文字太多會眼花,字太多可以收起來,要看再點開」。
+   面板裡的長說明(expo-note / p-note / pk-d,超過 70 字、裡面沒有按鈕)預設只露兩行,點一下展開;
+   展開過的記住(用內容的雜湊),重畫之後不會又收回去。 */
+const TY_NOTE_OPEN=new Set();
+function tyClampNotes(node){
+  const root=node && node.nodeType===1 ? node : null; if(!root) return;
+  const list=root.matches && root.matches('.expo-note,.p-note,.pk-d') ? [root] : root.querySelectorAll ? root.querySelectorAll('.expo-note,.p-note,.pk-d') : [];
+  for(const el of list){
+    if(el.dataset.nc || !el.closest('.tg-mb') || el.querySelector('button,input,select,a,details') || el.textContent.length<70) continue;
+    const key=tyHash(el.textContent.slice(0,120));
+    el.dataset.nc=key; el.classList.add('nclamp');
+    if(TY_NOTE_OPEN.has(key)) el.classList.add('open');
+    el.title=el.classList.contains('open')?'':'點一下看完整說明';
+  }
+}
 let TY_RVOBS=null;
+addEventListener('click', e=>{
+  const n=e.target.closest && e.target.closest('.nclamp'); if(!n || e.target.closest('button,a,input,select')) return;
+  const k=+n.dataset.nc; n.classList.toggle('open'); if(n.classList.contains('open')) TY_NOTE_OPEN.add(k); else TY_NOTE_OPEN.delete(k);
+  n.title=n.classList.contains('open')?'':'點一下看完整說明';
+});
 function tyRvObserve(){
   const host=document.getElementById('page'); if(!host || TY_RVOBS || typeof MutationObserver!=='function') return;
   TY_RVOBS=new MutationObserver(list=>{ if(!TY) return;
-    for(const m of list){ if(m.type==='characterData') tyLinkRivals(m.target); else m.addedNodes.forEach(n=>tyLinkRivals(n)); } });
+    for(const m of list){ if(m.type==='characterData') tyLinkRivals(m.target); else m.addedNodes.forEach(n=>{ tyLinkRivals(n); tyClampNotes(n); }); } });
   TY_RVOBS.observe(host, { childList:true, subtree:true, characterData:true });
 }
 function renderPage(){
@@ -15671,6 +15919,7 @@ function renderPage(){
   host.querySelectorAll('details[data-more][open]').forEach(d=>open.add(d.dataset.more));
   tyParkGlobe();                       // 重畫之前先把 WebGL 搬出去(見上面的註解)
   host.innerHTML=`<div class="pg"><div id="pgBody">${tycoonPage()}</div></div>`;
+  tyQuestFlush();                      // 第五十五輪:剛完成的任務跳通知
   tyRvObserve();                       // 第五十三輪:對手名字都可以點(只掛一次,之後每次重畫自動處理)
   open.forEach(k=>{ const d=host.querySelector(`details[data-more="${CSS.escape(k)}"]`); if(d) d.open=true; });
   if(keep.length){
