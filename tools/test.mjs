@@ -304,7 +304,7 @@ test('帝國:破產與起訴這兩個結局真的到得了', async (browser) => 
       return ends;
     };
     // 滿槓桿押加密貨幣 → 應該有人會破產
-    const degen = play('self', () => { TY_SIZE = 1; tyBorrow(); tyBuy('crypto'); }, 16);
+    const degen = play('self', () => { TY_SIZE = 1; tyBorrow(); tyBuy('crypto'); }, 32);     // 第五十五輪:16 局只有 1 局破產,太貼邊界,加大樣本
     // 境外架構 + 借殼、但完全沒有政商關係 → 應該有人被起訴
     const dirty = play('heir', t => {
       if (t === 1) { tyFound('shell', 'cay'); tyFound('shell', 'vgb'); tySetHoldco('cay'); }
@@ -324,7 +324,7 @@ test('帝國:破產與起訴這兩個結局真的到得了', async (browser) => 
     tyClear();
     return { degen, dirty, shielded, cleanHeat };
   });
-  ok(r.degen.bankrupt > 0, `滿槓桿押加密貨幣十六局都沒有人破產:${JSON.stringify(r.degen)}`);
+  ok(r.degen.bankrupt > 0, `滿槓桿押加密貨幣三十二局都沒有人破產:${JSON.stringify(r.degen)}`);
   ok(r.dirty.indicted > 0, `境外架構 + 借殼 + 零人脈十六局都沒有人被起訴:${JSON.stringify(r.dirty)}`);
   ok(!r.shielded.indicted, `有人脈當靠山還是被起訴了:${JSON.stringify(r.shielded)}`);
   /* ⚠ 這裡不可以寫死 0。對手有機率去檢舉你(tyRivalTurn 的「對你出手」),
@@ -1864,7 +1864,7 @@ test('帝國卡牌:行動點、出牌選項、解鎖;規則函式本身不扣點
     out.unlocked = tyHasCard('air'); out.newcard = TY_NEWCARD.includes('air');
     out.cardsSaved = (JSON.parse(localStorage.getItem(TY_KEY)) || {}).cards || [];
     // 重播一致:同一個種子、同樣的規則呼叫,出不出牌(tyDo)不影響亂數
-    const run = viaDo => { tyStart('heir', 21); TY.cash = 200e8;
+    const run = viaDo => { tyStart('heir', 21); TY.cash = 200e8; TY.quests = null;     // 第五十五輪:任務獎勵是出牌之外加的一層,比的是規則本身
       const f = () => tyFound('media', 'tpe');
       viaDo ? tyDo('found', f) : f();
       for (let i = 0; i < 8; i++) tyNext();
@@ -2462,6 +2462,59 @@ test('帝國第二十輪:月球 / 火星建地(登月、火星計畫前置、補
   await page.__ctx.close();
 });
 
+test('帝國第五十五輪:每季任務、上季賺賠、做之前→做之後、長說明收起來、關係圖', async (browser) => {
+  const page = await freshPage(browser, { seed: SEED, hash: '#/tycoon' });
+  const r = await page.evaluate(async () => {
+    const out = {};
+    const tick = () => new Promise(x => setTimeout(x, 40));
+    tyStart('heir', 31); TY.rt = true; TY_SPEED = 0; TY_NEWCARD.length = 0; TY.cash += 40e8; TY_MODAL = null; renderPage(); await tick();
+    // ① 任務:開局就有三個(一個身家、兩個做事),只用雜湊挑(同一個種子同一組)
+    const Q = TY.quests;
+    out.q3 = Q && Q.list.length === 3 && Q.list[0].k === 'grow' && Q.list.slice(1).every(q => TY_QUESTS[q.k]);
+    const again = (tyStart('heir', 31), TY.quests.list.map(q => q.k).join());
+    out.det = again === Q.list.map(q => q.k).join();
+    out.panel = !!document.querySelector('#tyCoach .tq') && document.querySelectorAll('#tyCoach .tq-r').length === 3;
+    // 做到其中一個:立刻給獎勵(指揮點 +1、現金、名氣)
+    TY.cash += 40e8; TY.ap = 3; TY.quests.list[1] = { k: 'media', done: false }; const fame0 = TY.fame, ap0 = TY.ap, cash0 = TY.cash;
+    tyDo('media', () => tyPlayMedia());
+    out.reward = TY.quests.list[1].done && TY.ap > ap0 - 1 && TY.fame > fame0 + 2 && /任務完成/.test(TY.log.slice(-1)[0].txt);
+    // 換季:發新的三個、季別對得上
+    tyNext(); out.turn = TY.quests.t === TY.t && TY.quests.list.length === 3;
+    // ② 上季賺賠:四塊加起來 = 合計;頂欄第一格畫出來
+    const L = TY.pl; out.pl = !!L && Math.abs(L.biz + L.inv + L.cost + L.misc - L.tot) < 1;
+    TY_MODAL = null; renderPage(); await tick();
+    const pc = document.querySelector('.tg-res .r.pl');
+    out.plCell = !!pc && /上季賺賠/.test(pc.textContent) && !!pc.querySelector('.pl-bar') && /公司/.test(pc.title) && /投資/.test(pc.title);
+    out.st4 = !!document.querySelector('.tg-res .r.st4') && document.querySelectorAll('.tg-res .r.st4 .s4').length === 4;
+    // ③ 做之前 → 做之後:蓋公司之後回覆裡有身家、現金流的前後
+    TY.ap = 9; const m = tyDo('found', () => tyFound('dev', 'tpe'));
+    out.fx = /身家/.test(m) && /每季現金流/.test(m) && /→/.test(m);
+    renderPage(); await tick(); out.pop = !!document.querySelector('.fx-pop');
+    // ④ 長說明收起來,點一下展開
+    TY_MODAL = 'rival'; TY_RIVAL = null; renderPage(); await tick();
+    const nc = document.querySelector('.tg-mb .nclamp');
+    out.clamp = !!nc && !nc.classList.contains('open');
+    if (nc) { nc.click(); await tick(); out.open = nc.classList.contains('open'); renderPage(); await tick();
+      out.keep = !![...document.querySelectorAll('.tg-mb .nclamp.open')].length; }
+    // ⑤ 關係圖:每一列左邊是能按的按鈕
+    TY_MODAL = 'learn'; renderPage(); await tick();
+    out.links = document.querySelectorAll('.tg-mb .lk').length === TY_LINKS.length + 1
+      && [...document.querySelectorAll('.tg-mb .lk-go')].every(b => !!b.dataset.ty);
+    return out;
+  });
+  ok(r.q3 && r.det, '開局三個任務(一個身家、兩個做事),同一個種子同一組');
+  ok(r.panel, '任務面板在教練卡上面');
+  ok(r.reward, '做到任務立刻給獎勵');
+  ok(r.turn, '換季發新的三個任務');
+  ok(r.pl && r.plCell, '上季賺賠:四塊加起來等於合計,頂欄第一格畫成一條');
+  ok(r.st4, '信用、名氣、人脈、關注收成一格四根小條');
+  ok(r.fx && r.pop, '做完一件事:回覆裡有「做之前 → 做之後」,手牌上方浮出效果');
+  ok(r.clamp && r.open && r.keep, '長說明預設收起來、點一下展開、重畫不會又收回去');
+  ok(r.links, '怎麼玩:關係圖每一列左邊都是能按的按鈕');
+  ok(page.__errors.length === 0, `有 JS 錯誤:\n      ${page.__errors.join('\n      ')}`);
+  await page.__ctx.close();
+});
+
 test('帝國第五十四輪:槓桿收購有債、新牌換季才出且不擋操作、對手出兵留足防守時間、對手頁動態橫排', async (browser) => {
   const page = await freshPage(browser, { seed: SEED, hash: '#/tycoon' });
   const r = await page.evaluate(async () => {
@@ -2600,7 +2653,7 @@ test('帝國第五十二輪:平衡 —— 品牌不再無限複製、基金預�
     out.warEarly = !TY.done && /第 10 季起才算/.test(tyWinProg().war.txt);
     // 開局卡片照量出來的勝率
     const W = Object.fromEntries(TY_SCN.map(x => [x.k, x.win]));
-    out.cards = W.heir === '約 66%' && W.float === '約 80%' && W.macro === '約 38%' && W.founder === '約 62%' && W.raider === '約 26%' && W.self === '約 38%';
+    out.cards = W.heir === '約 75%' && W.float === '約 90%' && W.macro === '約 44%' && W.founder === '約 72%' && W.raider === '約 36%' && W.self === '約 52%';
     return out;
   });
   ok(r.brand, '品牌授權:第一家照名氣賺、越多家掉越快、估值倍數 12');
@@ -2632,7 +2685,7 @@ test('帝國第五十一輪:基金要靠部位、投資牌能放空、點城市�
     TY.pos = [{ k: 'tech', site: 'nyc', q: -1, cb: 1 }];
     out.shortRight = tyFundRight();
     TY.pos = []; TY.macro.reg = 'expand';
-    out.card = TY_SCN.find(x => x.k === 'macro').win === '約 38%';
+    out.card = TY_SCN.find(x => x.k === 'macro').win === '約 44%';
     // ② 投資牌:放空鈕、這座城的市場寫清楚
     TY_PICK = { k: 'invest', site: 'nyc' }; TY_MODAL = 'pick'; renderPage();
     const mb = document.querySelector('.tg-mb');
@@ -2670,7 +2723,7 @@ test('帝國第五十一輪:基金要靠部位、投資牌能放空、點城市�
   ok(r.longRight, '景氣好時有股票:狙擊手績效費 ×2.2');
   ok(r.longWrongInBear, '景氣差時只有多單:方向錯');
   ok(r.shortRight, '景氣差時有空單:方向對');
-  ok(r.card, '狙擊手卡片勝率改成量出來的約 38%(第五十二輪重量)');
+  ok(r.card, '狙擊手卡片勝率改成量出來的約 44%(第五十五輪加任務後重量)');
   ok(r.shortBtn, '投資牌面板有「放空」');
   ok(r.mkt, '投資牌面板寫出這座城的市場買得到什麼、沒有的去哪買');
   ok(r.shorted, '在投資牌上按放空真的會開空單');
@@ -2804,7 +2857,7 @@ test('帝國第三十九輪:開局不會已經霸權、坦克站在地形上、�
     out.min = !!document.querySelector('#tyCoach .co-mini') && !document.querySelector('#tyCoach .co-card');
     document.querySelector('#tyCoach [data-ty="coachmin"]').click();
     document.querySelector('#tyCoach [data-ty="coachtog"]').click();
-    out.off = !tyCoachOn() && !document.querySelector('#tyCoach').innerHTML.trim();
+    out.off = !tyCoachOn() && !document.querySelector('#tyCoach .co-card') && !document.querySelector('#tyCoach .co-mini');     // 第五十五輪:任務面板跟教練同一格,關掉教練只收掉教練卡
     localStorage.removeItem('ty-coach');
     return out;
   });
@@ -2958,7 +3011,8 @@ test('帝國第三十六輪:給新手 —— 金額四捨五入、景氣天氣�
     TY_SPEED = 0; tyStart('heir', 171); TY.rt = true; TY_NEWCARD.length = 0;
     TY.macro.reg = 'recess'; renderPage();
     const cells = [...document.querySelectorAll('.tg-res .r')];
-    out.weather = cells.length === 7 && /衰退/.test(cells[2].textContent) && /景氣/.test(cells[2].textContent) && /利率/.test(cells[2].title);
+    const wc = cells.find(c => /景氣/.test(c.textContent));     // 第五十五輪:第一格換成上季賺賠、四個數值收成一格
+    out.weather = cells.length === 5 && !!wc && /衰退/.test(wc.textContent) && /利率/.test(wc.title);
     TY_MODAL = 'vault'; renderPage();
     const adv = document.querySelector('.tg-mb details.adv');
     out.vaultAdv = !!adv && !adv.open && !!adv.querySelector('[data-ty="holdco"]') && !!document.querySelector('.tg-mb [data-ty="borrow"]');
