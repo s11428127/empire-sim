@@ -2405,6 +2405,11 @@
   /* 右側斜切的功能鈕 —— 參考畫面那組盾牌 */
   .tg-side{position:absolute;right:0;top:8px;display:flex;flex-direction:column;gap:5px;
     z-index:210}
+  /* 第五十七輪:iPad 橫放時一整排 11 顆會掉出地圖、蓋住手牌(使用者:「卡牌卡住沒辦法用」)。
+     高度不夠就往左排第二欄(grid 依 max-height 決定一欄放幾顆;rtl 讓新的一欄長在左邊)。 */
+  .tg-side{display:grid;grid-auto-flow:column;grid-template-rows:repeat(auto-fill,minmax(var(--sbh,46px),auto));
+    max-height:calc(100% - 16px);direction:rtl;align-content:start}
+  .tg-side>*{direction:ltr}
   .tg-sb.tg-tog{display:none}
   @media (max-width:599px){
     .tg-sb.tg-tog{display:flex;background:linear-gradient(160deg,#3a6a2e,#1e4218)}
@@ -2766,6 +2771,7 @@
     .tg-res .r em{font-size:8px}
     .tg-res .r i{font-size:9px}
     .tg-sb{width:48px;min-height:42px}
+    .tg-side{--sbh:42px}
     .tg-sb span{font-size:9px}
     .tg-lay .lg{display:none}
     .tg-mb{padding:12px 10px 26px}
@@ -4862,6 +4868,7 @@
     .tg-res .r{padding:6px 4px 5px} .tg-res .r b{font-size:18px} .tg-res .r em{font-size:12px} .tg-res .r i{font-size:15px}
     .tg-nb{padding-top:8px;padding-bottom:8px} .tg-nb i{font-size:21px} .tg-nb span{font-size:14px}
     .tg-sb{width:68px;min-height:56px} .tg-sb i{font-size:19px} .tg-sb span{font-size:12.5px}
+    .tg-side{--sbh:56px}
     .tg-c{font-size:14px;padding:5px 13px} .tg-lay .lg{font-size:13px}
     .tg-ticker .t-i{font-size:14.5px}
     .tg-mb{font-size:15px}
@@ -15498,6 +15505,17 @@ function bindTycoon(root){
   // 面板蓋上來的時候地球是看不到的(見 .tycon[data-modal]),那就別再燒 60fps。
   if(TY){ tyGlobeMount(); tyGlobeAwake(TY_PLANET==null && (!TY_MODAL || tySideModal())); tyPlanetMount(); } else tyParkGlobe();
   el.querySelectorAll('.hd-cards [data-card]').forEach(tyArmCard);
+  /* 第五十七輪:使用者(iPad)「卡牌卡住,沒辦法用」—— 換季發牌的動畫停在半路(牌往下沉、歪一邊)。
+     iPad 在可以橫捲的手牌裡,動畫跑到一半被捲動 / 按住時偶爾不再重畫最後一格。
+     所以不靠動畫自己收尾:每張牌播完(或被打斷)就把動畫拿掉,整排最晚 1.5 秒後一定拿掉。 */
+  const hc=el.querySelector('.hd-cards.deal');
+  if(hc){
+    const done=()=>{ hc.classList.remove('deal'); hc.querySelectorAll('.pc').forEach(c=>{ c.style.animation='none'; c.style.transform=''; c.style.opacity=''; }); };
+    hc.querySelectorAll('.pc').forEach(c=>{ const end=()=>{ c.style.animation='none'; }; c.addEventListener('animationend', end, { once:true }); c.addEventListener('animationcancel', end, { once:true }); });
+    hc.addEventListener('pointerdown', done, { once:true, capture:true });   // 一碰到手牌就直接到位
+    hc.addEventListener('scroll', done, { once:true, passive:true });
+    setTimeout(done, 1500);
+  }
   // 市場下拉是 <select>,它發的是 change 不是 click
   el.querySelectorAll('select[data-mkt]').forEach(sel=>{
     sel.onchange=()=>{ TY_MKT[sel.dataset.mkt]=sel.value; renderPage(); };
