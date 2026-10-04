@@ -2173,20 +2173,23 @@ W3D.animMove = function(m){
   const now = performance.now();
   if(now - moveBurst.t > 400) moveBurst.n = 0;
   moveBurst.t = now; const lag = moveBurst.n++ * 900;
-  focusOn(A, B, () => setTimeout(() => {
+  /* 第五十四輪:即時制(m.rt)也播 —— 動畫長度對齊真正的抵達時間(m.dur 毫秒);抵達時的開打交給遊戲(tyLiveTick → attackAt),這裡不重複 */
+  const D = (lo, hi, v) => m.dur ? clamp(m.dur, 1500, 60000) : clamp(v, lo, hi);
+  const go = cb => m.rt ? setTimeout(cb, lag) : focusOn(A, B, () => setTimeout(cb, lag));
+  go(() => {
     const land = () => { landed(m.id); floatAt(fxLayer(), B.lat, B.lng, `${TY_UNITS[m.k].ic} 抵達 ${escH(B.nm)}`, 'rv', 0); sfx('hit', 'tap'); fxAt(B.lat, B.lng, 'dust', { z: 3, dur: .7, life: 900, alt: .001 });
-      attackAt(B, m.k); };
+      if(!m.rt) attackAt(B, m.k); };
     sfx(m.k === 'raid' || m.k === 'navy' ? 'unit' : 'jet');
     if(m.k === 'raid' || m.k === 'navy'){
       const pts = routeFor('ground', A, B);
       const sea = pts.filter(p => p.mode === 'ship').length;
-      fly({ kind: 'ground', pts, unit: m.k, dur: sea ? clamp(9000 + km * .55, 9000, 18000) : clamp(4500 + km * .55, 5000, 12000),
+      fly({ kind: 'ground', pts, unit: m.k, dur: sea ? D(9000, 18000, 9000 + km * .55) : D(5000, 12000, 4500 + km * .55),
             trail: sea ? { col: ['rgba(255,255,255,0)', 'rgba(220,240,255,.8)'], w: 1.6, max: 90 } : null, done: land });
     }else{
-      fly({ kind: 'plane', from: A, to: B, arc: clamp(km / 9000 * .1, .018, .09), dur: clamp(4000 + km * .5, 5000, 10000),
+      fly({ kind: 'plane', from: A, to: B, arc: clamp(km / 9000 * .1, .018, .09), dur: D(5000, 10000, 4000 + km * .5),
             trail: { col: ['rgba(255,255,255,0)', 'rgba(255,255,255,.75)'], w: 1.1, max: 70 }, done: land });
     }
-  }, lag));
+  });
 };
 /* 偵察機:飛到目標上空繞一圈(掃描光圈 + 星星),再飛離;done 在繞完之後呼叫 */
 W3D.animRecon = function(m, done){
@@ -2511,7 +2514,9 @@ W3D.far = () => !!FAR;
 W3D.snap = function(){
   if(!TY) return null;
   const sites = {};
-  for(const s of tyMySites()) sites[s.id] = tySiteStuff(s.id).val;
+  /* 第五十四輪:分開記投資與公司(不含現金 —— 現金只是搬來搬去,不是賺賠) */
+  for(const s of tyMySites()){ const t = tySiteStuff(s.id);
+    sites[s.id] = { pos: t.pos.reduce((a, p) => a + tyPosVal(p), 0), biz: t.biz.reduce((a, b) => a + tyBizVal(b) * b.own, 0) }; }
   const rv = {};
   for(const r of tyRivalsA()) rv[r.id] = { nw: r.nw, turf: { ...(r.turf || {}) } };
   return { t: TY.t, nw: tyShownNW(), cash: TY.cash, debt: TY.debt, sites, rv,
@@ -2555,7 +2560,7 @@ function floatAt(fx, lat, lng, html, cls, delay){
   el.innerHTML = html;
   el.style.opacity = '0';
   fx.appendChild(el);
-  const t0 = performance.now() + (delay || 0), dur = 2600;
+  const t0 = performance.now() + (delay || 0), dur = (cls || '').includes('reg') ? 4200 : 2600;
   const step = now => {
     if(!el.isConnected) return;
     const p = (now - t0) / dur;
@@ -2609,18 +2614,30 @@ W3D.play = function(snap){
 
   if(!W3D.ok) return;
 
-  /* ③ 每個據點浮出這一季的賺賠。太小的不標 —— 滿球的「+0.0 億」只是噪音。 */
+  /* ③ 每個地區浮出這一季的賺賠(第五十四輪)。使用者:「換季的時候,你的資產在地圖上哪個區域賺賠多少」。
+     原本是一座城一個數字、而且把現金搬家也算進去;改成一個地區一塊:合計 + 投資 / 公司(含這季的現金流)各多少,
+     標在你在那一區最值錢的城市上。太小的不標。 */
   const rings = [];
   const ids = new Set([...Object.keys(snap.sites), ...tyMySites().map(s => s.id)]);
-  const thr = Math.max(1e7, Math.abs(nw) * .004);
-  let i = 0;
+  const thr = Math.max(5e6, Math.abs(nw) * .002);
+  const byReg = {};
   for(const id of ids){
-    const was = snap.sites[id] || 0, now = tySiteStuff(id).val;
-    const dv = now - was;
-    if(Math.abs(dv) < thr) continue;
-    const s = tySite(id), up = dv >= 0;
-    floatAt(fx, s.lat, s.lng, `${up ? '+' : '−'}${tyM(Math.abs(dv))}`, up ? 'up' : 'dn', 250 + (i++) * 110);
-    rings.push({ lat: s.lat, lng: s.lng, _rgb: up ? '255,69,58' : '48,209,88', _a: .95, _r: 3.2, _v: 3, _p: 900 });
+    const was = snap.sites[id] || { pos: 0, biz: 0 }, t = tySiteStuff(id);
+    const pos = t.pos.reduce((a, p) => a + tyPosVal(p), 0), biz = t.biz.reduce((a, b) => a + tyBizVal(b) * b.own, 0);
+    const cf = t.biz.reduce((a, b) => a + (b.cf || 0) * b.own, 0);
+    const reg = tySite(id).reg, R = byReg[reg] = byReg[reg] || { dp: 0, db: 0, cf: 0, best: null, bv: -1 };
+    R.dp += pos - was.pos; R.db += biz - was.biz; R.cf += cf;
+    if(pos + biz > R.bv){ R.bv = pos + biz; R.best = id; }
+  }
+  let i = 0;
+  const sg = v => `${v >= 0 ? '+' : '−'}${tyM(Math.abs(v))}`;
+  for(const [reg, R] of Object.entries(byReg).sort((a, b) => Math.abs(b[1].dp + b[1].db + b[1].cf) - Math.abs(a[1].dp + a[1].db + a[1].cf))){
+    const tot = R.dp + R.db + R.cf;
+    if(Math.abs(tot) < thr || !R.best) continue;
+    const s = tySite(R.best), up = tot >= 0;
+    const parts = [Math.abs(R.dp) >= thr / 2 ? `投資 ${sg(R.dp)}` : '', Math.abs(R.db + R.cf) >= thr / 2 ? `公司 ${sg(R.db + R.cf)}` : ''].filter(Boolean).join(' · ');
+    floatAt(fx, s.lat, s.lng, `<b>${escH((TY_REGIONS[reg] || {}).nm || '')} ${sg(tot)}</b>${parts ? `<i>${parts}</i>` : ''}`, (up ? 'up' : 'dn') + ' reg', 250 + (i++) * 260);
+    rings.push({ lat: s.lat, lng: s.lng, _rgb: up ? '255,69,58' : '48,209,88', _a: .95, _r: 3.6, _v: 3, _p: 900 });
   }
 
   /* ④ 對手這一季做了什麼(index 的 TY_RV_EV)—— 使用者:「我想看到對手做了什麼」。
