@@ -1619,7 +1619,7 @@ test('帝國打擊:飛彈與空襲有效果、有冷卻、打錯目標會被擋'
      要驗的是規則本身:打得到、打完真的少一塊、冷卻期間按不下去、目標不對要說清楚為什麼。 */
   const page = await freshPage(browser, { seed: SEED, hash: '#/tycoon' });
   const r = await page.evaluate(() => {
-    tyStart('heir', 99); TY.cash = 300e8;
+    tyStart('heir', 99); TY.cards = TY_CARDS.map(c => c.k); TY.cash = 300e8;
     const r1 = tyRival('r1');                       // 鄭天賜,大本營香港,中國地區勢力 55
     const out = { nw0: r1.nw, cash0: TY.cash };
     // 目標不對:要在冷卻之前檢查,不然訊息會被「冷卻中」蓋掉
@@ -2010,7 +2010,7 @@ test('帝國第十輪:立體地形的高程、音效模組不會壞、所有按�
 test('帝國第十一輪:兵種改成坦克步兵火炮補給、偵察機給情報、像素國旗正確', async (browser) => {
   const page = await freshPage(browser, { seed: SEED, hash: '#/tycoon' });
   const r = await page.evaluate(() => {
-    tyStart('heir', 7); TY.cash = 900e8; TY_MODAL = null; renderPage();
+    tyStart('heir', 7); TY.cards = TY_CARDS.map(c => c.k); TY.cash = 900e8; TY_MODAL = null; renderPage();
     const out = {};
     out.names = ['raid', 'law', 'lobby', 'mgr'].map(k => TY_UNITS[k].nm);
     out.sprites = ['raid', 'law', 'lobby', 'mgr', 'recon', 'reconTop'].every(k => PX.SPR[k] && PX.SPR[k].w > 10);
@@ -2120,6 +2120,7 @@ test('帝國第十三輪:星鏈(網路費、現金流加成、退役)、火星�
     out.lockedAtStart = !tyHasCard('star') && !tyHasCard('mars');
     tyFound('tech', home); tyFound('bank', home); tyCardsSync();
     out.starCard = tyHasCard('star');
+    TY.cards = TY_CARDS.map(c => c.k);   // 第五十六輪:發射 / 火星要手上有牌,這裡只測機制
     // 發射:扣錢、多一批、同一地區不能重複發、離岸小島不行
     const c0 = TY.cash, cost = tyStarCost();
     out.msg = tyLaunch(home);
@@ -2462,6 +2463,37 @@ test('帝國第二十輪:月球 / 火星建地(登月、火星計畫前置、補
   await page.__ctx.close();
 });
 
+test('帝國第五十六輪:還沒拿到的牌,對手頁 / 威脅卡這些側門按鈕也不能按', async (browser) => {
+  const page = await freshPage(browser, { seed: SEED, hash: '#/tycoon' });
+  const r = await page.evaluate(async () => {
+    const out = {};
+    const tick = () => new Promise(x => setTimeout(x, 30));
+    tyStart('raider', 11); TY.rt = true; TY_SPEED = 0; TY_NEWCARD.length = 0; TY.cash += 200e8; TY.ap = tyApMax(); TY_MODAL = null; renderPage();
+    const rv = tyRivalsA()[0];
+    out.noCards = !tyHasCard('missile') && !tyHasCard('air') && !tyHasCard('recon');
+    // 規則層:沒牌就擋,而且寫出怎麼解鎖
+    const why = tyBlock('strike', { k:'missile', site: rv.home });
+    out.block = /做空飛彈/.test(why || '') && /解鎖/.test(why || '');
+    out.blockRecon = /偵察機/.test(tyBlock('recon', rv.home) || '');
+    // 畫面:對手頁的做空飛彈 / 偵察機按鈕是灰的
+    TY_MODAL = 'rival'; TY_RIVAL = rv.id; renderPage(); await tick();
+    const mb = document.querySelector('.tg-mb');
+    const mis = mb.querySelector(`[data-ty="strike"][data-k="missile"]`), rec = mb.querySelector(`[data-ty="recon"]`);
+    out.grey = !!mis && mis.disabled && !!rec && rec.disabled && /還沒有「做空飛彈」牌/.test(mb.textContent);
+    // 按了也不會做(直接呼叫動作也一樣被擋)
+    const nw0 = rv.nw; mis.removeAttribute('disabled'); mis.click(); await tick();
+    out.notDone = rv.nw === nw0;
+    // 牌拿到之後就可以
+    TY.cards.push('missile', 'recon'); renderPage(); await tick();
+    const mb2 = document.querySelector('.tg-mb');
+    out.unlocked = !mb2.querySelector(`[data-ty="recon"]`).disabled && !/還沒有「偵察機」牌/.test(mb2.textContent);
+    // 不需要解鎖的牌(談判、建倉)一直都可以
+    out.toe = !tyActCard('toe') && !tyActCard('deal:pact');
+    return out;
+  });
+  for (const [k, v] of Object.entries(r)) ok(v, `第五十六輪 ${k}`);
+});
+
 test('帝國第五十五輪:每季任務、上季賺賠、做之前→做之後、長說明收起來、關係圖', async (browser) => {
   const page = await freshPage(browser, { seed: SEED, hash: '#/tycoon' });
   const r = await page.evaluate(async () => {
@@ -2672,7 +2704,7 @@ test('帝國第五十一輪:基金要靠部位、投資牌能放空、點城市�
   const page = await freshPage(browser, { seed: SEED, hash: '#/tycoon' });
   const r = await page.evaluate(() => {
     const out = {};
-    tyStart('macro', 7932); TY.rt = true; TY_SPEED = 0; TY_MODAL = null; TY_NEWCARD.length = 0; renderPage();
+    tyStart('macro', 7932); TY.cards = TY_CARDS.map(c => c.k); TY.rt = true; TY_SPEED = 0; TY_MODAL = null; TY_NEWCARD.length = 0; renderPage();
     // ① 避險基金:開越多支越稀釋;績效費看部位方向
     TY.pos = []; TY.macro.reg = 'expand';
     const r1 = tyFundRate(0), r3 = tyFundRate(2);
@@ -3209,7 +3241,7 @@ test('帝國第三十二輪:威脅卡、國家顏色只看在場的人、三條�
     const out = {};
     // 威脅卡:對手出兵 → 一張卡,有空襲 / 步兵 / 談判三顆按鈕
     TY_SPEED = 0;                                   // 時鐘停住,不然對手會在測試中途又派一支
-    tyStart('heir', 131); TY.rt = true; TY_NEWCARD.length = 0; TY.cash = 900e8; TY.t = 6;
+    tyStart('heir', 131); TY.cards = TY_CARDS.map(c => c.k); TY.rt = true; TY_NEWCARD.length = 0; TY.cash = 900e8; TY.t = 6;
     TY_ALERTS = []; TY_ALERT_EV.length = 0;
     const a = tyRivalsA()[0]; tyRivalMarch(a, tySite(TY.home).reg);
     renderPage();
@@ -3226,7 +3258,7 @@ test('帝國第三十二輪:威脅卡、國家顏色只看在場的人、三條�
     tyAlertEv({ k: 'leak', rid: a.id }); tyAlertsLive();
     out.leak = !!document.querySelector('.al-card.k-leak [data-ty="charity"]');
     // 國家顏色:只有你的部隊在泰國、對手什麼都沒有 → 你的
-    tyStart('heir', 132); TY_NEWCARD.length = 0; TY.cash = 900e8;
+    tyStart('heir', 132); TY.cards = TY_CARDS.map(c => c.k); TY_NEWCARD.length = 0; TY.cash = 900e8;
     const bkk = TY_SITES.find(x => x.iso === 'TH');
     for (const x of tyRivalsA()) { x.blds = []; if (tySite(x.home).iso === 'TH') x.home = 'hkg'; }
     tyRecruit('raid'); const u = tyUnits()[0]; u.site = bkk.id; u.to = null; TY_PWC = null;
@@ -3234,12 +3266,12 @@ test('帝國第三十二輪:威脅卡、國家顏色只看在場的人、三條�
     const P = tyIsoPower('TH'); out.th = noF ? !!(P && P.top && P.top.me) : true;
     // 三條勝利路
     out.win = TY_WIN.war.dsc.includes('3') && /月球/.test(TY_WIN.mars.dsc);
-    tyStart('heir', 133); TY.rt = true; TY_NEWCARD.length = 0; TY.t = TY_ECON_T;     // 第五十二輪:征服也是第 10 季起算
+    tyStart('heir', 133); TY.cards = TY_CARDS.map(c => c.k); TY.rt = true; TY_NEWCARD.length = 0; TY.t = TY_ECON_T;     // 第五十二輪:征服也是第 10 季起算
     const rv = tyRivalsA(); for (let i = 0; i < 3; i++) tyRivalDown(rv[i], 'me', '測試'); TY_FALLQ.length = 0;
     for (const x of tyRivalsA()) x.nw = 1e8; TY.cash = 900e8; tyNext();
     out.war = TY.done === 'win' && TY.win === 'war';
     // 預先轟炸:部隊在路上時空襲那一區 → 開打勝率 +10%
-    tyStart('heir', 134); TY.rt = true; TY_NEWCARD.length = 0; TY.cash = 900e8; TY.ap = 9;
+    tyStart('heir', 134); TY.cards = TY_CARDS.map(c => c.k); TY.rt = true; TY_NEWCARD.length = 0; TY.cash = 900e8; TY.ap = 9;
     const f = tyRivalForces()[0];
     tyRecruit('raid'); tyRecruit('raid');
     const far = TY_SITES.find(x => x.reg !== f.reg && !x.minor);
@@ -3252,7 +3284,7 @@ test('帝國第三十二輪:威脅卡、國家顏色只看在場的人、三條�
     const p1 = tyAssaultOdds(f.r.id, f.site).p;
     out.prepP = p1 > p0 || p1 >= .9;
     // 變現:賺賠大字
-    tyStart('heir', 135); TY_NEWCARD.length = 0; TY.cash = 900e8;
+    tyStart('heir', 135); TY.cards = TY_CARDS.map(c => c.k); TY_NEWCARD.length = 0; TY.cash = 900e8;
     TY_SIZE = .25; tyBuy('semi', TY.home);
     TY_PICK = { k: 'sell', site: TY.home }; TY_MODAL = 'pick'; renderPage();
     out.pl = !!document.querySelector('.pk-pl') && !!document.querySelector('#tySizeRange') && document.querySelectorAll('[data-ty="size"]').length >= 6;
@@ -3370,7 +3402,7 @@ test('帝國第二十九輪:空襲打來襲部隊 / 空中支援、飛彈斷軍�
   const r = await page.evaluate(() => {
     const out = {};
     // 空襲打正往你這裡來的部隊:攻擊力 ×0.4,太弱就撤回
-    tyStart('heir', 101); TY_NEWCARD.length = 0; TY.cash = 900e8;
+    tyStart('heir', 101); TY.cards = TY_CARDS.map(c => c.k); TY_NEWCARD.length = 0; TY.cash = 900e8;
     const a = tyRivalsA()[0]; a.rel = -80;
     tyRivalMarch(a, tySite(TY.home).reg);
     const th = tyThreats()[0]; const p0 = th.pow;
@@ -3382,30 +3414,30 @@ test('帝國第二十九輪:空襲打來襲部隊 / 空中支援、飛彈斷軍�
     tyRivalMarch(a, tySite(TY.home).reg); const th2 = tyThreats()[0]; th2.pow = 3; const b0 = tyThreatBlock(th2);
     tyStrike('air', th2.site); out.weak = tyThreats().includes(th2) && tyThreatBlock(th2) > b0;
     // 空中支援:你正在打他 → 勝率 +15%
-    tyStart('heir', 102); TY.rt = true; TY_NEWCARD.length = 0; TY.cash = 900e8; TY.ap = 9;
+    tyStart('heir', 102); TY.cards = TY_CARDS.map(c => c.k); TY.rt = true; TY_NEWCARD.length = 0; TY.cash = 900e8; TY.ap = 9;
     const f = tyRivalForces()[0];
     for (let i = 0; i < 2; i++) tyRecruit('raid');
     for (const u of tyUnits()) { u.site = f.site; u.to = null; }
     tyAssault(f.r.id, f.site); const bt = tyBattles()[0], pb = bt.p;
     tyStrike('air', f.site); out.support = bt.air && Math.abs(bt.p - Math.min(.9, pb + .15)) < 1e-9;
     // 做空飛彈:他路上的部隊攻擊力 ×0.7、各地駐軍勢力 −3
-    tyStart('heir', 103); TY_NEWCARD.length = 0; TY.cash = 900e8;
+    tyStart('heir', 103); TY.cards = TY_CARDS.map(c => c.k); TY_NEWCARD.length = 0; TY.cash = 900e8;
     const m = tyRivalsA()[0]; m.rel = -80; tyRivalMarch(m, tySite(TY.home).reg);
     const mt = tyThreats()[0], mp = mt.pow, g = Object.keys(m.turf).find(k => m.turf[k] > 10), t0 = m.turf[g];
     tyStrike('missile', m.home);
     out.missile = Math.abs(mt.pow - mp * .7) < 1e-9 && m.turf[g] < t0;
     // 平衡:比中位數大很多的人長得比較慢;大的不准再吃
-    tyStart('heir', 104); TY_NEWCARD.length = 0;
+    tyStart('heir', 104); TY.cards = TY_CARDS.map(c => c.k); TY_NEWCARD.length = 0;
     out.med = tySizeMed() > 0;
     // 簡報一季最多一份
-    tyStart('heir', 105); TY_NEWCARD.length = 0; TY.t = 8;
+    tyStart('heir', 105); TY.cards = TY_CARDS.map(c => c.k); TY_NEWCARD.length = 0; TY.t = 8;
     for (const x of tyRivalsA()) { x.rel = -90; x.nw = tyShownNW() * 3; }
     const h0 = TY.heat; const orig = window.tyRnd; let i = 0;
     window.tyRnd = () => [.7, .6][i++ % 2];         // 走到「對你出手」、手法選「簡報」
     try { for (const x of tyRivalsA()) tyRivalAct(x); } finally { window.tyRnd = orig; }
     out.leak = TY.heat - h0 <= 5 + 1e-9 && TY.log.filter(l => /簡報/.test(l.txt)).length === 1;
     // 投資看得懂:期望報酬、順風逆風、排序、白話
-    tyStart('heir', 106); TY_NEWCARD.length = 0; TY.cash = 100e8;
+    tyStart('heir', 106); TY.cards = TY_CARDS.map(c => c.k); TY_NEWCARD.length = 0; TY.cash = 100e8;
     const o = tyAssetOutlook('semi');
     out.outlook = typeof o.m === 'number' && isFinite(o.m) && o.v > 0 && /順風|普通|逆風/.test(o.tag.t) && o.why.length > 3;
     const id = TY_SITES.find(x => tyInvestOpts(x.id).length >= 4).id;
